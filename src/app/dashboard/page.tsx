@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  User, Trophy, Users, Bell, Settings, TrendingUp,
+  Trophy, Users, Bell, Settings, TrendingUp,
   Swords, Clock, CheckCircle2, XCircle, Plus, ChevronRight,
   Star, Target, Zap,
 } from "lucide-react";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { mockPlayers, mockTournaments, mockTeams } from "@/data/mock";
-import { formatDate, formatCurrency } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 // Mock current user
 const currentUser = mockPlayers[0];
@@ -68,15 +68,9 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="relative">
+            <Button variant="outline" size="icon">
               <Bell className="w-4 h-4" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[var(--primary)] rounded-full" />
             </Button>
-            <Link href="/dashboard/settings">
-              <Button variant="outline" size="icon">
-                <Settings className="w-4 h-4" />
-              </Button>
-            </Link>
           </div>
         </div>
 
@@ -86,7 +80,7 @@ export default function DashboardPage() {
             { label: "ELO", value: currentUser.elo.toLocaleString(), icon: TrendingUp, color: "text-[var(--primary)]" },
             { label: "Win Rate", value: `${winRate}%`, icon: Trophy, color: "text-green-400" },
             { label: "K/D Ratio", value: kd, icon: Swords, color: "text-orange-400" },
-            { label: "HS Rate", value: `${hsRate}%`, icon: Target, color: "text-purple-400" },
+            { label: "HS Rate", value: `${hsRate}%`, icon: Target, color: "text-orange-400" },
           ].map((stat) => (
             <div key={stat.label} className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]">
               <div className="flex items-center gap-2 mb-1">
@@ -132,7 +126,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm group-hover:text-[var(--primary)] transition-colors truncate">{tournament.name}</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{formatDate(tournament.startDate)}</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">{formatDate(tournament.startsAt ?? "")}</div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {checkedIn && (
@@ -169,7 +163,7 @@ export default function DashboardPage() {
                           <div>
                             <div className="font-black text-lg">{userTeam.name}</div>
                             <div className="text-xs text-[var(--muted-foreground)]">
-                              {userTeam.wins}W / {userTeam.losses}L · Rank #{userTeam.rank}
+                              {userTeam.wins}V / {userTeam.losses}D
                             </div>
                           </div>
                         </div>
@@ -178,21 +172,26 @@ export default function DashboardPage() {
                         </Button>
                       </div>
                       <div className="space-y-2">
-                        {userTeam.members.map((member, i) => (
+                        {userTeam.members?.map((member, i) => {
+                          const nick = member.profile?.nickname ?? "—";
+                          const avatar = member.profile?.avatar ?? undefined;
+                          const elo = member.profile?.elo ?? 0;
+                          return (
                           <div key={member.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-[var(--secondary)]">
                             <Avatar className="h-8 w-8">
-                              <AvatarImage src={member.avatar} />
-                              <AvatarFallback className="text-xs">{member.nickname[0]}</AvatarFallback>
+                              <AvatarImage src={avatar} />
+                              <AvatarFallback className="text-xs">{nick[0]}</AvatarFallback>
                             </Avatar>
-                            <span className="text-sm font-medium flex-1">{member.nickname}</span>
+                            <span className="text-sm font-medium flex-1">{nick}</span>
                             {i === 0 && (
                               <Badge variant="gold" className="text-xs">
                                 <Star className="w-3 h-3" /> Capitão
                               </Badge>
                             )}
-                            <span className="text-xs text-[var(--primary)] font-bold">{member.elo} ELO</span>
+                            <span className="text-xs text-[var(--primary)] font-bold">{elo} ELO</span>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -293,18 +292,17 @@ export default function DashboardPage() {
             </div>
 
             {/* Next match */}
-            <div className="p-5 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/3">
+            <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--card)]">
               <div className="flex items-center gap-2 mb-3 text-[var(--primary)] text-sm font-semibold">
                 <Zap className="w-4 h-4" /> Próxima Partida
               </div>
-              <div className="text-sm font-bold mb-1">FURIA vs MIBR</div>
-              <div className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] mb-3">
-                <Clock className="w-3 h-3" /> Hoje, 18:00 · Torneio Semanal
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="gradient" className="flex-1 text-xs">Check-in</Button>
-                <Link href="/tournaments/t3">
-                  <Button size="sm" variant="outline" className="text-xs">Ver</Button>
+              <div className="py-4 text-center">
+                <Clock className="w-8 h-8 text-[var(--muted-foreground)] mx-auto mb-2 opacity-40" />
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Nenhuma partida agendada.
+                </p>
+                <Link href="/tournaments" className="inline-block mt-3">
+                  <Button size="sm" variant="outline" className="text-xs">Ver campeonatos</Button>
                 </Link>
               </div>
             </div>

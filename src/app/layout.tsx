@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
+import { getCurrentProfile } from "@/lib/profiles";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,18 +32,33 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const currentProfile = await getCurrentProfile();
+
   return (
     <html
       lang="pt-BR"
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
-        <Header />
+        <Header
+          user={
+            currentProfile
+              ? {
+                  displayName: currentProfile.steamPersonaName,
+                  steamAvatarUrl: currentProfile.steamAvatarUrl,
+                  elo: currentProfile.elo,
+                  publicId: currentProfile.publicId,
+                  isAdmin: currentProfile.isAdmin,
+                }
+              : null
+          }
+        />
         <main className="flex-1">{children}</main>
         <Footer />
       </body>

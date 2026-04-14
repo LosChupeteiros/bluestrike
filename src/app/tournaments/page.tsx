@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, SlidersHorizontal, Trophy, X, LayoutGrid, List } from "lucide-react";
+import { Search, Trophy, X, LayoutGrid, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import TournamentCard from "@/components/tournament/tournament-card";
 import { mockTournaments } from "@/data/mock";
 import { cn } from "@/lib/utils";
@@ -18,13 +16,6 @@ const STATUS_FILTERS: { label: string; value: TournamentStatus | "all" }[] = [
   { label: "Finalizados", value: "finished" },
 ];
 
-const FORMAT_LABELS: Record<string, string> = {
-  single_elimination: "Simples",
-  double_elimination: "Duplo",
-  round_robin: "Round Robin",
-  swiss: "Swiss",
-};
-
 export default function TournamentsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TournamentStatus | "all">("all");
@@ -34,7 +25,7 @@ export default function TournamentsPage() {
     return mockTournaments.filter((t) => {
       const matchesSearch =
         t.name.toLowerCase().includes(search.toLowerCase()) ||
-        t.description.toLowerCase().includes(search.toLowerCase());
+        (t.description ?? "").toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === "all" || t.status === statusFilter;
       return matchesSearch && matchesStatus;
     });

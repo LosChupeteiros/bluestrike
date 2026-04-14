@@ -1,37 +1,35 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { Menu, Shield, Swords, X } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Menu,
-  X,
-  Trophy,
-  ChevronDown,
-  Bell,
-  User,
-  LayoutDashboard,
-  LogOut,
-  Shield,
-  Swords,
-} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/tournaments", label: "Campeonatos" },
+  { href: "/teams", label: "Times" },
   { href: "/ranking", label: "Ranking" },
 ];
 
-// Mock auth state — replace with real session
-const MOCK_USER = null as null | { name: string; avatar?: string; isAdmin?: boolean };
+interface HeaderUser {
+  displayName: string;
+  steamAvatarUrl: string | null;
+  elo: number;
+  publicId: number;
+  isAdmin: boolean;
+}
 
-export default function Header() {
+interface HeaderProps {
+  user: HeaderUser | null;
+}
+
+export default function Header({ user }: HeaderProps) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const user = MOCK_USER;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -39,10 +37,9 @@ export default function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
+  function closeMobileMenu() {
     setMobileOpen(false);
-    setUserMenuOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <header
@@ -55,8 +52,7 @@ export default function Header() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <Link href="/" className="flex items-center gap-2.5 group" onClick={closeMobileMenu}>
             <div className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--primary)] shadow-md group-hover:shadow-[0_0_16px_rgba(0,200,255,0.5)] transition-shadow">
               <Swords className="w-5 h-5 text-black" />
             </div>
@@ -65,7 +61,6 @@ export default function Header() {
             </span>
           </Link>
 
-          {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
@@ -73,7 +68,7 @@ export default function Header() {
                 href={link.href}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  pathname === link.href || pathname.startsWith(link.href + "/")
+                  pathname === link.href || pathname.startsWith(`${link.href}/`)
                     ? "text-[var(--primary)] bg-[var(--primary)]/10"
                     : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)]"
                 )}
@@ -83,72 +78,64 @@ export default function Header() {
             ))}
           </nav>
 
-          {/* Right side */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <>
-                <button className="relative p-2 rounded-md hover:bg-[var(--secondary)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                  <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--primary)] rounded-full" />
-                </button>
+                <Link
+                  href={`/profile/${user.publicId}`}
+                  className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 transition-all hover:border-[var(--primary)]/40 hover:bg-[var(--secondary)]"
+                >
+                  <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
+                    <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
+                    <AvatarFallback className="font-black text-[var(--primary)]">
+                      {user.displayName.slice(0, 1).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <div className="relative">
-                  <button
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-[var(--secondary)] transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-[var(--primary)] flex items-center justify-center text-black font-bold text-xs">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                      ) : (
-                        user.name[0].toUpperCase()
-                      )}
+                  <div className="min-w-0">
+                    <div className="max-w-[160px] truncate text-sm font-semibold group-hover:text-[var(--primary)] transition-colors">
+                      {user.displayName}
                     </div>
-                    <span className="text-sm font-medium">{user.name}</span>
-                    <ChevronDown className={cn("w-4 h-4 transition-transform", userMenuOpen && "rotate-180")} />
-                  </button>
+                    <div className="mt-0.5 text-[11px] font-mono font-semibold uppercase tracking-[0.18em] text-[var(--primary)]/80">
+                      {user.elo} ELO
+                    </div>
+                  </div>
+                </Link>
 
-                  {userMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-52 rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl py-1 z-50">
-                      <Link href="/dashboard" className="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--secondary)] transition-colors">
-                        <LayoutDashboard className="w-4 h-4 text-[var(--muted-foreground)]" />
-                        Dashboard
-                      </Link>
-                      <Link href="/dashboard/profile" className="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--secondary)] transition-colors">
-                        <User className="w-4 h-4 text-[var(--muted-foreground)]" />
-                        Meu Perfil
-                      </Link>
-                      {user.isAdmin && (
-                        <Link href="/admin" className="flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--secondary)] transition-colors text-[var(--primary)]">
-                          <Shield className="w-4 h-4" />
-                          Admin
-                        </Link>
-                      )}
-                      <div className="h-px bg-[var(--border)] my-1" />
-                      <button className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors">
-                        <LogOut className="w-4 h-4" />
-                        Sair
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {user.isAdmin && (
+                  <Link href="/admin">
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Shield className="w-4 h-4" />
+                      Admin
+                    </Button>
+                  </Link>
+                )}
+
+                <Button asChild variant="ghost" size="sm">
+                  <a href="/api/auth/logout">
+                    Sair
+                  </a>
+                </Button>
               </>
             ) : (
               <>
                 <Link href="/auth/login">
-                  <Button variant="ghost" size="sm">Entrar</Button>
+                  <Button variant="ghost" size="sm">
+                    Entrar
+                  </Button>
                 </Link>
                 <Link href="/auth/login">
-                  <Button size="sm" variant="gradient">Começar agora</Button>
+                  <Button size="sm" variant="gradient">
+                    Comecar agora
+                  </Button>
                 </Link>
               </>
             )}
           </div>
 
-          {/* Mobile hamburger */}
           <button
             className="md:hidden p-2 rounded-md hover:bg-[var(--secondary)] transition-colors"
-            onClick={() => setMobileOpen(!mobileOpen)}
+            onClick={() => setMobileOpen((current) => !current)}
             aria-label="Menu"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -156,17 +143,17 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden border-t border-[var(--border)] bg-[var(--background)]/98 backdrop-blur-md">
-          <div className="px-4 py-4 space-y-1">
+          <div className="px-4 py-4 space-y-3">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={closeMobileMenu}
                 className={cn(
                   "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                  pathname === link.href
+                  pathname === link.href || pathname.startsWith(`${link.href}/`)
                     ? "text-[var(--primary)] bg-[var(--primary)]/10"
                     : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)]"
                 )}
@@ -174,27 +161,58 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
-            <div className="pt-3 flex flex-col gap-2">
+
+            <div className="pt-2">
               {user ? (
-                <>
-                  <Link href="/dashboard">
-                    <Button variant="outline" size="sm" className="w-full justify-start gap-2">
-                      <LayoutDashboard className="w-4 h-4" /> Dashboard
+                <div className="space-y-2">
+                  <Link
+                    href={`/profile/${user.publicId}`}
+                    onClick={closeMobileMenu}
+                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-3"
+                  >
+                    <Avatar className="h-10 w-10 ring-1 ring-[var(--primary)]/20">
+                      <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
+                      <AvatarFallback className="font-black text-[var(--primary)]">
+                        {user.displayName.slice(0, 1).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold">{user.displayName}</div>
+                      <div className="mt-0.5 text-[11px] font-mono font-semibold uppercase tracking-[0.18em] text-[var(--primary)]/80">
+                        {user.elo} ELO
+                      </div>
+                    </div>
+                  </Link>
+
+                  {user.isAdmin && (
+                    <Link href="/admin" onClick={closeMobileMenu}>
+                      <Button variant="outline" size="sm" className="w-full justify-start gap-2">
+                        <Shield className="w-4 h-4" />
+                        Admin
+                      </Button>
+                    </Link>
+                  )}
+
+                  <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+                    <a href="/api/auth/logout" onClick={closeMobileMenu}>
+                      Sair
+                    </a>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Link href="/auth/login" onClick={closeMobileMenu} className="w-full">
+                    <Button variant="outline" size="sm" className="w-full">
+                      Entrar
                     </Button>
                   </Link>
-                  <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-red-400">
-                    <LogOut className="w-4 h-4" /> Sair
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/auth/login" className="w-full">
-                    <Button variant="outline" size="sm" className="w-full">Entrar</Button>
+                  <Link href="/auth/login" onClick={closeMobileMenu} className="w-full">
+                    <Button size="sm" variant="gradient" className="w-full">
+                      Comecar agora
+                    </Button>
                   </Link>
-                  <Link href="/auth/login" className="w-full">
-                    <Button size="sm" variant="gradient" className="w-full">Começar agora</Button>
-                  </Link>
-                </>
+                </div>
               )}
             </div>
           </div>

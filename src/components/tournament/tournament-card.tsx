@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, Users, Trophy, ArrowRight, Clock, Zap } from "lucide-react";
+import { Calendar, Users, Trophy, ArrowRight, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -21,8 +21,9 @@ interface TournamentCardProps {
 }
 
 export default function TournamentCard({ tournament, featured = false }: TournamentCardProps) {
-  const spotsLeft = tournament.maxTeams - tournament.registeredTeams;
-  const fillPercent = (tournament.registeredTeams / tournament.maxTeams) * 100;
+  const registered = tournament.registeredTeamsCount ?? 0;
+  const spotsLeft = tournament.maxTeams - registered;
+  const fillPercent = (registered / tournament.maxTeams) * 100;
   const isFull = spotsLeft === 0;
 
   if (featured) {
@@ -59,7 +60,7 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
               <div>
                 <div className="text-xs text-[var(--muted-foreground)]">Premiação Total</div>
-                <div className="text-lg font-black text-yellow-400">{formatCurrency(tournament.prize)}</div>
+                <div className="text-lg font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
               </div>
             </div>
 
@@ -67,11 +68,11 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
             <div className="flex items-center gap-4 text-xs text-[var(--muted-foreground)] mb-4">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                {formatDate(tournament.startDate)}
+                {formatDate(tournament.startsAt ?? "")}
               </span>
               <span className="flex items-center gap-1">
                 <Users className="w-3.5 h-3.5" />
-                {tournament.registeredTeams}/{tournament.maxTeams} times
+                {registered}/{tournament.maxTeams} times
               </span>
             </div>
 
@@ -120,17 +121,17 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
             <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> {formatDate(tournament.startDate)}
+              <Calendar className="w-3 h-3" /> {formatDate(tournament.startsAt ?? "")}
             </span>
             <span className="flex items-center gap-1">
-              <Users className="w-3 h-3" /> {tournament.registeredTeams}/{tournament.maxTeams}
+              <Users className="w-3 h-3" /> {registered}/{tournament.maxTeams}
             </span>
           </div>
         </div>
 
         {/* Prize */}
         <div className="text-right shrink-0 hidden sm:block">
-          <div className="text-sm font-black text-yellow-400">{formatCurrency(tournament.prize)}</div>
+          <div className="text-sm font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
           <div className="text-xs text-[var(--muted-foreground)]">premiação</div>
         </div>
 

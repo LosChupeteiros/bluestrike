@@ -1,11 +1,21 @@
 import Link from "next/link";
-import { Swords, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { redirect } from "next/navigation";
+import { AlertTriangle, ShieldCheck, Swords } from "lucide-react";
 import type { Metadata } from "next";
+import { sanitizeNextPath } from "@/lib/auth/steam";
+import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 
 export const metadata: Metadata = { title: "Entrar" };
 
-// Steam SVG icon
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  steam_not_configured: "A chave da Steam ainda nao foi configurada no ambiente.",
+  supabase_not_configured: "As variaveis do Supabase ainda nao foram configuradas no ambiente.",
+  steam_validation_failed: "Nao foi possivel validar o retorno da Steam. Tente novamente.",
+  steam_profile_fetch_failed: "A Steam autenticou, mas falhou ao buscar os dados publicos do perfil.",
+  profile_save_failed: "A Steam autenticou, mas o BlueStrike nao conseguiu salvar seu perfil no Supabase. Use uma chave secreta de backend em SUPABASE_SECRET_KEY.",
+  steam_login_failed: "A Steam autenticou, mas houve uma falha ao criar sua sessao no BlueStrike.",
+};
+
 function SteamIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -14,17 +24,33 @@ function SteamIcon() {
   );
 }
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{
+    next?: string;
+    error?: string;
+  }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const [currentProfile, params] = await Promise.all([getCurrentProfile(), searchParams]);
+
+  const nextPath = sanitizeNextPath(params.next);
+
+  if (currentProfile) {
+    redirect(nextPath === "/profile" ? resolveProfilePath(currentProfile) : nextPath);
+  }
+
+  const steamLoginHref =
+    nextPath === "/profile" ? "/api/auth/steam" : `/api/auth/steam?next=${encodeURIComponent(nextPath)}`;
+  const errorMessage = params.error ? LOGIN_ERROR_MESSAGES[params.error] ?? "Nao foi possivel entrar com a Steam." : null;
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-20 pb-12">
-      {/* BG */}
       <div className="fixed inset-0 grid-bg opacity-50 pointer-events-none" />
       <div className="fixed top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative w-full max-w-md">
-        {/* Card */}
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 shadow-2xl">
-          {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[var(--primary)] mb-4 shadow-lg glow">
               <Swords className="w-7 h-7 text-black" />
@@ -33,35 +59,52 @@ export default function LoginPage() {
               Blue<span className="text-[var(--primary)]">Strike</span>
             </h1>
             <p className="text-sm text-[var(--muted-foreground)] mt-1 text-center">
-              Entre na sua conta para competir nos melhores campeonatos de CS2
+              Entre com sua conta da Steam para competir e completar seu cadastro competitivo.
             </p>
           </div>
 
-          {/* Steam login — PRIMARY */}
+          {errorMessage && (
+            <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
-            <button className="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-[#1b2838] hover:bg-[#253547] border border-[#1b2838] hover:border-[#4c6b8a] text-white font-bold text-sm transition-all duration-200 shadow-md hover:shadow-[0_0_20px_rgba(70,130,180,0.3)] active:scale-[0.98]">
+            <a
+              href={steamLoginHref}
+              className="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-[#1b2838] hover:bg-[#253547] border border-[#1b2838] hover:border-[#4c6b8a] text-white font-bold text-sm transition-all duration-200 shadow-md hover:shadow-[0_0_20px_rgba(70,130,180,0.3)] active:scale-[0.98]"
+            >
               <SteamIcon />
               Entrar com Steam
-            </button>
+            </a>
 
-            <div className="relative flex items-center gap-3">
-              <div className="flex-1 h-px bg-[var(--border)]" />
-              <span className="text-xs text-[var(--muted-foreground)]">ou continue com</span>
-              <div className="flex-1 h-px bg-[var(--border)]" />
-            </div>
-
-            <button className="w-full flex items-center justify-center gap-3 h-12 rounded-xl border border-[var(--border)] bg-transparent hover:bg-[var(--secondary)] text-[var(--foreground)] font-medium text-sm transition-all duration-200 active:scale-[0.98]">
+            <button
+              type="button"
+              disabled
+              className="w-full flex items-center justify-center gap-3 h-12 rounded-xl border border-[var(--border)] bg-transparent text-[var(--muted-foreground)] font-medium text-sm opacity-60 cursor-not-allowed"
+            >
               <svg viewBox="0 0 24 24" className="w-4 h-4">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
-              Entrar com Google
+              Google em breve
             </button>
           </div>
 
-          {/* Trust */}
+          <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]/80">
+              Cadastro obrigatorio apos login
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
+              Vamos pedir Nome Completo, CPF, Celular e Data de Nascimento para liberar o seu perfil competitivo.
+            </p>
+          </div>
+
           <div className="mt-6 flex items-center justify-center gap-4 text-xs text-[var(--muted-foreground)]">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
@@ -69,23 +112,29 @@ export default function LoginPage() {
             </span>
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
-              Sem senhas armazenadas
+              Sessao protegida
             </span>
           </div>
 
-          {/* Terms */}
           <p className="text-center text-xs text-[var(--muted-foreground)] mt-6 leading-relaxed">
-            Ao entrar, você concorda com nossos{" "}
-            <Link href="/terms" className="text-[var(--primary)] hover:underline">Termos de Uso</Link>{" "}
+            Ao entrar, voce concorda com nossos{" "}
+            <Link href="/terms" className="text-[var(--primary)] hover:underline">
+              Termos de Uso
+            </Link>{" "}
             e{" "}
-            <Link href="/privacy" className="text-[var(--primary)] hover:underline">Política de Privacidade</Link>.
+            <Link href="/privacy" className="text-[var(--primary)] hover:underline">
+              Politica de Privacidade
+            </Link>
+            .
           </p>
         </div>
 
-        {/* Back link */}
         <div className="text-center mt-6">
-          <Link href="/" className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
-            ← Voltar para o início
+          <Link
+            href="/"
+            className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            Voltar para o inicio
           </Link>
         </div>
       </div>

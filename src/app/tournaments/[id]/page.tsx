@@ -13,18 +13,13 @@ import { mockTournaments, mockTeams } from "@/data/mock";
 import { formatDate, formatCurrency, getStatusLabel } from "@/lib/utils";
 import type { Metadata } from "next";
 
-interface Params {
-  id: string;
-}
+interface Params { id: string }
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { id } = await params;
   const tournament = mockTournaments.find((t) => t.id === id);
   if (!tournament) return { title: "Campeonato não encontrado" };
-  return {
-    title: tournament.name,
-    description: tournament.description,
-  };
+  return { title: tournament.name, description: tournament.description ?? undefined };
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -35,10 +30,7 @@ const FORMAT_LABELS: Record<string, string> = {
 };
 
 const STATUS_VARIANT: Record<string, "open" | "ongoing" | "finished" | "upcoming"> = {
-  open: "open",
-  ongoing: "ongoing",
-  finished: "finished",
-  upcoming: "upcoming",
+  open: "open", ongoing: "ongoing", finished: "finished", upcoming: "upcoming",
 };
 
 export default async function TournamentDetailPage({ params }: { params: Promise<Params> }) {
@@ -46,10 +38,11 @@ export default async function TournamentDetailPage({ params }: { params: Promise
   const tournament = mockTournaments.find((t) => t.id === id);
   if (!tournament) notFound();
 
-  const spotsLeft = tournament.maxTeams - tournament.registeredTeams;
-  const fillPercent = (tournament.registeredTeams / tournament.maxTeams) * 100;
+  const registered = tournament.registeredTeamsCount ?? 0;
+  const spotsLeft  = tournament.maxTeams - registered;
+  const fillPercent = (registered / tournament.maxTeams) * 100;
   const isFull = spotsLeft === 0;
-  const teams = mockTeams.slice(0, Math.min(tournament.registeredTeams, mockTeams.length));
+  const teams = mockTeams.slice(0, Math.min(registered, mockTeams.length));
 
   return (
     <div className="pt-20 pb-20 min-h-screen">
@@ -57,9 +50,7 @@ export default async function TournamentDetailPage({ params }: { params: Promise
       <div className="relative h-56 sm:h-72 bg-gradient-to-br from-cyan-950 via-slate-900 to-black overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-60" />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-transparent" />
-        <div className="absolute -top-20 -right-20 w-80 h-80 bg-[var(--primary)]/10 rounded-full blur-3xl" />
         <div className="absolute bottom-8 left-0 right-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] mb-3">
             <Link href="/" className="hover:text-[var(--foreground)] transition-colors">Início</Link>
             <ChevronRight className="w-3 h-3" />
@@ -74,10 +65,10 @@ export default async function TournamentDetailPage({ params }: { params: Promise
                 {getStatusLabel(tournament.status)}
               </Badge>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{tournament.name}</h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1">Por {tournament.organizer}</p>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">Por {tournament.organizerName}</p>
             </div>
             <div className="hidden sm:block shrink-0">
-              <div className="text-3xl font-black text-yellow-400">{formatCurrency(tournament.prize)}</div>
+              <div className="text-3xl font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
               <div className="text-xs text-[var(--muted-foreground)] text-right">premiação total</div>
             </div>
           </div>
@@ -91,7 +82,7 @@ export default async function TournamentDetailPage({ params }: { params: Promise
             <Tabs defaultValue="info">
               <TabsList className="w-full justify-start mb-6 bg-[var(--card)] border border-[var(--border)]">
                 <TabsTrigger value="info">Informações</TabsTrigger>
-                <TabsTrigger value="teams">Times ({tournament.registeredTeams})</TabsTrigger>
+                <TabsTrigger value="teams">Times ({registered})</TabsTrigger>
                 <TabsTrigger value="rules">Regras</TabsTrigger>
                 <TabsTrigger value="bracket">Chaveamento</TabsTrigger>
               </TabsList>
@@ -106,8 +97,7 @@ export default async function TournamentDetailPage({ params }: { params: Promise
                     <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{tournament.description}</p>
                   </div>
 
-                  {/* Prize breakdown */}
-                  {tournament.prizeBreakdown && (
+                  {tournament.prizeBreakdown.length > 0 && (
                     <div className="p-5 rounded-xl border border-yellow-500/20 bg-yellow-500/5">
                       <h3 className="font-bold mb-4 flex items-center gap-2">
                         <Trophy className="w-4 h-4 text-yellow-400" /> Distribuição de Prêmios
@@ -125,15 +115,14 @@ export default async function TournamentDetailPage({ params }: { params: Promise
                     </div>
                   )}
 
-                  {/* Details grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
-                      { label: "Início", value: formatDate(tournament.startDate), icon: Calendar },
-                      { label: "Término", value: formatDate(tournament.endDate), icon: Calendar },
-                      { label: "Inscrições até", value: formatDate(tournament.registrationDeadline), icon: Clock },
-                      { label: "Formato", value: FORMAT_LABELS[tournament.format], icon: Swords },
-                      { label: "Região", value: tournament.region, icon: MapPin },
-                      { label: "Jogo", value: tournament.game, icon: Shield },
+                      { label: "Início",          value: formatDate(tournament.startsAt ?? ""),        icon: Calendar },
+                      { label: "Término",         value: formatDate(tournament.endsAt ?? ""),          icon: Calendar },
+                      { label: "Inscrições até",  value: formatDate(tournament.registrationEnds ?? ""), icon: Clock },
+                      { label: "Formato",         value: FORMAT_LABELS[tournament.format],              icon: Swords },
+                      { label: "Região",          value: tournament.region,                             icon: MapPin },
+                      { label: "Jogo",            value: "Counter-Strike 2",                            icon: Shield },
                     ].map((item) => (
                       <div key={item.label} className="p-3 rounded-lg border border-[var(--border)] bg-[var(--card)]">
                         <div className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] mb-1">
@@ -144,7 +133,18 @@ export default async function TournamentDetailPage({ params }: { params: Promise
                     ))}
                   </div>
 
-                  {/* Tags */}
+                  {tournament.minElo != null && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg border border-[var(--primary)]/20 bg-[var(--primary)]/5 text-sm">
+                      <Shield className="w-4 h-4 text-[var(--primary)] shrink-0" />
+                      <span className="text-[var(--muted-foreground)]">
+                        ELO mínimo: <span className="font-bold text-[var(--primary)]">{tournament.minElo}</span>
+                        {tournament.maxElo != null && (
+                          <> · ELO máximo: <span className="font-bold text-[var(--primary)]">{tournament.maxElo}</span></>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     {tournament.tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">#{tag}</Badge>
@@ -164,21 +164,21 @@ export default async function TournamentDetailPage({ params }: { params: Promise
                       </div>
                       <div className="flex-1">
                         <div className="font-semibold text-sm">{team.name}</div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{team.members.length} jogadores</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">
+                          {team.members?.length ?? 0} jogadores
+                        </div>
                       </div>
-                      <div className="text-xs text-[var(--muted-foreground)]">
-                        {team.wins}W/{team.losses}L
-                      </div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{team.wins}W/{team.losses}L</div>
                     </div>
                   ))}
-                  {tournament.registeredTeams > teams.length && (
+                  {registered > teams.length && (
                     <div className="p-4 rounded-xl border border-dashed border-[var(--border)] text-center text-sm text-[var(--muted-foreground)]">
-                      + {tournament.registeredTeams - teams.length} times inscritos
+                      + {registered - teams.length} times inscritos
                     </div>
                   )}
-                  {Array.from({ length: tournament.maxTeams - tournament.registeredTeams }).map((_, i) => (
+                  {Array.from({ length: Math.max(0, tournament.maxTeams - registered) }).map((_, i) => (
                     <div key={`empty-${i}`} className="flex items-center gap-4 p-4 rounded-xl border border-dashed border-[var(--border)] opacity-40">
-                      <div className="w-8 text-center text-sm text-[var(--muted-foreground)]">#{tournament.registeredTeams + i + 1}</div>
+                      <div className="w-8 text-center text-sm text-[var(--muted-foreground)]">#{registered + i + 1}</div>
                       <div className="w-10 h-10 rounded-lg border border-dashed border-[var(--border)]" />
                       <div className="text-sm text-[var(--muted-foreground)]">Vaga disponível</div>
                     </div>
@@ -231,7 +231,6 @@ export default async function TournamentDetailPage({ params }: { params: Promise
 
           {/* Sidebar */}
           <div className="space-y-5">
-            {/* Registration card */}
             <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--card)] sticky top-24">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-4 h-4 text-[var(--primary)]" />
@@ -239,7 +238,7 @@ export default async function TournamentDetailPage({ params }: { params: Promise
               </div>
               <div className="mb-3">
                 <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="text-[var(--muted-foreground)]">{tournament.registeredTeams}/{tournament.maxTeams} times</span>
+                  <span className="text-[var(--muted-foreground)]">{registered}/{tournament.maxTeams} times</span>
                   <span className={`font-bold ${isFull ? "text-red-400" : "text-[var(--primary)]"}`}>
                     {isFull ? "LOTADO" : `${spotsLeft} vagas`}
                   </span>
@@ -249,17 +248,13 @@ export default async function TournamentDetailPage({ params }: { params: Promise
 
               {tournament.status === "open" && !isFull ? (
                 <Button variant="gradient" className="w-full gap-2 font-bold" size="lg">
-                  <Trophy className="w-4 h-4" />
-                  Inscrever meu time
+                  <Trophy className="w-4 h-4" /> Inscrever meu time
                 </Button>
               ) : tournament.status === "open" && isFull ? (
-                <Button variant="outline" className="w-full" disabled>
-                  Inscrições encerradas
-                </Button>
+                <Button variant="outline" className="w-full" disabled>Inscrições encerradas</Button>
               ) : tournament.status === "ongoing" ? (
                 <Button variant="outline" className="w-full gap-2" size="lg">
-                  <Swords className="w-4 h-4" />
-                  Acompanhar ao vivo
+                  <Swords className="w-4 h-4" /> Acompanhar ao vivo
                 </Button>
               ) : (
                 <Button variant="outline" className="w-full" disabled>
@@ -270,12 +265,11 @@ export default async function TournamentDetailPage({ params }: { params: Promise
               {tournament.checkInRequired && (
                 <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg bg-[var(--secondary)] text-xs text-[var(--muted-foreground)]">
                   <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-orange-400" />
-                  Check-in obrigatório 30min antes da partida
+                  Check-in obrigatório {tournament.checkInWindowMins}min antes da partida
                 </div>
               )}
             </div>
 
-            {/* Quick info */}
             <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--card)]">
               <h4 className="font-semibold text-sm mb-4">Informações Rápidas</h4>
               <div className="space-y-3 text-sm">
@@ -285,18 +279,13 @@ export default async function TournamentDetailPage({ params }: { params: Promise
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">Plataforma</span>
-                  <span className="font-medium">{tournament.platform}</span>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
                   <span className="text-[var(--muted-foreground)]">Região</span>
                   <span className="font-medium">{tournament.region}</span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-[var(--muted-foreground)]">Organizador</span>
-                  <span className="font-medium text-[var(--primary)]">{tournament.organizer}</span>
+                  <span className="font-medium text-[var(--primary)]">{tournament.organizerName}</span>
                 </div>
               </div>
             </div>
@@ -307,12 +296,11 @@ export default async function TournamentDetailPage({ params }: { params: Promise
   );
 }
 
-// Simple bracket visual component
 function BracketDisplay({ teams }: { teams: typeof mockTeams }) {
   const rounds = [
-    { label: "Quartas", matches: [[teams[0], teams[1]], [teams[0], teams[1]]] },
-    { label: "Semifinal", matches: [[teams[0], teams[1]]] },
-    { label: "Final", matches: [[teams[0], teams[1]]] },
+    { label: "Quartas",   matches: [[teams[0], teams[1]], [teams[0], teams[1]]] as (typeof teams[0] | undefined)[][] },
+    { label: "Semifinal", matches: [[teams[0], teams[1]]] as (typeof teams[0] | undefined)[][] },
+    { label: "Final",     matches: [[teams[0], teams[1]]] as (typeof teams[0] | undefined)[][] },
   ];
 
   return (
@@ -326,10 +314,10 @@ function BracketDisplay({ teams }: { teams: typeof mockTeams }) {
                 {match.map((team, ti) => (
                   <div
                     key={ti}
-                    className={`flex items-center gap-2 px-3 py-2 text-xs font-medium ${ti === 0 ? "border-b border-[var(--border)]" : ""} ${ti === 0 ? "bg-[var(--primary)]/5" : ""}`}
+                    className={`flex items-center gap-2 px-3 py-2 text-xs font-medium ${ti === 0 ? "border-b border-[var(--border)] bg-[var(--primary)]/5" : ""}`}
                   >
                     <div className="w-5 h-5 rounded bg-gradient-to-br from-cyan-950 to-slate-900 border border-[var(--border)] flex items-center justify-center text-[0.5rem] font-black text-[var(--primary)]">
-                      {team?.tag?.slice(0, 2) ?? "TBD"}
+                      {team?.tag?.slice(0, 2) ?? "?"}
                     </div>
                     <span className="truncate">{team?.name ?? "TBD"}</span>
                   </div>

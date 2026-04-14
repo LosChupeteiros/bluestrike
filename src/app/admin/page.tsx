@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import {
-  LayoutDashboard, Trophy, Users, Settings, Plus, Search,
-  TrendingUp, AlertTriangle, CheckCircle2, XCircle, Edit,
+  Trophy, Users, Plus, Search,
+  AlertTriangle, CheckCircle2, XCircle, Edit,
   Trash2, Eye, Shield, Zap, BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ const STATUS_VARIANT: Record<string, "open" | "ongoing" | "finished" | "upcoming
 
 export default function AdminPage() {
   const [search, setSearch] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filteredTournaments = mockTournaments.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase())
@@ -44,7 +43,7 @@ export default function AdminPage() {
             </div>
             <h1 className="text-3xl font-black tracking-tight">Administração</h1>
           </div>
-          <Button variant="gradient" className="gap-2" onClick={() => setShowCreateModal(true)}>
+          <Button variant="gradient" className="gap-2">
             <Plus className="w-4 h-4" /> Novo Campeonato
           </Button>
         </div>
@@ -100,13 +99,13 @@ export default function AdminPage() {
                 <div key={t.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-4 border-b border-[var(--border)] last:border-0 hover:bg-[var(--secondary)]/40 transition-colors">
                   <div>
                     <div className="font-semibold text-sm">{t.name}</div>
-                    <div className="text-xs text-[var(--muted-foreground)]">{formatDate(t.startDate)} · {t.format.replace("_", " ")}</div>
+                    <div className="text-xs text-[var(--muted-foreground)]">{formatDate(t.startsAt ?? "")} · {t.format.replace("_", " ")}</div>
                   </div>
                   <div className="hidden sm:block w-24 text-center text-sm text-[var(--muted-foreground)]">
-                    {t.registeredTeams}/{t.maxTeams}
+                    {t.registeredTeamsCount}/{t.maxTeams}
                   </div>
                   <div className="hidden sm:block w-20 text-center text-sm text-yellow-400 font-bold">
-                    {formatCurrency(t.prize)}
+                    {formatCurrency(t.prizeTotal)}
                   </div>
                   <div className="w-28 flex justify-center">
                     <Badge variant={STATUS_VARIANT[t.status]}>{getStatusLabel(t.status)}</Badge>
@@ -145,7 +144,7 @@ export default function AdminPage() {
                     </Avatar>
                     <div>
                       <div className="font-semibold text-sm">{p.nickname}</div>
-                      <div className="text-xs text-[var(--muted-foreground)]">{p.email}</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{p.steamId ?? "—"}</div>
                     </div>
                   </div>
                   <div className="hidden sm:block w-20 text-center text-sm text-[var(--primary)] font-bold">
