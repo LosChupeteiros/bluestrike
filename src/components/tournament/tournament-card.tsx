@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { Calendar, Users, Trophy, ArrowRight, Clock, Zap } from "lucide-react";
+import { Calendar, Users, Trophy, ArrowRight, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -21,20 +22,32 @@ interface TournamentCardProps {
 }
 
 export default function TournamentCard({ tournament, featured = false }: TournamentCardProps) {
-  const spotsLeft = tournament.maxTeams - tournament.registeredTeams;
-  const fillPercent = (tournament.registeredTeams / tournament.maxTeams) * 100;
+  const registered = tournament.registeredTeamsCount ?? 0;
+  const spotsLeft = tournament.maxTeams - registered;
+  const fillPercent = (registered / tournament.maxTeams) * 100;
   const isFull = spotsLeft === 0;
 
   if (featured) {
     return (
       <Link href={`/tournaments/${tournament.id}`} className="group block">
         <div className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden card-hover h-full">
-          {/* Banner gradient */}
-          <div className="relative h-44 bg-gradient-to-br from-cyan-950 via-slate-900 to-black overflow-hidden">
+          {/* Banner */}
+          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-cyan-950 via-slate-900 to-black">
+            {tournament.bannerUrl && (
+              <Image
+                src={tournament.bannerUrl}
+                alt={tournament.name}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
+                className="object-cover"
+                unoptimized
+              />
+            )}
             <div className="absolute inset-0 grid-bg opacity-60" />
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-transparent to-transparent" />
-            {/* Decorative glow */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-[var(--primary)]/10 rounded-full blur-3xl" />
+            {!tournament.bannerUrl && (
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-[var(--primary)]/10 rounded-full blur-3xl" />
+            )}
             <div className="absolute bottom-4 left-5">
               {tournament.featured && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs font-bold mb-2">
@@ -59,7 +72,7 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
               <div>
                 <div className="text-xs text-[var(--muted-foreground)]">Premiação Total</div>
-                <div className="text-lg font-black text-yellow-400">{formatCurrency(tournament.prize)}</div>
+                <div className="text-lg font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
               </div>
             </div>
 
@@ -67,11 +80,11 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
             <div className="flex items-center gap-4 text-xs text-[var(--muted-foreground)] mb-4">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                {formatDate(tournament.startDate)}
+                {formatDate(tournament.startsAt ?? "")}
               </span>
               <span className="flex items-center gap-1">
                 <Users className="w-3.5 h-3.5" />
-                {tournament.registeredTeams}/{tournament.maxTeams} times
+                {registered}/{tournament.maxTeams} times
               </span>
             </div>
 
@@ -103,9 +116,20 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
   return (
     <Link href={`/tournaments/${tournament.id}`} className="group block">
       <div className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] card-hover">
-        {/* Icon */}
-        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-950 to-slate-900 border border-[var(--border)] flex items-center justify-center shrink-0">
-          <Trophy className="w-6 h-6 text-[var(--primary)]" />
+        {/* Thumbnail / icon */}
+        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-cyan-950 to-slate-900 border border-[var(--border)] shrink-0 flex items-center justify-center">
+          {tournament.bannerUrl ? (
+            <Image
+              src={tournament.bannerUrl}
+              alt={tournament.name}
+              fill
+              sizes="48px"
+              className="object-cover"
+              unoptimized
+            />
+          ) : (
+            <Trophy className="w-6 h-6 text-[var(--primary)]" />
+          )}
         </div>
 
         {/* Info */}
@@ -120,17 +144,17 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
             <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> {formatDate(tournament.startDate)}
+              <Calendar className="w-3 h-3" /> {formatDate(tournament.startsAt ?? "")}
             </span>
             <span className="flex items-center gap-1">
-              <Users className="w-3 h-3" /> {tournament.registeredTeams}/{tournament.maxTeams}
+              <Users className="w-3 h-3" /> {registered}/{tournament.maxTeams}
             </span>
           </div>
         </div>
 
         {/* Prize */}
         <div className="text-right shrink-0 hidden sm:block">
-          <div className="text-sm font-black text-yellow-400">{formatCurrency(tournament.prize)}</div>
+          <div className="text-sm font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
           <div className="text-xs text-[var(--muted-foreground)]">premiação</div>
         </div>
 
