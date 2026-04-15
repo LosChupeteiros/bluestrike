@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, Shield, Swords, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import HeaderElo from "./header-elo";
 
 const navLinks = [
   { href: "/tournaments", label: "Campeonatos" },
   { href: "/teams", label: "Times" },
+  { href: "/players", label: "Players" },
   { href: "/ranking", label: "Ranking" },
 ];
 
@@ -24,10 +26,12 @@ interface HeaderUser {
 
 interface HeaderProps {
   user: HeaderUser | null;
+  authState?: "ready" | "loading";
 }
 
-export default function Header({ user }: HeaderProps) {
+export default function Header({ user, authState = "ready" }: HeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -36,6 +40,29 @@ export default function Header({ user }: HeaderProps) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    const routesToPrefetch = ["/", "/tournaments", "/teams", "/players", "/ranking", "/auth/login"];
+
+    if (user) {
+      routesToPrefetch.push(`/profile/${user.publicId}`);
+      routesToPrefetch.push("/cadastro");
+    }
+
+    const prefetchRoutes = () => {
+      for (const route of routesToPrefetch) {
+        router.prefetch(route);
+      }
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(prefetchRoutes);
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeout = window.setTimeout(prefetchRoutes, 250);
+    return () => window.clearTimeout(timeout);
+  }, [router, user]);
 
   function closeMobileMenu() {
     setMobileOpen(false);
@@ -66,6 +93,7 @@ export default function Header({ user }: HeaderProps) {
               <Link
                 key={link.href}
                 href={link.href}
+                prefetch
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
                   pathname === link.href || pathname.startsWith(`${link.href}/`)
@@ -83,6 +111,7 @@ export default function Header({ user }: HeaderProps) {
               <>
                 <Link
                   href={`/profile/${user.publicId}`}
+                  prefetch
                   className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 transition-all hover:border-[var(--primary)]/40 hover:bg-[var(--secondary)]"
                 >
                   <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
@@ -96,14 +125,12 @@ export default function Header({ user }: HeaderProps) {
                     <div className="max-w-[160px] truncate text-sm font-semibold group-hover:text-[var(--primary)] transition-colors">
                       {user.displayName}
                     </div>
-                    <div className="mt-0.5 text-[11px] font-mono font-semibold uppercase tracking-[0.18em] text-[var(--primary)]/80">
-                      {user.elo} ELO
-                    </div>
+                    <HeaderElo initialElo={user.elo} />
                   </div>
                 </Link>
 
                 {user.isAdmin && (
-                  <Link href="/admin">
+                  <Link href="/admin" prefetch>
                     <Button variant="outline" size="sm" className="gap-2">
                       <Shield className="w-4 h-4" />
                       Admin
@@ -117,14 +144,19 @@ export default function Header({ user }: HeaderProps) {
                   </a>
                 </Button>
               </>
+            ) : authState === "loading" ? (
+              <>
+                <div className="h-9 w-24 animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
+                <div className="h-9 w-32 animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
+              </>
             ) : (
               <>
-                <Link href="/auth/login">
+                <Link href="/auth/login" prefetch>
                   <Button variant="ghost" size="sm">
                     Entrar
                   </Button>
                 </Link>
-                <Link href="/auth/login">
+                <Link href="/auth/login" prefetch>
                   <Button size="sm" variant="gradient">
                     Comecar agora
                   </Button>
@@ -150,6 +182,7 @@ export default function Header({ user }: HeaderProps) {
               <Link
                 key={link.href}
                 href={link.href}
+                prefetch
                 onClick={closeMobileMenu}
                 className={cn(
                   "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
@@ -167,6 +200,7 @@ export default function Header({ user }: HeaderProps) {
                 <div className="space-y-2">
                   <Link
                     href={`/profile/${user.publicId}`}
+                    prefetch
                     onClick={closeMobileMenu}
                     className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-3"
                   >
@@ -179,14 +213,12 @@ export default function Header({ user }: HeaderProps) {
 
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold">{user.displayName}</div>
-                      <div className="mt-0.5 text-[11px] font-mono font-semibold uppercase tracking-[0.18em] text-[var(--primary)]/80">
-                        {user.elo} ELO
-                      </div>
+                      <HeaderElo initialElo={user.elo} />
                     </div>
                   </Link>
 
                   {user.isAdmin && (
-                    <Link href="/admin" onClick={closeMobileMenu}>
+                    <Link href="/admin" prefetch onClick={closeMobileMenu}>
                       <Button variant="outline" size="sm" className="w-full justify-start gap-2">
                         <Shield className="w-4 h-4" />
                         Admin
@@ -200,14 +232,19 @@ export default function Header({ user }: HeaderProps) {
                     </a>
                   </Button>
                 </div>
+              ) : authState === "loading" ? (
+                <div className="space-y-2">
+                  <div className="h-9 w-full animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
+                  <div className="h-9 w-full animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
+                </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  <Link href="/auth/login" onClick={closeMobileMenu} className="w-full">
+                  <Link href="/auth/login" prefetch onClick={closeMobileMenu} className="w-full">
                     <Button variant="outline" size="sm" className="w-full">
                       Entrar
                     </Button>
                   </Link>
-                  <Link href="/auth/login" onClick={closeMobileMenu} className="w-full">
+                  <Link href="/auth/login" prefetch onClick={closeMobileMenu} className="w-full">
                     <Button size="sm" variant="gradient" className="w-full">
                       Comecar agora
                     </Button>

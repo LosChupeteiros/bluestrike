@@ -1,8 +1,12 @@
+/* eslint-disable */
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
+  BookOpen,
   ChevronRight,
   ExternalLink,
   Gamepad2,
@@ -13,14 +17,14 @@ import {
   Trophy,
   TrendingUp,
   Users,
-  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ProfileForm from "../profile-form";
+import ProfileEditModal from "./profile-edit-modal";
+import RankGuideModal from "./rank-guide-modal";
 import {
   calculateProfileCompletion,
   ELO_BANDS,
@@ -29,7 +33,9 @@ import {
   getProfileAge,
   roleLabel,
   type UserProfile,
+  type InGameRole,
 } from "@/lib/profile";
+import { getPlayerRank } from "@/lib/ranks";
 import { cn, formatDate } from "@/lib/utils";
 import type { MockRecentMatchSummary } from "@/data/competitive-mock";
 import type { Team } from "@/types";
@@ -47,6 +53,9 @@ interface ProfileShellProps {
   defaultEditOpen: boolean;
   showWelcome: boolean;
   showCompletionAlert: boolean;
+  defaultTab: "matches" | "teams";
+  showTeamCreatedNotice: boolean;
+  showTeamDeletedNotice: boolean;
 }
 
 export default function ProfileShell({
@@ -58,29 +67,63 @@ export default function ProfileShell({
   defaultEditOpen,
   showWelcome,
   showCompletionAlert,
+  defaultTab,
+  showTeamCreatedNotice,
+  showTeamDeletedNotice,
 }: ProfileShellProps) {
-  const [isEditing, setIsEditing] = useState(defaultEditOpen);
-  const [isEloHoverOpen, setIsEloHoverOpen] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(defaultEditOpen);
+  const [isRankGuideOpen, setIsRankGuideOpen] = useState(false);
+  const [isEloHoverOpen] = useState(false);
+  const activeTab = searchParams.get("tab") === "teams" ? "teams" : defaultTab;
+
+  const handleTabChange = useCallback((value: string) => {
+    const tab = value === "teams" ? "teams" : "matches";
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    if (tab === "matches") {
+      nextSearchParams.delete("tab");
+    } else {
+      nextSearchParams.set("tab", tab);
+    }
+    const nextHref = nextSearchParams.toString() ? `${pathname}?${nextSearchParams.toString()}` : pathname;
+    window.history.replaceState(null, "", nextHref);
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    setIsEditModalOpen(defaultEditOpen);
+  }, [defaultEditOpen]);
 
   const completion = calculateProfileCompletion(profile);
   const age = getProfileAge(profile.birthDate);
   const currentBand = getEloBand(profile.elo);
+  const playerRank = getPlayerRank(profile.elo);
   const missingFields = getMissingRequiredFields(profile);
   const role = roleLabel(profile.inGameRole);
-  const publicName = profile.fullName?.trim() || "Nome completo pendente";
+  const teamsDescription = isOwner
+    ? "Monte sua line, acompanhe seus elencos e abra o hub do time em um clique."
+    : `Veja os times em que ${profile.steamPersonaName} esta vinculado.`;
+  const emptyTeamsMessage = isOwner
+    ? "Crie seu time com 5 titulares e 1 substituto opcional para competir no hub."
+    : "Este jogador ainda nao tem times ativos vinculados ao perfil.";
 
-  useEffect(() => {
-    if (!isEditing) {
+  const openEditor = useCallback(() => {
+    setIsEditModalOpen(true);
+  }, []);
+
+  const closeEditor = useCallback(() => {
+    setIsEditModalOpen(false);
+
+    if (!searchParams.has("edit")) {
       return;
     }
 
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.delete("edit");
+    const nextHref = nextSearchParams.toString() ? `${pathname}?${nextSearchParams.toString()}` : pathname;
+    window.history.replaceState(null, "", nextHref);
+  }, [pathname, searchParams]);
 
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isEditing]);
 
   return (
     <>
@@ -101,14 +144,47 @@ export default function ProfileShell({
                   </p>
                 </div>
 
-                <div className="min-w-44">
-                  <div className="mb-2 flex items-center justify-between text-xs text-[var(--muted-foreground)]">
-                    <span>Progresso</span>
-                    <span className="font-semibold text-[var(--primary)]">{completion}%</span>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-44">
+                    <div className="mb-2 flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                      <span>Progresso</span>
+                      <span className="font-semibold text-[var(--primary)]">{completion}%</span>
+                    </div>
+                    <Progress value={completion} />
                   </div>
-                  <Progress value={completion} />
+
+                  <Button asChild variant="gradient" className="gap-2">
+                    <Link href="/cadastro">
+                      <Settings className="h-4 w-4" />
+                      Ir para cadastro
+                    </Link>
+                  </Button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {showTeamCreatedNotice && isOwner && (
+            <div className="mb-8 rounded-2xl border border-green-500/20 bg-green-500/10 p-5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-green-300">
+                <ShieldCheck className="h-4 w-4" />
+                Time criado com sucesso
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-green-100/80">
+                Seu time ja esta no hub, aparece no catalogo publico e pode receber convites para campeonato.
+              </p>
+            </div>
+          )}
+
+          {showTeamDeletedNotice && isOwner && (
+            <div className="mb-8 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-orange-300">
+                <ShieldCheck className="h-4 w-4" />
+                Time removido
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-orange-100/80">
+                O time foi arquivado e sua vaga ficou livre para montar outra line quando quiser.
+              </p>
             </div>
           )}
 
@@ -127,7 +203,7 @@ export default function ProfileShell({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl font-black">{profile.steamPersonaName}</h1>
-                  <Badge variant={currentBand.badgeVariant}>{currentBand.label}</Badge>
+                  <Badge variant={currentBand.badgeVariant}>{playerRank.name}</Badge>
                   <Badge variant={completion === 100 ? "open" : "upcoming"}>
                     {completion === 100 ? "Cadastro OK" : "Cadastro pendente"}
                   </Badge>
@@ -149,7 +225,12 @@ export default function ProfileShell({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => setIsRankGuideOpen(true)}>
+                <BookOpen className="h-4 w-4" />
+                Rank Guide
+              </Button>
+
               {profile.steamProfileUrl && (
                 <Button asChild variant="outline" className="gap-2">
                   <Link href={profile.steamProfileUrl} target="_blank" rel="noreferrer">
@@ -160,7 +241,7 @@ export default function ProfileShell({
               )}
 
               {isOwner && (
-                <Button variant="gradient" className="gap-2" onClick={() => setIsEditing(true)}>
+                <Button variant="gradient" className="gap-2" onClick={openEditor}>
                   <Settings className="h-4 w-4" />
                   Editar perfil
                 </Button>
@@ -169,17 +250,40 @@ export default function ProfileShell({
           </div>
 
           <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div
-              className="relative rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 card-hover"
-              onMouseEnter={() => setIsEloHoverOpen(true)}
-              onMouseLeave={() => setIsEloHoverOpen(false)}
-            >
-              <div className="mb-1 flex items-center gap-2">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5">
+              <div className="mb-0 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-[var(--primary)]" />
-                <span className="text-xs text-[var(--muted-foreground)]">ELO</span>
+                <span className="text-sm font-semibold text-[var(--muted-foreground)]">Patente</span>
               </div>
-              <div className="text-2xl font-black text-[var(--primary)]">{profile.elo}</div>
 
+              <div className="flex items-center gap-3.5">
+                <div className="shrink-0">
+                  <Image
+                    src={playerRank.imagePath}
+                    alt={playerRank.name}
+                    width={76}
+                    height={76}
+                    className="h-[76px] w-[76px] object-contain drop-shadow-lg"
+                    unoptimized
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-bold leading-tight text-[var(--foreground)]">
+                    {playerRank.name}
+                  </div>
+                  <div className="mt-0.5 font-mono text-base font-black text-[var(--primary)]">
+                    {profile.elo} ELO
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRankGuideOpen(true)}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--primary)] transition-colors hover:text-cyan-300"
+                  >
+                    Ver Rank Guide
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
               {isEloHoverOpen && (
                 <div className="absolute left-0 top-full z-20 mt-2 w-[320px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-2xl">
                   <div className="mb-3 text-sm font-bold">Faixas de ELO</div>
@@ -200,7 +304,7 @@ export default function ProfileShell({
                           <div className="mb-1 flex items-center justify-between gap-3">
                             <span className={cn("text-sm font-bold", band.accentClass)}>{band.label}</span>
                             <span className="text-xs font-mono text-[var(--muted-foreground)]">
-                              {Number.isFinite(band.max) ? `${band.min}-${band.max}` : `${band.min}+`}
+                              {Number.isFinite(band.max) ? `${band.min}–${band.max}` : `${band.min}+`}
                             </span>
                           </div>
                           <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
@@ -214,34 +318,34 @@ export default function ProfileShell({
               )}
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 card-hover">
-              <div className="mb-1 flex items-center gap-2">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
+              <div className="mb-0 flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-green-400" />
-                <span className="text-xs text-[var(--muted-foreground)]">Win rate</span>
+                <span className="text-sm font-semibold text-[var(--muted-foreground)]">Win rate</span>
               </div>
-              <div className="text-2xl font-black text-green-400">{stats.winRate}%</div>
+              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-green-400">{stats.winRate}%</div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 card-hover">
-              <div className="mb-1 flex items-center gap-2">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
+              <div className="mb-0 flex items-center gap-2">
                 <Swords className="h-4 w-4 text-orange-400" />
-                <span className="text-xs text-[var(--muted-foreground)]">K/D ratio</span>
+                <span className="text-sm font-semibold text-[var(--muted-foreground)]">K/D ratio</span>
               </div>
-              <div className="text-2xl font-black text-orange-400">{stats.kdRatio.toFixed(2)}</div>
+              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-orange-400">{stats.kdRatio.toFixed(2)}</div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 card-hover">
-              <div className="mb-1 flex items-center gap-2">
-                <Target className="h-4 w-4 text-orange-400" />
-                <span className="text-xs text-[var(--muted-foreground)]">HS rate</span>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
+              <div className="mb-0 flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-400" />
+                <span className="text-sm font-semibold text-[var(--muted-foreground)]">HS rate</span>
               </div>
-              <div className="text-2xl font-black text-orange-400">{stats.hsRate}%</div>
+              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-purple-400">{stats.hsRate}%</div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <Tabs defaultValue="matches">
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className="mb-6 border border-[var(--border)] bg-[var(--card)]">
                   <TabsTrigger value="matches">Últimas partidas</TabsTrigger>
                   <TabsTrigger value="teams">Meus times</TabsTrigger>
@@ -366,10 +470,6 @@ export default function ProfileShell({
 
                 <div className="space-y-4 text-sm">
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-[var(--muted-foreground)]">Nome completo</span>
-                    <span className="text-right font-medium">{publicName}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
                     <span className="text-[var(--muted-foreground)]">Idade</span>
                     <span className="font-medium">{age ? `${age} anos` : "Não informada"}</span>
                   </div>
@@ -378,8 +478,20 @@ export default function ProfileShell({
                     <span className="font-medium">{role}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-[var(--muted-foreground)]">Faixa</span>
-                    <span className={cn("font-semibold", currentBand.accentClass)}>{currentBand.label}</span>
+                    <span className="text-[var(--muted-foreground)]">Patente</span>
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src={playerRank.imagePath}
+                        alt={playerRank.name}
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 object-contain"
+                        unoptimized
+                      />
+                      <span className={cn("text-xs font-semibold", currentBand.accentClass)}>
+                        {playerRank.name}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -433,40 +545,7 @@ export default function ProfileShell({
         </div>
       </div>
 
-      {isEditing && (
-        <div
-          className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-10 backdrop-blur-sm"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setIsEditing(false);
-            }
-          }}
-        >
-          <div className="relative w-full max-w-5xl rounded-3xl border border-[var(--border)] bg-[var(--background)] shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl border-b border-[var(--border)] bg-[var(--background)]/95 px-6 py-4 backdrop-blur">
-              <div>
-                <div className="text-sm font-semibold text-[var(--primary)]">Edição do perfil</div>
-                <div className="text-xs text-[var(--muted-foreground)]">
-                  Ajuste sua ficha competitiva sem sair da página.
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="rounded-full border border-[var(--border)] p-2 text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
-                aria-label="Fechar edição"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <ProfileForm profile={profile} onCancel={() => setIsEditing(false)} onSaved={() => setIsEditing(false)} />
-            </div>
-          </div>
-        </div>
-      )}
+      <ProfileEditModal profile={profile} isOpen={isEditModalOpen} onClose={closeEditor} />
     </>
   );
 }

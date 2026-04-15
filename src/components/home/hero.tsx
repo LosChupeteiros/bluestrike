@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Play, Shield, Zap, Trophy } from "lucide-react";
+import { ArrowRight, Shield, Zap, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function Hero() {
+interface HeroProps {
+  isLoggedIn?: boolean;
+}
+
+export default function Hero({ isLoggedIn = false }: HeroProps) {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 grid-bg" />
@@ -25,18 +29,35 @@ export default function Hero() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-          <Link href="/tournaments">
-            <Button size="xl" variant="gradient" className="gap-2 font-bold">
-              Participar agora
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
-          <Link href="/ranking">
-            <Button size="xl" variant="outline" className="gap-2">
-              <Play className="w-4 h-4" />
-              Ver ranking
-            </Button>
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link href="/tournaments">
+                <Button size="xl" variant="gradient" className="gap-2 font-bold">
+                  Ver campeonatos
+                  <ArrowRight className="w-5 h-5" />
+                </Button>
+              </Link>
+              <Link href="/ranking">
+                <Button size="xl" variant="outline" className="gap-2">
+                  Ver ranking
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/auth/login">
+                <Button size="xl" variant="gradient" className="gap-2 font-bold">
+                  Entrar com Steam
+                  <ArrowRight className="w-5 h-5" />
+                </Button>
+              </Link>
+              <Link href="/ranking">
+                <Button size="xl" variant="outline" className="gap-2">
+                  Ver ranking
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 animate-slide-up" style={{ animationDelay: "0.3s" }}>

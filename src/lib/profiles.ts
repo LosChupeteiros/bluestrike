@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import {
+  type ProfileBioInput,
+  profileBioSchema,
   type ProfileUpdateInput,
   profileUpdateSchema,
   type UserProfile,
@@ -8,7 +10,7 @@ import {
 } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
-interface ProfileRow {
+export interface ProfileRow {
   id: string;
   public_id: number;
   steam_id: string;
@@ -21,6 +23,7 @@ interface ProfileRow {
   cpf: string | null;
   phone: string | null;
   birth_date: string | null;
+  email: string | null;
   bio: string | null;
   in_game_role: UserProfile["inGameRole"];
   is_admin: boolean | null;
@@ -28,7 +31,7 @@ interface ProfileRow {
   updated_at: string;
 }
 
-function mapProfileRow(row: ProfileRow): UserProfile {
+export function mapProfileRow(row: ProfileRow): UserProfile {
   return {
     id: row.id,
     publicId: row.public_id,
@@ -42,6 +45,7 @@ function mapProfileRow(row: ProfileRow): UserProfile {
     cpf: row.cpf,
     phone: row.phone,
     birthDate: row.birth_date,
+    email: row.email,
     bio: row.bio,
     inGameRole: row.in_game_role,
     isAdmin: Boolean(row.is_admin),
@@ -78,6 +82,38 @@ export async function getProfileByPublicId(publicId: number) {
   }
 
   return data ? mapProfileRow(data) : null;
+}
+
+export async function getProfilesByIds(profileIds: string[]) {
+  if (profileIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await createProfileQuery()
+    .in("id", [...new Set(profileIds)])
+    .returns<ProfileRow[]>();
+
+  if (error) {
+    throw new Error(`Falha ao buscar perfis por ids: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapProfileRow);
+}
+
+export async function getProfilesByPublicIds(publicIds: number[]) {
+  if (publicIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await createProfileQuery()
+    .in("public_id", [...new Set(publicIds)])
+    .returns<ProfileRow[]>();
+
+  if (error) {
+    throw new Error(`Falha ao buscar perfis por public ids: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapProfileRow);
 }
 
 export async function getProfileBySteamId(steamId: string) {
@@ -133,6 +169,7 @@ export async function updateProfile(profileId: string, input: ProfileUpdateInput
       cpf: parsedInput.cpf,
       phone: parsedInput.phone,
       birth_date: parsedInput.birthDate,
+      email: parsedInput.email,
       bio: parsedInput.bio,
       in_game_role: parsedInput.inGameRole,
     })
@@ -145,6 +182,65 @@ export async function updateProfile(profileId: string, input: ProfileUpdateInput
   }
 
   return mapProfileRow(data);
+}
+
+export async function updateProfileBio(profileId: string, input: ProfileBioInput) {
+  const parsedInput = profileBioSchema.parse(input);
+
+  const { data, error } = await createSupabaseAdminClient()
+    .from("profiles")
+    .update({
+      bio: parsedInput.bio,
+      in_game_role: parsedInput.inGameRole,
+    })
+    .eq("id", profileId)
+    .select("*")
+    .single<ProfileRow>();
+
+  if (error) {
+    throw new Error(`Falha ao atualizar bio: ${error.message}`);
+  }
+
+  return mapProfileRow(data);
+}
+
+const PLAYERS_PAGE_SIZE = 18;
+
+interface PlayersListOptions {
+  page?: number;
+  pageSize?: number;
+  query?: string;
+}
+
+export async function listPublicProfiles(options: PlayersListOptions = {}) {
+  const pageSize = Math.max(1, Math.min(options.pageSize ?? PLAYERS_PAGE_SIZE, 36));
+  const page = Math.max(1, options.page ?? 1);
+  const query = options.query?.trim() ?? "";
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let dbQuery = createSupabaseAdminClient()
+    .from("profiles")
+    .select("*", { count: "exact" })
+    .order("elo", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (query) {
+    const escaped = query.replace(/[%_,]/g, "");
+    dbQuery = dbQuery.ilike("steam_persona_name", `%${escaped}%`);
+  }
+
+  const { data, count, error } = await dbQuery.range(from, to).returns<ProfileRow[]>();
+
+  if (error) {
+    throw new Error(`Falha ao listar jogadores: ${error.message}`);
+  }
+
+  const profiles = (data ?? []).map(mapProfileRow);
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  return { profiles, total, page, pageSize, totalPages, query };
 }
 
 export async function getCurrentProfile() {

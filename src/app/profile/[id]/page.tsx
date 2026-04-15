@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import ProfileShell from "./profile-shell";
+import ProfileShellView from "./profile-shell-view";
 import {
   getFallbackProfileStats,
   getMockProfileByPublicId,
@@ -10,6 +10,7 @@ import {
 } from "@/data/competitive-mock";
 import { getPublicDisplayName, isProfileComplete, type UserProfile } from "@/lib/profile";
 import { getCurrentProfile, getProfileByPublicId } from "@/lib/profiles";
+import { getTeamsForProfile } from "@/lib/teams";
 
 interface ProfilePageProps {
   params: Promise<{
@@ -19,6 +20,9 @@ interface ProfilePageProps {
     edit?: string;
     welcome?: string;
     complete?: string;
+    tab?: string;
+    teamCreated?: string;
+    teamDeleted?: string;
   }>;
 }
 
@@ -42,10 +46,10 @@ async function getPageProfile(publicId: number) {
   return getMockProfileByPublicId(publicId);
 }
 
-function getProfilePresentation(profile: UserProfile) {
+async function getProfilePresentation(profile: UserProfile, useRealTeams: boolean) {
   return {
     stats: getMockProfileStats(profile.publicId) ?? getFallbackProfileStats(profile),
-    teams: getMockTeamsForProfile(profile.publicId),
+    teams: useRealTeams ? await getTeamsForProfile(profile.id) : getMockTeamsForProfile(profile.publicId),
     recentMatches: getMockRecentMatchesForProfile(profile.publicId),
   };
 }
@@ -84,10 +88,10 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   }
 
   const isOwner = currentProfile?.id === profile.id;
-  const presentation = getProfilePresentation(profile);
+  const presentation = await getProfilePresentation(profile, Boolean(profile.id && !profile.id.startsWith("mock-profile-")));
 
   return (
-    <ProfileShell
+    <ProfileShellView
       profile={profile}
       stats={presentation.stats}
       teams={presentation.teams}
@@ -96,6 +100,9 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       defaultEditOpen={isOwner && query.edit === "1"}
       showWelcome={isOwner && query.welcome === "1"}
       showCompletionAlert={isOwner && (query.complete === "1" || !isProfileComplete(profile))}
+      defaultTab={query.tab === "teams" ? "teams" : "matches"}
+      showTeamCreatedNotice={isOwner && query.teamCreated === "1"}
+      showTeamDeletedNotice={isOwner && query.teamDeleted === "1"}
     />
   );
 }

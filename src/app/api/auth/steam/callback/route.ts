@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setSessionCookie } from "@/lib/auth/session";
-import { fetchSteamAccount, sanitizeNextPath, verifySteamOpenIdCallback } from "@/lib/auth/steam";
+import { fetchSteamAccount, resolveRequestOrigin, sanitizeNextPath, verifySteamOpenIdCallback } from "@/lib/auth/steam";
 import { isProfileComplete } from "@/lib/profile";
 import { resolveProfilePath, upsertSteamProfile } from "@/lib/profiles";
 
 function redirectToLoginWithError(request: NextRequest, errorCode: string) {
-  const url = new URL("/auth/login", request.nextUrl.origin);
+  const url = new URL("/auth/login", resolveRequestOrigin(request));
   url.searchParams.set("error", errorCode);
 
   const nextPath = sanitizeNextPath(request.nextUrl.searchParams.get("next"));
@@ -47,9 +47,9 @@ export async function GET(request: NextRequest) {
         ? requestedNextPath
         : isComplete
           ? profilePath
-          : `${profilePath}?welcome=1&complete=1&edit=1`;
+          : "/cadastro?welcome=1";
 
-    const response = NextResponse.redirect(new URL(redirectPath, request.nextUrl.origin));
+    const response = NextResponse.redirect(new URL(redirectPath, resolveRequestOrigin(request)));
     await setSessionCookie(response, {
       profileId: profile.id,
       steamId: profile.steamId,

@@ -240,6 +240,7 @@ function seedToUserProfile(seed: MockProfileSeed): UserProfile {
     fullName: seed.fullName,
     cpf: null,
     phone: null,
+    email: null,
     birthDate: seed.birthDate,
     bio: seed.bio,
     inGameRole: seed.role,

@@ -15,6 +15,7 @@ create table if not exists public.profiles (
   birth_date date,
   bio text,
   in_game_role text,
+  email text,
   is_admin boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -33,6 +34,7 @@ alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists birth_date date;
 alter table public.profiles add column if not exists bio text;
 alter table public.profiles add column if not exists in_game_role text;
+alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 alter table public.profiles add column if not exists created_at timestamptz not null default timezone('utc', now());
 alter table public.profiles add column if not exists updated_at timestamptz not null default timezone('utc', now());

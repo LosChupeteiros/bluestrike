@@ -12,7 +12,7 @@ interface JoinTeamFormProps {
   requiresPassword: boolean;
 }
 
-export default function JoinTeamForm({ teamSlug, teamName, requiresPassword }: JoinTeamFormProps) {
+export default function JoinTeamForm({ teamName, requiresPassword }: JoinTeamFormProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();

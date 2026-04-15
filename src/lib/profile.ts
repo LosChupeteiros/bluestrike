@@ -69,6 +69,7 @@ export interface UserProfile {
   cpf: string | null;
   phone: string | null;
   birthDate: string | null;
+  email: string | null;
   bio: string | null;
   inGameRole: InGameRole | null;
   isAdmin: boolean;
@@ -81,6 +82,7 @@ export const REQUIRED_PROFILE_FIELDS = [
   "cpf",
   "phone",
   "birthDate",
+  "email",
 ] as const satisfies ReadonlyArray<keyof UserProfile>;
 
 export const ELO_BANDS = [
@@ -299,6 +301,7 @@ export function getMissingRequiredFields(profile: UserProfile) {
     cpf: "CPF",
     phone: "Celular",
     birthDate: "Data de nascimento",
+    email: "E-mail",
   };
 
   return REQUIRED_PROFILE_FIELDS.filter((field) => !profile[field]).map((field) => labels[field]);
@@ -339,6 +342,13 @@ export const profileUpdateSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Data de nascimento inválida.")
     .refine(isValidBirthDate, "Data de nascimento inválida."),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "Informe seu e-mail.")
+    .email("E-mail inválido.")
+    .max(254, "E-mail muito longo."),
   bio: z
     .string()
     .trim()
@@ -353,3 +363,19 @@ export const profileUpdateSchema = z.object({
 });
 
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+
+export const profileBioSchema = z.object({
+  bio: z
+    .string()
+    .trim()
+    .max(280, "A bio pode ter no máximo 280 caracteres.")
+    .optional()
+    .transform((value) => value || null),
+  inGameRole: z
+    .enum(IN_GAME_ROLE_VALUES)
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+});
+
+export type ProfileBioInput = z.infer<typeof profileBioSchema>;

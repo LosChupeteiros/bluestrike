@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 
 const Avatar = React.forwardRef<
@@ -16,17 +17,40 @@ const Avatar = React.forwardRef<
 ));
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
-const AvatarImage = React.forwardRef<
-  React.ElementRef<typeof AvatarPrimitive.Image>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image
-    ref={ref}
-    className={cn("aspect-square h-full w-full object-cover", className)}
-    {...props}
-  />
-));
-AvatarImage.displayName = AvatarPrimitive.Image.displayName;
+interface AvatarImageProps {
+  src?: string | null;
+  alt?: string;
+  className?: string;
+}
+
+// Uses next/image with fill so remote patterns (Steam CDN) are respected
+// and the image is reliably displayed after SSR hydration.
+// The fallback div is a static sibling; the absolute-positioned image
+// naturally paints on top of it once loaded.
+const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
+  ({ src, alt = "", className }, ref) => {
+    const [failed, setFailed] = React.useState(false);
+
+    React.useEffect(() => {
+      setFailed(false);
+    }, [src]);
+
+    if (!src || failed) return null;
+
+    return (
+      <NextImage
+        ref={ref}
+        src={src}
+        alt={alt}
+        fill
+        sizes="64px"
+        className={cn("object-cover", className)}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+);
+AvatarImage.displayName = "AvatarImage";
 
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,

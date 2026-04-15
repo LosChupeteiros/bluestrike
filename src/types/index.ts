@@ -69,6 +69,7 @@ export interface Tournament {
   prizeTotal: number;       // centavos BRL
   prizeBreakdown: PrizeBreakdownEntry[];
   bannerUrl: string | null;
+  entryFee?: number;
   status: TournamentStatus;
   format: TournamentFormat;
   maxTeams: number;
@@ -100,6 +101,10 @@ export interface TournamentRegistration {
   checkedIn: boolean;
   checkedInAt: string | null;
   registeredAt: string;
+  paymentStatus?: "pending" | "paid" | "failed" | "refunded";
+  paymentAmount?: number;
+  paymentReference?: string | null;
+  paymentMethod?: string | null;
   /** Carregado via join quando necessário */
   team?: Team;
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ChevronLeft, Shield } from "lucide-react";
-import CreateTeamForm from "./create-team-form";
+import CreateTeamFormClient from "./create-team-form-client";
 import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 
 export const metadata: Metadata = {
@@ -11,6 +11,9 @@ export const metadata: Metadata = {
 export default async function CreateTeamPage() {
   const currentProfile = await getCurrentProfile();
   const backHref = currentProfile ? resolveProfilePath(currentProfile) : "/profile/1";
+  const successRedirectPath = currentProfile
+    ? `${resolveProfilePath(currentProfile)}?tab=teams&teamCreated=1`
+    : "/auth/login?next=/teams/create";
 
   return (
     <div className="min-h-screen pb-20 pt-20">
@@ -35,7 +38,7 @@ export default async function CreateTeamPage() {
           </p>
         </div>
 
-        <CreateTeamForm backHref={backHref} />
+        <CreateTeamFormClient backHref={backHref} successRedirectPath={successRedirectPath} />
       </div>
     </div>
   );

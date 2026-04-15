@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, Trophy, Gamepad2 } from "lucide-react";
+import { ArrowRight, Users, Trophy, Gamepad2 } from "lucide-react";
 
 const steps = [
   {
@@ -28,7 +28,11 @@ const steps = [
   },
 ];
 
-export default function SocialProof() {
+interface SocialProofProps {
+  isLoggedIn?: boolean;
+}
+
+export default function SocialProof({ isLoggedIn = false }: SocialProofProps) {
   return (
     <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="text-center mb-14">
@@ -73,18 +77,38 @@ export default function SocialProof() {
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-950/80 via-slate-900/60 to-black" />
         <div className="absolute inset-0 grid-bg opacity-40" />
         <div className="relative z-10 px-8 py-12 text-center">
-          <h3 className="text-2xl sm:text-3xl font-black mb-3">
-            Pronto para competir?
-          </h3>
-          <p className="text-[var(--muted-foreground)] mb-6 max-w-md mx-auto">
-            Entre com sua conta Steam, crie seu time e inscreva no próximo campeonato.
-          </p>
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-[var(--primary)] text-black font-bold text-sm hover:bg-[var(--primary)]/90 transition-colors shadow-md hover:shadow-[0_0_20px_rgba(0,200,255,0.4)]"
-          >
-            Entrar com Steam
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <h3 className="text-2xl sm:text-3xl font-black mb-3">
+                Pronto para a próxima batalha?
+              </h3>
+              <p className="text-[var(--muted-foreground)] mb-6 max-w-md mx-auto">
+                Confira os campeonatos abertos, monte sua line e inscreva seu time.
+              </p>
+              <Link
+                href="/tournaments"
+                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-[var(--primary)] text-black font-bold text-sm hover:bg-[var(--primary)]/90 transition-colors shadow-md hover:shadow-[0_0_20px_rgba(0,200,255,0.4)]"
+              >
+                Ver campeonatos
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <h3 className="text-2xl sm:text-3xl font-black mb-3">
+                Pronto para competir?
+              </h3>
+              <p className="text-[var(--muted-foreground)] mb-6 max-w-md mx-auto">
+                Entre com sua conta Steam, crie seu time e inscreva no próximo campeonato.
+              </p>
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-[var(--primary)] text-black font-bold text-sm hover:bg-[var(--primary)]/90 transition-colors shadow-md hover:shadow-[0_0_20px_rgba(0,200,255,0.4)]"
+              >
+                Entrar com Steam
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </section>

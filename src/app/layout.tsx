@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/header";
+import HeaderWithUser from "@/components/layout/header-with-user";
 import Footer from "@/components/layout/footer";
-import { getCurrentProfile } from "@/lib/profiles";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,13 +33,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const currentProfile = await getCurrentProfile();
-
   return (
     <html
       lang="pt-BR"
@@ -46,19 +45,9 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
-        <Header
-          user={
-            currentProfile
-              ? {
-                  displayName: currentProfile.steamPersonaName,
-                  steamAvatarUrl: currentProfile.steamAvatarUrl,
-                  elo: currentProfile.elo,
-                  publicId: currentProfile.publicId,
-                  isAdmin: currentProfile.isAdmin,
-                }
-              : null
-          }
-        />
+        <Suspense fallback={<Header user={null} authState="loading" />}>
+          <HeaderWithUser />
+        </Suspense>
         <main className="flex-1">{children}</main>
         <Footer />
       </body>

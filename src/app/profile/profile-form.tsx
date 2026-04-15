@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useMemo, useState } from "react";
+import { startTransition, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Crown,
@@ -41,12 +41,40 @@ const ROLE_ICONS: Record<(typeof IN_GAME_ROLES)[number]["value"], LucideIcon> = 
   coach: Users,
 };
 
+function calcMaskedCursorPos(rawValue: string, selectionStart: number, formatter: (digits: string) => string) {
+  const digits = rawValue.replace(/\D/g, "");
+  const digitsBeforeCursor = rawValue.slice(0, selectionStart).replace(/\D/g, "").length;
+  const formattedValue = formatter(digits);
+
+  if (digitsBeforeCursor <= 0) {
+    return 0;
+  }
+
+  let digitCount = 0;
+
+  for (let index = 0; index < formattedValue.length; index += 1) {
+    if (/\d/.test(formattedValue[index])) {
+      digitCount += 1;
+
+      if (digitCount === digitsBeforeCursor) {
+        return index + 1;
+      }
+    }
+  }
+
+  return formattedValue.length;
+}
+
 export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormProps) {
   const router = useRouter();
+  const cpfInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const pendingCpfCursorRef = useRef<number | null>(null);
+  const pendingPhoneCursorRef = useRef<number | null>(null);
 
   const [fullName, setFullName] = useState(profile.fullName ?? "");
-  const [cpf, setCpf] = useState(formatCpf(profile.cpf));
-  const [phone, setPhone] = useState(formatPhone(profile.phone));
+  const [cpfDigits, setCpfDigits] = useState((profile.cpf ?? "").replace(/\D/g, "").slice(0, 11));
+  const [phoneDigits, setPhoneDigits] = useState((profile.phone ?? "").replace(/\D/g, "").slice(0, 11));
   const [birthDate, setBirthDate] = useState(profile.birthDate ?? "");
   const [bio, setBio] = useState(profile.bio ?? "");
   const [inGameRole, setInGameRole] = useState(profile.inGameRole);
@@ -54,6 +82,43 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
   const [feedback, setFeedback] = useState<Feedback>(null);
 
   const bioLengthLabel = useMemo(() => `${bio.length}/280`, [bio.length]);
+  const formattedCpf = useMemo(() => formatCpf(cpfDigits), [cpfDigits]);
+  const formattedPhone = useMemo(() => formatPhone(phoneDigits), [phoneDigits]);
+  const currentRoleLabel = useMemo(() => roleLabel(inGameRole), [inGameRole]);
+
+  useLayoutEffect(() => {
+    if (pendingCpfCursorRef.current === null || !cpfInputRef.current) {
+      return;
+    }
+
+    const cursor = pendingCpfCursorRef.current;
+    cpfInputRef.current.setSelectionRange(cursor, cursor);
+    pendingCpfCursorRef.current = null;
+  }, [formattedCpf]);
+
+  useLayoutEffect(() => {
+    if (pendingPhoneCursorRef.current === null || !phoneInputRef.current) {
+      return;
+    }
+
+    const cursor = pendingPhoneCursorRef.current;
+    phoneInputRef.current.setSelectionRange(cursor, cursor);
+    pendingPhoneCursorRef.current = null;
+  }, [formattedPhone]);
+
+  function handleCpfChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const value = event.currentTarget.value;
+    const selectionStart = event.currentTarget.selectionStart ?? value.length;
+    pendingCpfCursorRef.current = calcMaskedCursorPos(value, selectionStart, formatCpf);
+    setCpfDigits(value.replace(/\D/g, "").slice(0, 11));
+  }
+
+  function handlePhoneChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const value = event.currentTarget.value;
+    const selectionStart = event.currentTarget.selectionStart ?? value.length;
+    pendingPhoneCursorRef.current = calcMaskedCursorPos(value, selectionStart, formatPhone);
+    setPhoneDigits(value.replace(/\D/g, "").slice(0, 11));
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,16 +132,16 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          fullName,
-          cpf,
-          phone,
+          fullName: fullName.trim(),
+          cpf: cpfDigits,
+          phone: phoneDigits,
           birthDate,
-          bio,
+          bio: bio.trim(),
           inGameRole,
         }),
       });
 
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "Não foi possível salvar o perfil.");
@@ -118,7 +183,7 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
           </div>
 
           <div className="flex items-center gap-2">
-            {profile.inGameRole && <Badge variant="secondary">{roleLabel(profile.inGameRole)}</Badge>}
+            {inGameRole && <Badge variant="secondary">{currentRoleLabel}</Badge>}
             {onCancel && (
               <Button type="button" variant="outline" size="sm" onClick={onCancel}>
                 Fechar
@@ -157,10 +222,13 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
               CPF
             </label>
             <Input
-              value={cpf}
-              onChange={(event) => setCpf(formatCpf(event.target.value))}
+              ref={cpfInputRef}
+              value={formattedCpf}
+              onChange={handleCpfChange}
               placeholder="000.000.000-00"
               inputMode="numeric"
+              autoComplete="off"
+              maxLength={14}
             />
           </div>
 
@@ -169,8 +237,9 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
               Celular
             </label>
             <Input
-              value={phone}
-              onChange={(event) => setPhone(formatPhone(event.target.value))}
+              ref={phoneInputRef}
+              value={formattedPhone}
+              onChange={handlePhoneChange}
               placeholder="(11) 99999-0000"
               inputMode="tel"
               autoComplete="tel"
@@ -205,34 +274,46 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
             <label className="block text-sm font-semibold text-[var(--foreground)]">
               Função em jogo
             </label>
-            <Badge variant="secondary">{roleLabel(inGameRole)}</Badge>
+            <Badge variant="secondary">{currentRoleLabel}</Badge>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div role="radiogroup" aria-label="Funcao em jogo" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {IN_GAME_ROLES.map((role) => {
               const isActive = inGameRole === role.value;
               const RoleIcon = ROLE_ICONS[role.value];
 
               return (
-                <button
+                <label
                   key={role.value}
-                  type="button"
-                  onClick={() => setInGameRole(role.value)}
-                  aria-pressed={isActive}
                   className={cn(
-                    "group relative overflow-hidden rounded-xl border bg-[var(--card)] p-4 text-left card-hover",
+                    "group relative block cursor-pointer overflow-hidden rounded-xl border bg-[var(--card)] p-4 text-left touch-manipulation select-none transform-gpu transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out will-change-transform focus-within:outline-none focus-within:ring-2 focus-within:ring-[var(--ring)] focus-within:ring-offset-2 focus-within:ring-offset-[var(--card)] active:scale-[0.99]",
                     isActive
-                      ? "border-[var(--primary)]/40 bg-[var(--primary)]/6 shadow-[0_0_24px_rgba(0,200,255,0.08)]"
-                      : "border-[var(--border)] hover:border-[var(--primary)]/30"
+                      ? "border-[var(--primary)]/45 bg-[var(--primary)]/7 shadow-[0_12px_32px_rgba(0,200,255,0.12)]"
+                      : "border-[var(--border)] hover:-translate-y-1 hover:border-[var(--primary)]/35 hover:bg-[var(--secondary)]/85 hover:shadow-[0_10px_28px_rgba(0,0,0,0.35)]"
                   )}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-950/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                  <input
+                    type="radio"
+                    name="inGameRole"
+                    value={role.value}
+                    checked={isActive}
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        setInGameRole(role.value);
+                      }
+                    }}
+                    className="sr-only"
+                  />
+
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-950/55 via-transparent to-transparent opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100" />
 
                   <div className="relative flex items-start gap-3">
                     <div
                       className={cn(
-                        "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-gradient-to-br from-cyan-950 to-slate-900",
-                        isActive ? "border-[var(--primary)]/40" : "border-[var(--border)]"
+                        "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-gradient-to-br from-cyan-950 to-slate-900 transition-[transform,border-color,box-shadow] duration-200 ease-out",
+                        isActive
+                          ? "border-[var(--primary)]/45 shadow-[0_0_18px_rgba(0,200,255,0.14)]"
+                          : "border-[var(--border)] group-hover:border-[var(--primary)]/25 group-hover:-translate-y-0.5"
                       )}
                     >
                       <RoleIcon className="h-5 w-5 text-[var(--primary)]" />
@@ -242,7 +323,7 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <span
                           className={cn(
-                            "text-sm font-bold transition-colors",
+                            "text-sm font-bold transition-colors duration-200",
                             isActive ? "text-[var(--primary)]" : "group-hover:text-[var(--primary)]"
                           )}
                         >
@@ -250,12 +331,12 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
                         </span>
                         {isActive && <Badge variant="default">Selecionado</Badge>}
                       </div>
-                      <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+                      <p className="text-xs leading-relaxed text-[var(--muted-foreground)] transition-colors duration-200 group-hover:text-[var(--foreground)]/78">
                         {role.description}
                       </p>
                     </div>
                   </div>
-                </button>
+                </label>
               );
             })}
           </div>

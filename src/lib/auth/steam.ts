@@ -1,5 +1,6 @@
 const STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login";
 const DEFAULT_POST_LOGIN_PATH = "/profile";
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 interface SteamPlayerSummaryResponse {
   response?: {
@@ -27,6 +28,36 @@ export interface SteamAccount {
   steamLevel: number;
 }
 
+function getConfiguredAppOrigin() {
+  const configuredOrigin =
+    process.env.PUBLIC_APP_ORIGIN ??
+    process.env.APP_ORIGIN ??
+    process.env.NEXT_PUBLIC_APP_ORIGIN ??
+    null;
+
+  if (!configuredOrigin) {
+    return null;
+  }
+
+  try {
+    return new URL(configuredOrigin).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getPreferredHeaderValue(value: string | null) {
+  return value?.split(",")[0]?.trim() || null;
+}
+
+function buildOriginFromHost(protocol: string, host: string) {
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function sanitizeNextPath(nextPath: string | null | undefined) {
   if (!nextPath || !nextPath.startsWith("/") || nextPath.startsWith("//")) {
     return DEFAULT_POST_LOGIN_PATH;
@@ -35,15 +66,42 @@ export function sanitizeNextPath(nextPath: string | null | undefined) {
   return nextPath;
 }
 
+export function resolveRequestOrigin(request: Request | { url: string; headers: Headers; nextUrl?: URL }) {
+  const configuredOrigin = getConfiguredAppOrigin();
+
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
+  const requestUrl = "nextUrl" in request && request.nextUrl ? request.nextUrl : new URL(request.url);
+  const forwardedHost = getPreferredHeaderValue(request.headers.get("x-forwarded-host"));
+  const host = forwardedHost ?? getPreferredHeaderValue(request.headers.get("host"));
+  const protocol =
+    getPreferredHeaderValue(request.headers.get("x-forwarded-proto")) ??
+    requestUrl.protocol.replace(/:$/, "") ??
+    "http";
+
+  if (host && (forwardedHost || LOOPBACK_HOSTS.has(requestUrl.hostname))) {
+    const originFromHeaders = buildOriginFromHost(protocol, host);
+
+    if (originFromHeaders) {
+      return originFromHeaders;
+    }
+  }
+
+  return requestUrl.origin;
+}
+
 export function buildSteamAuthorizationUrl(origin: string, nextPath: string) {
-  const callbackUrl = new URL("/api/auth/steam/callback", origin);
+  const normalizedOrigin = new URL(origin).origin;
+  const callbackUrl = new URL("/api/auth/steam/callback", normalizedOrigin);
   callbackUrl.searchParams.set("next", sanitizeNextPath(nextPath));
 
   const params = new URLSearchParams({
     "openid.ns": "http://specs.openid.net/auth/2.0",
     "openid.mode": "checkid_setup",
     "openid.return_to": callbackUrl.toString(),
-    "openid.realm": origin,
+    "openid.realm": normalizedOrigin,
     "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
     "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
   });
