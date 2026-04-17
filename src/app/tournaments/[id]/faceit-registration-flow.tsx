@@ -116,20 +116,22 @@ function StatusItem({
   label,
   detail,
   action,
+  rightSlot,
 }: {
   done: boolean;
   loading?: boolean;
   label: string;
   detail?: ReactNode;
   action?: ReactNode;
+  rightSlot?: ReactNode;
 }) {
   return (
-    <div className={`flex items-start gap-3 rounded-xl border p-3.5 transition-colors ${
+    <div className={`flex items-center gap-3 rounded-xl border p-3.5 transition-colors ${
       done
         ? "border-green-500/25 bg-green-500/8"
         : "border-[var(--border)] bg-[var(--secondary)]"
     }`}>
-      <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+      <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
         done ? "bg-green-500/20" : "bg-[var(--border)]"
       }`}>
         {loading ? (
@@ -147,6 +149,7 @@ function StatusItem({
         {detail && <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">{detail}</div>}
         {action && !done && <div className="mt-2">{action}</div>}
       </div>
+      {rightSlot && <div className="shrink-0">{rightSlot}</div>}
     </div>
   );
 }
@@ -216,6 +219,11 @@ function PostRegistrationCard({
   }
 
   async function handleRetomar() {
+    // Se já tem QR válido, apenas reabre o modal sem chamar a API
+    if (retomandoPixData && retomandoPixData.expiresAt > Date.now()) {
+      setRetomandoModalOpen(true);
+      return;
+    }
     setRetomandoPix(true);
     setRetomandoErro("");
     setRetomandoPixData(null);
@@ -230,7 +238,12 @@ function PostRegistrationCard({
         setRetomandoErro(data.error ?? "Erro ao gerar QR Code. Tente novamente.");
         return;
       }
-      setRetomandoPixData({ paymentId: data.paymentId!, qrCodeBase64: data.qrCodeBase64, qrCode: data.qrCode });
+      setRetomandoPixData({
+        paymentId: data.paymentId!,
+        qrCodeBase64: data.qrCodeBase64,
+        qrCode: data.qrCode,
+        expiresAt: Date.now() + PIX_EXPIRY_MS,
+      });
       setRetomandoModalOpen(true);
     } finally {
       setRetomandoPix(false);
@@ -314,20 +327,23 @@ function PostRegistrationCard({
           <StatusItem
             done
             label={registration.faceitTeamName}
-            detail={
-              <span className="flex items-center gap-1">
-                {registration.faceitTeamAvatar && (
+            detail="Time selecionado"
+            rightSlot={
+              registration.faceitTeamAvatar ? (
+                <div className="relative h-10 w-10 overflow-hidden rounded-full ring-2 ring-green-500/40 ring-offset-2 ring-offset-[var(--card)]">
                   <Image
                     src={registration.faceitTeamAvatar}
                     alt={registration.faceitTeamName}
-                    width={14}
-                    height={14}
-                    className="rounded"
+                    fill
+                    className="object-cover"
                     unoptimized
                   />
-                )}
-                Time selecionado
-              </span>
+                </div>
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 ring-2 ring-green-500/40 ring-offset-2 ring-offset-[var(--card)] text-xs font-black text-green-300">
+                  {registration.faceitTeamName.slice(0, 2).toUpperCase()}
+                </div>
+              )
             }
           />
 
@@ -356,6 +372,8 @@ function PostRegistrationCard({
                   >
                     {retomandoPix ? (
                       <><Loader2 className="h-3 w-3 animate-spin" />Gerando QR...</>
+                    ) : retomandoPixData && retomandoPixData.expiresAt > Date.now() ? (
+                      <>Voltar para o pagamento</>
                     ) : (
                       <>Pagar agora via PIX</>
                     )}
@@ -504,7 +522,7 @@ function PostRegistrationCard({
       {/* Modal PIX — retomar pagamento */}
       <Modal
         open={retomandoModalOpen}
-        onClose={() => { setRetomandoModalOpen(false); setRetomandoPixData(null); setRetomandoErro(""); }}
+        onClose={() => setRetomandoModalOpen(false)}
         title="Pagar com PIX"
         subtitle="Escaneie o QR Code ou use o Copia e Cola."
       >
@@ -513,9 +531,10 @@ function PostRegistrationCard({
             amount={championship.entryFee}
             qrCodeBase64={retomandoPixData?.qrCodeBase64 ?? ""}
             qrCode={retomandoPixData?.qrCode ?? ""}
+            expiresAt={retomandoPixData?.expiresAt ?? Date.now()}
             loading={retomandoPix && !retomandoPixData}
             error={retomandoErro}
-            onRetry={handleRetomar}
+            onRetry={() => { setRetomandoPixData(null); handleRetomar(); }}
           />
         </div>
       </Modal>
@@ -691,6 +710,7 @@ function PixCheckout({
   amount,
   qrCodeBase64,
   qrCode,
+  expiresAt,
   loading,
   error,
   onRetry,
@@ -698,19 +718,24 @@ function PixCheckout({
   amount: number;
   qrCodeBase64: string;
   qrCode: string;
+  expiresAt: number;
   loading: boolean;
   error: string;
   onRetry: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(1800);
+  const [secondsLeft, setSecondsLeft] = useState(() =>
+    Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+  );
 
   useEffect(() => {
     if (!qrCode) return;
-    setSecondsLeft(1800);
-    const t = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
+    const t = setInterval(() =>
+      setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))), 1000
+    );
     return () => clearInterval(t);
-  }, [qrCode]);
+  }, [qrCode, expiresAt]);
 
   function handleCopy() {
     navigator.clipboard.writeText(qrCode).then(() => {
@@ -841,10 +866,13 @@ const TERMOS = `1. Ao se inscrever, o time confirma ter lido e concordar com tod
 
 type FlowStep = "idle" | "confirm" | "payment-summary" | "pix";
 
+const PIX_EXPIRY_MS = 10 * 60 * 1000;
+
 interface PixData {
   paymentId: string;
   qrCodeBase64: string;
   qrCode: string;
+  expiresAt: number;
 }
 
 interface FaceitRegistrationFlowProps {
@@ -945,7 +973,7 @@ export default function FaceitRegistrationFlow({
         setPixError(data.error ?? "Erro ao gerar QR Code. Tente novamente.");
         return;
       }
-      setPixData({ paymentId: data.paymentId!, qrCodeBase64: data.qrCodeBase64, qrCode: data.qrCode });
+      setPixData({ paymentId: data.paymentId!, qrCodeBase64: data.qrCodeBase64, qrCode: data.qrCode, expiresAt: Date.now() + PIX_EXPIRY_MS });
     } finally {
       setPixLoading(false);
     }
@@ -1275,6 +1303,7 @@ export default function FaceitRegistrationFlow({
             amount={championship.entryFee}
             qrCodeBase64={pixData?.qrCodeBase64 ?? ""}
             qrCode={pixData?.qrCode ?? ""}
+            expiresAt={pixData?.expiresAt ?? Date.now()}
             loading={pixLoading}
             error={pixError}
             onRetry={handlePixCreate}

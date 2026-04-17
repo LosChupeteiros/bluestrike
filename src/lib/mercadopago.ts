@@ -104,7 +104,7 @@ export async function createPixPayment(
       },
       external_reference: params.registrationId,
       notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
-      date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      date_of_expiration: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     },
     requestOptions: {
       idempotencyKey: params.registrationId,
