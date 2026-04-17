@@ -47,8 +47,7 @@ export async function createPixPreference(
         name: params.payerName,
       },
       payment_methods: {
-        // PIX é bank_transfer no MP — excluir bank_transfer conflita com default pix
-        default_payment_method_id: "pix",
+        // Exclui tudo exceto bank_transfer (PIX) — não usar default_payment_method_id
         excluded_payment_types: [
           { id: "credit_card" },
           { id: "debit_card" },
