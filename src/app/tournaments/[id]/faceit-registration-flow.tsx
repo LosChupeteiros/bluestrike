@@ -164,19 +164,23 @@ function PostRegistrationCard({
     friendCheck: registration.friendCheck,
     teamConfirmed: registration.teamConfirmed,
     registrationStatus: registration.registrationStatus,
+    paymentStatus: registration.paymentStatus as "pending" | "paid",
   });
   const [refreshing, setRefreshing] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [retomandoPix, setRetomandoPix] = useState(false);
+  const [retomandoErro, setRetomandoErro] = useState("");
 
   const poll = useRef(() => {});
   poll.current = () => {
     fetch(`/api/tournaments/faceit/${championship.id}/live-status`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { friendCheck: boolean; teamConfirmed: boolean; registrationStatus: string } | null) => {
+      .then((d: { friendCheck: boolean; teamConfirmed: boolean; registrationStatus: string; paymentStatus?: string } | null) => {
         if (d) setLiveStatus({
           friendCheck: d.friendCheck,
           teamConfirmed: d.teamConfirmed,
           registrationStatus: (d.registrationStatus ?? "active") as "active" | "cancelled",
+          paymentStatus: (d.paymentStatus ?? "pending") as "pending" | "paid",
         });
       })
       .catch(() => {/* best-effort */});
@@ -207,7 +211,27 @@ function PostRegistrationCard({
     setCooldown(30);
   }
 
-  const isPaid = registration.paymentStatus === "paid";
+  async function handleRetomar() {
+    setRetomandoPix(true);
+    setRetomandoErro("");
+    try {
+      const res = await fetch(`/api/tournaments/faceit/${championship.id}/pix-preference`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: registration.id }),
+      });
+      const data = await res.json() as { initPoint?: string; error?: string };
+      if (!res.ok || !data.initPoint) {
+        setRetomandoErro(data.error ?? "Erro ao gerar link. Tente novamente.");
+        return;
+      }
+      window.open(data.initPoint, "_blank", "noopener,noreferrer");
+    } finally {
+      setRetomandoPix(false);
+    }
+  }
+
+  const isPaid = liveStatus.paymentStatus === "paid";
   const isConfirmed = liveStatus.teamConfirmed;
   const isCancelled = liveStatus.registrationStatus === "cancelled";
   const allDone = isPaid && liveStatus.friendCheck && liveStatus.teamConfirmed;
@@ -304,11 +328,34 @@ function PostRegistrationCard({
           {/* 2. Pagamento */}
           <StatusItem
             done={isPaid}
-            label={isPaid ? "Pagamento aprovado" : "Aguardando pagamento"}
+            loading={!isPaid}
+            label={isPaid ? "Pagamento aprovado" : "Pagamento pendente"}
             detail={
               isPaid
                 ? "Valor da inscrição confirmado."
-                : "Aguardando confirmação do pagamento."
+                : "Pague para garantir sua vaga. Após o pagamento, a confirmação é automática."
+            }
+            action={
+              !isPaid ? (
+                <div className="flex flex-col gap-2">
+                  {retomandoErro && (
+                    <p className="text-[10px] text-red-400">{retomandoErro}</p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={retomandoPix}
+                    onClick={handleRetomar}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "#009EE3" }}
+                  >
+                    {retomandoPix ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" />Preparando...</>
+                    ) : (
+                      <><ExternalLink className="h-3 w-3" />Pagar agora via PIX</>
+                    )}
+                  </button>
+                </div>
+              ) : null
             }
           />
 
@@ -613,64 +660,92 @@ function TeamSelector({
   );
 }
 
-// ── mock QR code ─────────────────────────────────────────────────────────────
+// ── PIX via Mercado Pago Checkout Pro ────────────────────────────────────────
 
-function MockQRCode({ amount }: { amount: number }) {
+const MP_ICON = (
+  <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" aria-hidden>
+    <circle cx="24" cy="24" r="24" fill="#009EE3" />
+    <path d="M34.5 18.3c-.6 0-1.2.2-1.6.6l-4.6 4.6c-.3.3-.9.3-1.3 0l-4.6-4.6c-.4-.4-1-.6-1.6-.6h-.9l5.8 5.8c1 1 2.7 1 3.7 0l5.8-5.8h-.7zM20.8 25.1c-.4.4-1 .6-1.6.6h-.9l5.8 5.8c1 1 2.7 1 3.7 0l5.8-5.8h-.9c-.6 0-1.2-.2-1.6-.6l-4.6-4.6c-.4-.4-1-.3-1.3 0l-4.4 4.6z" fill="white" />
+    <path d="M13.5 18.3h.9c.6 0 1.2.2 1.6.6l4.8 4.8c.3.3.9.3 1.2 0l.1-.1-5.8-5.8c-.5-.4-1-.5-1.6-.5h-.9c-.6 0-1.2.2-1.6.6l-4.6 4.6c.4-.4 1-.6 1.6-.6l3.3-3.6zm0 11.4h.9c.6 0 1.2-.2 1.6-.6l4.6-4.6.1-.1-1.2-1.2-.1.1-4.6 4.6c-.4.4-1 .6-1.6.6H12c.4.4 1 .6 1.6.6h-.1z" fill="white" />
+  </svg>
+);
+
+function MpPixRedirect({
+  amount,
+  onRedirect,
+  loading,
+  error,
+}: {
+  amount: number;
+  onRedirect: () => void;
+  loading: boolean;
+  error: string;
+}) {
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* QR visual */}
-      <div className="relative rounded-2xl border-4 border-[var(--border)] bg-white p-3">
-        <svg viewBox="0 0 100 100" className="h-44 w-44" aria-label="QR Code PIX (simulado)">
-          {/* Canto superior esquerdo */}
-          <rect x="5" y="5" width="28" height="28" rx="3" fill="#111" />
-          <rect x="9" y="9" width="20" height="20" rx="2" fill="white" />
-          <rect x="13" y="13" width="12" height="12" rx="1" fill="#111" />
-          {/* Canto superior direito */}
-          <rect x="67" y="5" width="28" height="28" rx="3" fill="#111" />
-          <rect x="71" y="9" width="20" height="20" rx="2" fill="white" />
-          <rect x="75" y="13" width="12" height="12" rx="1" fill="#111" />
-          {/* Canto inferior esquerdo */}
-          <rect x="5" y="67" width="28" height="28" rx="3" fill="#111" />
-          <rect x="9" y="71" width="20" height="20" rx="2" fill="white" />
-          <rect x="13" y="75" width="12" height="12" rx="1" fill="#111" />
-          {/* Módulos de dados simulados */}
-          {[39,43,47,51,55,59,63].map((x) =>
-            [8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92].map((y) =>
-              (x + y) % 7 < 4 ? <rect key={`${x}-${y}`} x={x} y={y} width="3" height="3" fill="#111" /> : null
-            )
-          )}
-          {[8,12,16,20,24,28,32].map((x) =>
-            [39,43,47,51,55,59,63,67,71,75,79,83,87,91].map((y) =>
-              (x + y) % 5 < 3 ? <rect key={`${x}-${y}`} x={x} y={y} width="3" height="3" fill="#111" /> : null
-            )
-          )}
-          {[68,72,76,80,84,88,92].map((x) =>
-            [39,43,47,51,55,59,63,67,71,75,79,83,87,91].map((y) =>
-              (x + y) % 6 < 3 ? <rect key={`${x}-${y}`} x={x} y={y} width="3" height="3" fill="#111" /> : null
-            )
-          )}
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF5500] shadow-lg">
-            <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5">
-              <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="white" />
+    <div className="flex flex-col items-center gap-5">
+      {/* Card visual MP */}
+      <div className="w-full rounded-2xl border border-[#009EE3]/25 bg-[#009EE3]/6 p-6 text-center">
+        <div className="mb-4 flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#009EE3]">
+            {/* PIX icon */}
+            <svg viewBox="0 0 512 512" className="h-9 w-9" fill="white" aria-hidden>
+              <path d="M242.4 292.5C247.8 287.1 255.1 284.1 262.5 284.1C269.9 284.1 277.2 287 282.6 292.5L327.2 337C332.5 342.4 337 346.9 337 346.9H344.9C348.4 346.9 351.5 345.4 353.8 343L399.4 297.4C406.3 290.5 406.3 279.3 399.4 272.4L399.3 272.3C389.7 262.7 373.7 262.7 364.1 272.3L355 281.3C351.6 284.6 346.3 284.6 342.9 281.3C339.6 277.9 339.6 272.7 342.9 269.3L352 260.2C352 260.2 364 248.3 362 248.3L309.7 196C303.1 189.4 294.3 185.7 285.1 185.7C276 185.7 267.1 189.4 260.6 196L208 248.7C208 248.7 215.7 248.7 221.2 243.2L230.3 234.1C239.9 224.5 255.9 224.5 265.5 234.1L265.6 234.2C272.5 241.1 272.5 252.3 265.6 259.2L220.6 304.3C216.9 308 211.1 308 207.4 304.3C203.7 300.6 203.7 294.8 207.4 291.1L211.6 286.9C215.9 282.6 215.9 275.6 211.6 271.3C207.3 267 200.3 267 196 271.3L147.3 320C140.4 326.9 140.4 338.1 147.3 345L192.9 390.6C195.2 392.9 198.4 394.3 201.8 394.3H209.6C209.6 394.3 214.2 389.8 219.5 384.4L264.1 339.8C269.5 334.4 276.8 331.5 284.2 331.5C291.6 331.5 298.9 334.4 304.3 339.8L348.9 384.4C354.2 389.8 358.8 394.3 358.8 394.3H366.7C370.1 394.3 373.3 392.9 375.6 390.6L421.2 345C428.1 338.1 428.1 326.9 421.2 320L375.6 274.4V274.4z"/>
             </svg>
           </div>
         </div>
-      </div>
-
-      {/* Valor */}
-      <div className="text-center">
-        <div className="text-2xl font-black text-[var(--foreground)]">{formatCurrency(amount)}</div>
+        <p className="mb-1 text-lg font-black text-[var(--foreground)]">Pagar com PIX</p>
+        <p className="text-xs text-[var(--muted-foreground)]">
+          Você será redirecionado ao Mercado Pago para concluir o pagamento via PIX.
+        </p>
+        <div className="mt-4 text-3xl font-black text-[#009EE3]">{formatCurrency(amount)}</div>
         <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de inscrição</div>
       </div>
 
-      {/* Chave PIX simulada */}
-      <div className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-4 py-3 text-center">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">Chave PIX</div>
-        <div className="font-mono text-sm text-[var(--foreground)]">bluestrike@competicao.com.br</div>
-        <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">(simulado — integração real em breve)</div>
+      {/* Info rápida */}
+      <div className="w-full space-y-2">
+        {[
+          "QR Code PIX gerado pelo Mercado Pago",
+          "Confirmação automática após o pagamento",
+          "Pagamento expira em 30 minutos",
+        ].map((info) => (
+          <div key={info} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+            <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
+            {info}
+          </div>
+        ))}
       </div>
+
+      {error && (
+        <div className="flex w-full items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={loading}
+        onClick={onRedirect}
+        className="flex w-full items-center justify-center gap-2.5 rounded-xl py-3.5 text-sm font-black text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+        style={{ backgroundColor: "#009EE3" }}
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Preparando pagamento...
+          </>
+        ) : (
+          <>
+            {MP_ICON}
+            Ir para o Mercado Pago
+            <ArrowRight className="h-4 w-4" />
+          </>
+        )}
+      </button>
+
+      <p className="text-center text-[10px] text-[var(--muted-foreground)]">
+        Ambiente seguro · Powered by Mercado Pago
+      </p>
     </div>
   );
 }
@@ -718,7 +793,8 @@ export default function FaceitRegistrationFlow({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
   const [registering, setRegistering] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixError, setPixError] = useState("");
   const [pendingReg, setPendingReg] = useState<FaceitRegistration | null>(null);
 
   // Carrega times FACEIT na primeira abertura do dropdown
@@ -773,20 +849,26 @@ export default function FaceitRegistrationFlow({
     }
   }
 
-  // Step final: confirmar pagamento (mocked)
-  async function handlePayment() {
+  // Step final: redireciona ao Mercado Pago Checkout Pro (PIX)
+  async function handlePixRedirect() {
     if (!pendingReg) return;
-    setPaying(true);
+    setPixLoading(true);
+    setPixError("");
     try {
-      await fetch(`/api/tournaments/faceit/${championship.id}/payment`, {
+      const res = await fetch(`/api/tournaments/faceit/${championship.id}/pix-preference`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ registrationId: pendingReg.id }),
       });
-      setFlowStep("idle");
-      router.refresh();
+      const data = await res.json() as { initPoint?: string; error?: string };
+      if (!res.ok || !data.initPoint) {
+        setPixError(data.error ?? "Erro ao gerar link de pagamento. Tente novamente.");
+        return;
+      }
+      // Abre MP em nova aba para o usuário continuar vendo o status aqui
+      window.open(data.initPoint, "_blank", "noopener,noreferrer");
     } finally {
-      setPaying(false);
+      setPixLoading(false);
     }
   }
 
@@ -1102,35 +1184,20 @@ export default function FaceitRegistrationFlow({
         </div>
       </Modal>
 
-      {/* ── Modal 3: PIX ─────────────────────────────────────────────────── */}
+      {/* ── Modal 3: PIX via Mercado Pago ───────────────────────────────── */}
       <Modal
         open={flowStep === "pix"}
+        onClose={() => { setFlowStep("idle"); setPixError(""); }}
         title="Pagamento via PIX"
-        subtitle="Escaneie o QR Code ou use a chave PIX abaixo."
+        subtitle="Você será redirecionado ao Mercado Pago."
       >
-        <div className="space-y-5 p-5">
-          <MockQRCode amount={championship.entryFee} />
-
-          <button
-            type="button"
-            disabled={paying}
-            onClick={handlePayment}
-            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 text-sm font-black text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: "#FF5500" }}
-          >
-            {paying ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Confirmando...
-              </>
-            ) : (
-              "Já fiz o pagamento"
-            )}
-          </button>
-
-          <p className="text-center text-[10px] text-[var(--muted-foreground)]">
-            Pagamento simulado. A integração real com gateway PIX será implementada em breve.
-          </p>
+        <div className="p-5">
+          <MpPixRedirect
+            amount={championship.entryFee}
+            onRedirect={handlePixRedirect}
+            loading={pixLoading}
+            error={pixError}
+          />
         </div>
       </Modal>
     </>

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["26.69.145.194", "bluestrike"],
+  allowedDevOrigins: ["bluestrike.com.br"],
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",
