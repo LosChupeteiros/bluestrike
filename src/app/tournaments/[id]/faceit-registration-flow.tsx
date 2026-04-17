@@ -10,10 +10,13 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ClipboardCopy,
+  Clock,
   ExternalLink,
   Loader2,
   Lock,
   RefreshCw,
+  Timer,
   Users,
   X,
 } from "lucide-react";
@@ -114,20 +117,22 @@ function StatusItem({
   label,
   detail,
   action,
+  rightSlot,
 }: {
   done: boolean;
   loading?: boolean;
   label: string;
   detail?: ReactNode;
   action?: ReactNode;
+  rightSlot?: ReactNode;
 }) {
   return (
-    <div className={`flex items-start gap-3 rounded-xl border p-3.5 transition-colors ${
+    <div className={`flex items-center gap-3 rounded-xl border p-3.5 transition-colors ${
       done
         ? "border-green-500/25 bg-green-500/8"
         : "border-[var(--border)] bg-[var(--secondary)]"
     }`}>
-      <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+      <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
         done ? "bg-green-500/20" : "bg-[var(--border)]"
       }`}>
         {loading ? (
@@ -145,6 +150,7 @@ function StatusItem({
         {detail && <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">{detail}</div>}
         {action && !done && <div className="mt-2">{action}</div>}
       </div>
+      {rightSlot && <div className="shrink-0">{rightSlot}</div>}
     </div>
   );
 }
@@ -170,6 +176,8 @@ function PostRegistrationCard({
   const [cooldown, setCooldown] = useState(0);
   const [retomandoPix, setRetomandoPix] = useState(false);
   const [retomandoErro, setRetomandoErro] = useState("");
+  const [retomandoPixData, setRetomandoPixData] = useState<PixData | null>(null);
+  const [retomandoModalOpen, setRetomandoModalOpen] = useState(false);
 
   const poll = useRef(() => {});
   poll.current = () => {
@@ -212,20 +220,32 @@ function PostRegistrationCard({
   }
 
   async function handleRetomar() {
+    // Se já tem QR válido, apenas reabre o modal sem chamar a API
+    if (retomandoPixData && retomandoPixData.expiresAt > Date.now()) {
+      setRetomandoModalOpen(true);
+      return;
+    }
     setRetomandoPix(true);
     setRetomandoErro("");
+    setRetomandoPixData(null);
     try {
-      const res = await fetch(`/api/tournaments/faceit/${championship.id}/pix-preference`, {
+      const res = await fetch(`/api/tournaments/faceit/${championship.id}/pix-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ registrationId: registration.id }),
       });
-      const data = await res.json() as { initPoint?: string; error?: string };
-      if (!res.ok || !data.initPoint) {
-        setRetomandoErro(data.error ?? "Erro ao gerar link. Tente novamente.");
+      const data = await res.json() as { paymentId?: string; qrCodeBase64?: string; qrCode?: string; error?: string };
+      if (!res.ok || !data.qrCodeBase64 || !data.qrCode) {
+        setRetomandoErro(data.error ?? "Erro ao gerar QR Code. Tente novamente.");
         return;
       }
-      window.open(data.initPoint, "_blank", "noopener,noreferrer");
+      setRetomandoPixData({
+        paymentId: data.paymentId!,
+        qrCodeBase64: data.qrCodeBase64,
+        qrCode: data.qrCode,
+        expiresAt: Date.now() + PIX_EXPIRY_MS,
+      });
+      setRetomandoModalOpen(true);
     } finally {
       setRetomandoPix(false);
     }
@@ -308,20 +328,23 @@ function PostRegistrationCard({
           <StatusItem
             done
             label={registration.faceitTeamName}
-            detail={
-              <span className="flex items-center gap-1">
-                {registration.faceitTeamAvatar && (
+            detail="Time selecionado"
+            rightSlot={
+              registration.faceitTeamAvatar ? (
+                <div className="relative h-10 w-10 overflow-hidden rounded-full ring-2 ring-green-500/40 ring-offset-2 ring-offset-[var(--card)]">
                   <Image
                     src={registration.faceitTeamAvatar}
                     alt={registration.faceitTeamName}
-                    width={14}
-                    height={14}
-                    className="rounded"
+                    fill
+                    className="object-cover"
                     unoptimized
                   />
-                )}
-                Time selecionado
-              </span>
+                </div>
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20 ring-2 ring-green-500/40 ring-offset-2 ring-offset-[var(--card)] text-xs font-black text-green-300">
+                  {registration.faceitTeamName.slice(0, 2).toUpperCase()}
+                </div>
+              )
             }
           />
 
@@ -345,13 +368,15 @@ function PostRegistrationCard({
                     type="button"
                     disabled={retomandoPix}
                     onClick={handleRetomar}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                    style={{ backgroundColor: "#009EE3" }}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black text-[#00c8ff] transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ border: "1px solid rgba(0,200,255,0.3)", backgroundColor: "rgba(0,200,255,0.08)" }}
                   >
                     {retomandoPix ? (
-                      <><Loader2 className="h-3 w-3 animate-spin" />Preparando...</>
+                      <><Loader2 className="h-3 w-3 animate-spin" />Gerando QR...</>
+                    ) : retomandoPixData && retomandoPixData.expiresAt > Date.now() ? (
+                      <>Voltar para o pagamento</>
                     ) : (
-                      <><ExternalLink className="h-3 w-3" />Pagar agora via PIX</>
+                      <>Pagar agora via PIX</>
                     )}
                   </button>
                 </div>
@@ -494,6 +519,28 @@ function PostRegistrationCard({
           )}
         </div>
       </div>
+
+      {/* Modal PIX — retomar pagamento */}
+      <Modal
+        open={retomandoModalOpen}
+        onClose={() => setRetomandoModalOpen(false)}
+        title={isPaid ? "Pagamento confirmado" : "Pagar com PIX"}
+        subtitle={isPaid ? undefined : "Escaneie o QR Code ou use o Copia e Cola."}
+      >
+        <div className="p-5">
+          <PixCheckout
+            amount={championship.entryFee}
+            qrCodeBase64={retomandoPixData?.qrCodeBase64 ?? ""}
+            qrCode={retomandoPixData?.qrCode ?? ""}
+            expiresAt={retomandoPixData?.expiresAt ?? Date.now()}
+            isPaid={isPaid}
+            loading={retomandoPix && !retomandoPixData}
+            error={retomandoErro}
+            onRetry={() => { setRetomandoPixData(null); handleRetomar(); }}
+            onApproved={() => setRetomandoModalOpen(false)}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -660,97 +707,239 @@ function TeamSelector({
   );
 }
 
-// ── PIX via Mercado Pago Checkout Pro ────────────────────────────────────────
+// ── PIX Checkout Transparente ────────────────────────────────────────────────
 
-const MP_ICON = (
-  <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" aria-hidden>
-    <circle cx="24" cy="24" r="24" fill="#009EE3" />
-    <path d="M34.5 18.3c-.6 0-1.2.2-1.6.6l-4.6 4.6c-.3.3-.9.3-1.3 0l-4.6-4.6c-.4-.4-1-.6-1.6-.6h-.9l5.8 5.8c1 1 2.7 1 3.7 0l5.8-5.8h-.7zM20.8 25.1c-.4.4-1 .6-1.6.6h-.9l5.8 5.8c1 1 2.7 1 3.7 0l5.8-5.8h-.9c-.6 0-1.2-.2-1.6-.6l-4.6-4.6c-.4-.4-1-.3-1.3 0l-4.4 4.6z" fill="white" />
-    <path d="M13.5 18.3h.9c.6 0 1.2.2 1.6.6l4.8 4.8c.3.3.9.3 1.2 0l.1-.1-5.8-5.8c-.5-.4-1-.5-1.6-.5h-.9c-.6 0-1.2.2-1.6.6l-4.6 4.6c.4-.4 1-.6 1.6-.6l3.3-3.6zm0 11.4h.9c.6 0 1.2-.2 1.6-.6l4.6-4.6.1-.1-1.2-1.2-.1.1-4.6 4.6c-.4.4-1 .6-1.6.6H12c.4.4 1 .6 1.6.6h-.1z" fill="white" />
-  </svg>
-);
-
-function MpPixRedirect({
+function PixCheckout({
   amount,
-  onRedirect,
+  qrCodeBase64,
+  qrCode,
+  expiresAt,
+  isPaid,
   loading,
   error,
+  onRetry,
+  onApproved,
 }: {
   amount: number;
-  onRedirect: () => void;
+  qrCodeBase64: string;
+  qrCode: string;
+  expiresAt: number;
+  isPaid?: boolean;
   loading: boolean;
   error: string;
+  onRetry: () => void;
+  onApproved?: () => void;
 }) {
-  return (
-    <div className="flex flex-col items-center gap-5">
-      {/* Card visual MP */}
-      <div className="w-full rounded-2xl border border-[#009EE3]/25 bg-[#009EE3]/6 p-6 text-center">
-        <div className="mb-4 flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#009EE3]">
-            {/* PIX icon */}
-            <svg viewBox="0 0 512 512" className="h-9 w-9" fill="white" aria-hidden>
-              <path d="M242.4 292.5C247.8 287.1 255.1 284.1 262.5 284.1C269.9 284.1 277.2 287 282.6 292.5L327.2 337C332.5 342.4 337 346.9 337 346.9H344.9C348.4 346.9 351.5 345.4 353.8 343L399.4 297.4C406.3 290.5 406.3 279.3 399.4 272.4L399.3 272.3C389.7 262.7 373.7 262.7 364.1 272.3L355 281.3C351.6 284.6 346.3 284.6 342.9 281.3C339.6 277.9 339.6 272.7 342.9 269.3L352 260.2C352 260.2 364 248.3 362 248.3L309.7 196C303.1 189.4 294.3 185.7 285.1 185.7C276 185.7 267.1 189.4 260.6 196L208 248.7C208 248.7 215.7 248.7 221.2 243.2L230.3 234.1C239.9 224.5 255.9 224.5 265.5 234.1L265.6 234.2C272.5 241.1 272.5 252.3 265.6 259.2L220.6 304.3C216.9 308 211.1 308 207.4 304.3C203.7 300.6 203.7 294.8 207.4 291.1L211.6 286.9C215.9 282.6 215.9 275.6 211.6 271.3C207.3 267 200.3 267 196 271.3L147.3 320C140.4 326.9 140.4 338.1 147.3 345L192.9 390.6C195.2 392.9 198.4 394.3 201.8 394.3H209.6C209.6 394.3 214.2 389.8 219.5 384.4L264.1 339.8C269.5 334.4 276.8 331.5 284.2 331.5C291.6 331.5 298.9 334.4 304.3 339.8L348.9 384.4C354.2 389.8 358.8 394.3 358.8 394.3H366.7C370.1 394.3 373.3 392.9 375.6 390.6L421.2 345C428.1 338.1 428.1 326.9 421.2 320L375.6 274.4V274.4z"/>
-            </svg>
+  const [copied, setCopied] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(() =>
+    Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+  );
+
+  useEffect(() => {
+    if (!qrCode) return;
+    setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
+    const t = setInterval(() =>
+      setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))), 1000
+    );
+    return () => clearInterval(t);
+  }, [qrCode, expiresAt]);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(qrCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const secs = String(secondsLeft % 60).padStart(2, "0");
+  const expired = secondsLeft === 0 && !loading && !!qrCode;
+
+  // ── Estado: Pagamento aprovado ──────────────────────────────────────────
+  if (isPaid) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-6 text-center">
+        {/* Ícone animado */}
+        <div className="relative flex items-center justify-center">
+          <div
+            className="absolute h-28 w-28 animate-ping rounded-full bg-green-500/15"
+            style={{ animationDuration: "2.5s" }}
+          />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-green-500/12 ring-2 ring-green-500/30 ring-offset-2 ring-offset-[var(--background)]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20">
+              <Check className="h-9 w-9 text-green-400" strokeWidth={2.5} />
+            </div>
           </div>
         </div>
-        <p className="mb-1 text-lg font-black text-[var(--foreground)]">Pagar com PIX</p>
-        <p className="text-xs text-[var(--muted-foreground)]">
-          Você será redirecionado ao Mercado Pago para concluir o pagamento via PIX.
-        </p>
-        <div className="mt-4 text-3xl font-black text-[#009EE3]">{formatCurrency(amount)}</div>
-        <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de inscrição</div>
-      </div>
 
-      {/* Info rápida */}
-      <div className="w-full space-y-2">
-        {[
-          "QR Code PIX gerado pelo Mercado Pago",
-          "Confirmação automática após o pagamento",
-          "Pagamento expira em 30 minutos",
-        ].map((info) => (
-          <div key={info} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
-            <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
-            {info}
+        {/* Texto */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold uppercase tracking-widest text-green-500/70">Mercado Pago</p>
+          <p className="text-2xl font-black text-green-300">Pagamento aprovado!</p>
+          <p className="text-3xl font-black text-green-400">{formatCurrency(amount)}</p>
+        </div>
+
+        {/* Info próximo passo */}
+        <div className="w-full rounded-xl border border-green-500/20 bg-green-500/6 px-4 py-3.5 text-left">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-green-400/70">Próximos passos</p>
+          <div className="space-y-1.5">
+            <div className="flex items-start gap-2 text-xs text-green-300/80">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-400" />
+              Adicione a BlueStrikeCS como amigo na FACEIT
+            </div>
+            <div className="flex items-start gap-2 text-xs text-green-300/80">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-400" />
+              Entre no torneio na FACEIT com seu time
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
 
-      {error && (
-        <div className="flex w-full items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        {onApproved && (
+          <button
+            type="button"
+            onClick={onApproved}
+            className="w-full rounded-xl border border-green-500/25 py-3 text-sm font-black text-green-300 transition-all hover:bg-green-500/10"
+          >
+            Ver status da inscrição
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── Estado: QR expirado ─────────────────────────────────────────────────
+  if (expired) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-6 text-center">
+        {/* Ícone relógio */}
+        <div className="flex h-24 w-24 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]">
+          <Clock className="h-11 w-11 text-[var(--muted-foreground)]" />
+        </div>
+
+        {/* Contador zerado */}
+        <div className="space-y-1.5">
+          <p className="font-mono text-4xl font-black tabular-nums text-[var(--muted-foreground)]">00:00</p>
+          <p className="text-xl font-black text-[var(--foreground)]">QR Code expirado</p>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            O tempo para pagamento esgotou.<br />Gere um novo código para continuar.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#00c8ff]/10 py-3.5 text-sm font-black text-[#00c8ff] ring-1 ring-[#00c8ff]/25 transition-all hover:bg-[#00c8ff]/20"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Gerar novo QR Code
+        </button>
+      </div>
+    );
+  }
+
+  // ── Estado: Carregando ──────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-10 text-center">
+        <Loader2 className="h-9 w-9 animate-spin text-[#00c8ff]" />
+        <p className="text-sm font-semibold text-[var(--foreground)]">Gerando QR Code...</p>
+        <p className="text-xs text-[var(--muted-foreground)]">Aguarde um instante.</p>
+      </div>
+    );
+  }
+
+  // ── Estado: Erro ────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="flex flex-col gap-4 py-2">
+        <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           {error}
         </div>
-      )}
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#00c8ff]/30 py-3 text-sm font-black text-[#00c8ff] transition-all hover:bg-[#00c8ff]/8"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
-      <button
-        type="button"
-        disabled={loading}
-        onClick={onRedirect}
-        className="flex w-full items-center justify-center gap-2.5 rounded-xl py-3.5 text-sm font-black text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-        style={{ backgroundColor: "#009EE3" }}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Preparando pagamento...
-          </>
-        ) : (
-          <>
-            {MP_ICON}
-            Ir para o Mercado Pago
-            <ArrowRight className="h-4 w-4" />
-          </>
-        )}
-      </button>
+  // ── Estado: QR Code ativo ───────────────────────────────────────────────
+  return (
+    <div className="flex flex-col items-center gap-5">
+      {/* Valor */}
+      <div className="w-full text-center">
+        <div className="text-3xl font-black text-[#00c8ff]">{formatCurrency(amount)}</div>
+        <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de inscrição</div>
+      </div>
 
-      <p className="text-center text-[10px] text-[var(--muted-foreground)]">
-        Ambiente seguro · Powered by Mercado Pago
-      </p>
+      {/* QR Code */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="rounded-2xl bg-white p-3 shadow-lg">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`data:image/png;base64,${qrCodeBase64}`}
+            alt="QR Code PIX"
+            className="h-44 w-44"
+          />
+        </div>
+        <p className="text-xs text-[var(--muted-foreground)]">Escaneie com o app do seu banco</p>
+      </div>
+
+      {/* Divisor */}
+      <div className="flex w-full items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--border)]" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">ou use o Copia e Cola</span>
+        <div className="h-px flex-1 bg-[var(--border)]" />
+      </div>
+
+      {/* Copia e Cola */}
+      <div className="flex w-full items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2.5">
+        <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-[var(--muted-foreground)]">
+          {qrCode}
+        </code>
+        <button
+          type="button"
+          onClick={handleCopy}
+          title="Copiar código PIX"
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-black transition-all ${
+            copied
+              ? "bg-green-500/15 text-green-400"
+              : "bg-[#00c8ff]/10 text-[#00c8ff] hover:bg-[#00c8ff]/20"
+          }`}
+        >
+          {copied ? (
+            <><Check className="h-3.5 w-3.5" />Copiado!</>
+          ) : (
+            <><ClipboardCopy className="h-3.5 w-3.5" />Copiar</>
+          )}
+        </button>
+      </div>
+
+      {/* Info */}
+      <div className="w-full space-y-1.5">
+        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+          <Timer className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
+          <span>Expira em <span className="font-black tabular-nums text-[var(--foreground)]">{mins}:{secs}</span></span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+          <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
+          Confirmação automática após o pagamento
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+          <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
+          Ambiente seguro · Powered by Mercado Pago
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── termos e condições ───────────────────────────────────────────────────────
+// ── termos e condições (definido antes do componente principal) ──────────────
 
 const TERMOS = `1. Ao se inscrever, o time confirma ter lido e concordar com todas as regras do campeonato publicadas na FACEIT.
 
@@ -769,6 +958,15 @@ const TERMOS = `1. Ao se inscrever, o time confirma ter lido e concordar com tod
 // ── componente principal ─────────────────────────────────────────────────────
 
 type FlowStep = "idle" | "confirm" | "payment-summary" | "pix";
+
+const PIX_EXPIRY_MS = 10 * 60 * 1000;
+
+interface PixData {
+  paymentId: string;
+  qrCodeBase64: string;
+  qrCode: string;
+  expiresAt: number;
+}
 
 interface FaceitRegistrationFlowProps {
   championship: FaceitChampionship;
@@ -795,7 +993,23 @@ export default function FaceitRegistrationFlow({
   const [registering, setRegistering] = useState(false);
   const [pixLoading, setPixLoading] = useState(false);
   const [pixError, setPixError] = useState("");
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [pixPaid, setPixPaid] = useState(false);
   const [pendingReg, setPendingReg] = useState<FaceitRegistration | null>(null);
+
+  // Polling de status de pagamento enquanto o modal PIX está aberto
+  useEffect(() => {
+    if (flowStep !== "pix" || !pendingReg || pixPaid) return;
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/tournaments/faceit/${championship.id}/live-status`);
+        if (!res.ok) return;
+        const d = await res.json() as { paymentStatus?: string };
+        if (d.paymentStatus === "paid") setPixPaid(true);
+      } catch { /* best-effort */ }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [flowStep, pendingReg, pixPaid, championship.id]);
 
   // Carrega times FACEIT na primeira abertura do dropdown
   async function loadTeams() {
@@ -849,24 +1063,25 @@ export default function FaceitRegistrationFlow({
     }
   }
 
-  // Step final: redireciona ao Mercado Pago Checkout Pro (PIX)
-  async function handlePixRedirect() {
-    if (!pendingReg) return;
+  // Step final: gera PIX transparente (QR Code + Copia e Cola)
+  async function handlePixCreate(registrationId?: string) {
+    const regId = registrationId ?? pendingReg?.id;
+    if (!regId) return;
     setPixLoading(true);
     setPixError("");
+    setPixData(null);
     try {
-      const res = await fetch(`/api/tournaments/faceit/${championship.id}/pix-preference`, {
+      const res = await fetch(`/api/tournaments/faceit/${championship.id}/pix-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrationId: pendingReg.id }),
+        body: JSON.stringify({ registrationId: regId }),
       });
-      const data = await res.json() as { initPoint?: string; error?: string };
-      if (!res.ok || !data.initPoint) {
-        setPixError(data.error ?? "Erro ao gerar link de pagamento. Tente novamente.");
+      const data = await res.json() as { paymentId?: string; qrCodeBase64?: string; qrCode?: string; error?: string };
+      if (!res.ok || !data.qrCodeBase64 || !data.qrCode) {
+        setPixError(data.error ?? "Erro ao gerar QR Code. Tente novamente.");
         return;
       }
-      // Abre MP em nova aba para o usuário continuar vendo o status aqui
-      window.open(data.initPoint, "_blank", "noopener,noreferrer");
+      setPixData({ paymentId: data.paymentId!, qrCodeBase64: data.qrCodeBase64, qrCode: data.qrCode, expiresAt: Date.now() + PIX_EXPIRY_MS });
     } finally {
       setPixLoading(false);
     }
@@ -1174,29 +1389,34 @@ export default function FaceitRegistrationFlow({
 
           <button
             type="button"
-            onClick={() => setFlowStep("pix")}
+            onClick={() => { setFlowStep("pix"); handlePixCreate(); }}
             className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 text-sm font-black text-white transition-all hover:opacity-90"
             style={{ backgroundColor: "#FF5500" }}
           >
-            Ir para o pagamento PIX
+            Gerar QR Code PIX
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </Modal>
 
-      {/* ── Modal 3: PIX via Mercado Pago ───────────────────────────────── */}
+      {/* ── Modal 3: PIX Checkout Transparente ──────────────────────────── */}
       <Modal
         open={flowStep === "pix"}
-        onClose={() => { setFlowStep("idle"); setPixError(""); }}
-        title="Pagamento via PIX"
-        subtitle="Você será redirecionado ao Mercado Pago."
+        onClose={() => { if (!pixPaid) { setFlowStep("idle"); setPixData(null); } setPixError(""); }}
+        title={pixPaid ? "Pagamento confirmado" : "Pagar com PIX"}
+        subtitle={pixPaid ? undefined : "Escaneie o QR Code ou use o Copia e Cola."}
       >
         <div className="p-5">
-          <MpPixRedirect
+          <PixCheckout
             amount={championship.entryFee}
-            onRedirect={handlePixRedirect}
+            qrCodeBase64={pixData?.qrCodeBase64 ?? ""}
+            qrCode={pixData?.qrCode ?? ""}
+            expiresAt={pixData?.expiresAt ?? Date.now()}
+            isPaid={pixPaid}
             loading={pixLoading}
             error={pixError}
+            onRetry={() => { setPixPaid(false); handlePixCreate(); }}
+            onApproved={() => { setFlowStep("idle"); setPixData(null); setPixPaid(false); router.refresh(); }}
           />
         </div>
       </Modal>

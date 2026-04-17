@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["bluestrike.com.br"],
+  allowedDevOrigins: ["26.69.145.194", "bluestrike.vercel.app", "bluestrike.com.br"],
+  output: "standalone",
+  experimental: {
+    workerThreads: true,
+    cpus: 1,
+  },
+  serverExternalPackages: ["sharp"],
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",

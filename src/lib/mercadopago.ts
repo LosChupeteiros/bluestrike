@@ -47,16 +47,6 @@ export async function createPixPreference(
         name: params.payerName,
       },
       payment_methods: {
-        // Força somente PIX
-        default_payment_method_id: "pix",
-        excluded_payment_types: [
-          { id: "credit_card" },
-          { id: "debit_card" },
-          { id: "ticket" },
-          { id: "atm" },
-          { id: "bank_transfer" },
-          { id: "prepaid_card" },
-        ],
         installments: 1,
       },
       external_reference: params.registrationId,
@@ -66,7 +56,8 @@ export async function createPixPreference(
         pending: `${origin}/tournaments/${params.championshipId}?mp_status=pending`,
       },
       auto_return: "approved" as const,
-      notification_url: `${origin}/api/webhooks/mercadopago`,
+      // source_news=webhooks garante formato webhook (não IPN legado)
+      notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
       statement_descriptor: "BLUESTRIKE",
       // Expira em 30 minutos
       expires: true,
@@ -79,6 +70,60 @@ export async function createPixPreference(
     preferenceId: result.id!,
     initPoint: result.init_point!,
     sandboxInitPoint: result.sandbox_init_point!,
+  };
+}
+
+export interface CreatePixPaymentParams {
+  registrationId: string;
+  championshipName: string;
+  amount: number;
+  payerEmail: string;
+}
+
+export interface PixPaymentResult {
+  paymentId: string;
+  qrCodeBase64: string;
+  qrCode: string;
+}
+
+export async function createPixPayment(
+  params: CreatePixPaymentParams
+): Promise<PixPaymentResult> {
+  const client = getClient();
+  const payment = new Payment(client);
+
+  const origin = process.env.PUBLIC_APP_ORIGIN ?? "http://localhost:3000";
+
+  const sandbox = isSandboxMode();
+
+  const result = await payment.create({
+    body: {
+      transaction_amount: params.amount,
+      description: `Inscrição — ${params.championshipName}`,
+      payment_method_id: "pix",
+      payer: {
+        email: params.payerEmail,
+        // Em sandbox, first_name "APRO" simula aprovação automática pelo MP
+        ...(sandbox ? { first_name: "APRO" } : {}),
+      },
+      external_reference: params.registrationId,
+      notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
+      date_of_expiration: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    },
+    requestOptions: {
+      idempotencyKey: params.registrationId,
+    },
+  });
+
+  const txData = result.point_of_interaction?.transaction_data;
+  if (!txData?.qr_code_base64 || !txData?.qr_code) {
+    throw new Error("MP não retornou dados do QR Code PIX.");
+  }
+
+  return {
+    paymentId: String(result.id!),
+    qrCodeBase64: txData.qr_code_base64,
+    qrCode: txData.qr_code,
   };
 }
 
