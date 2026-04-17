@@ -66,7 +66,8 @@ export async function createPixPreference(
         pending: `${origin}/tournaments/${params.championshipId}?mp_status=pending`,
       },
       auto_return: "approved" as const,
-      notification_url: `${origin}/api/webhooks/mercadopago`,
+      // source_news=webhooks garante formato webhook (não IPN legado)
+      notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
       statement_descriptor: "BLUESTRIKE",
       // Expira em 30 minutos
       expires: true,
