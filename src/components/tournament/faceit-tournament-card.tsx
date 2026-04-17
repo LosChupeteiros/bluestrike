@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import type { FaceitChampionship } from "@/lib/faceit";
+import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -217,13 +218,7 @@ export default function FaceitTournamentCard({ championship, featured = false }:
           ) : (
             <>
               <div className="flex items-center gap-1 text-xs font-black" style={{ color: "#FF5500" }}>
-                <Image
-                  src={`/assets/faceit_ranks/${championship.joinChecks.minSkillLevel}.svg`}
-                  alt={`Nível ${championship.joinChecks.minSkillLevel}`}
-                  width={12}
-                  height={12}
-                  unoptimized
-                />
+                <FaceitSkillIcon level={championship.joinChecks.minSkillLevel} size={14} />
                 Nv.{championship.joinChecks.minSkillLevel}–{championship.joinChecks.maxSkillLevel}
               </div>
               <div className="text-xs text-[var(--muted-foreground)]">skill level</div>

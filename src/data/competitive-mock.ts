@@ -253,6 +253,12 @@ function seedToUserProfile(seed: MockProfileSeed): UserProfile {
     faceitElo: null,
     faceitLevel: null,
     faceitTeamIds: null,
+    faceitKdRatio: null,
+    faceitWinStreak: null,
+    faceitMatches: null,
+    faceitWinRate: null,
+    faceitHsRate: null,
+    faceitStatsSyncedAt: null,
   };
 }
 

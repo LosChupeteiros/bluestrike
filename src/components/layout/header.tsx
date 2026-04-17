@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Shield, Swords, X } from "lucide-react";
+import { Menu, Shield, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ interface HeaderUser {
   elo: number;
   publicId: number;
   isAdmin: boolean;
+  faceitLevel?: number | null;
+  faceitElo?: number | null;
 }
 
 interface HeaderProps {
@@ -80,8 +83,15 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2.5 group" onClick={closeMobileMenu}>
-            <div className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--primary)] shadow-md group-hover:shadow-[0_0_16px_rgba(0,200,255,0.5)] transition-shadow">
-              <Swords className="w-5 h-5 text-black" />
+            <div className="relative flex items-center justify-center w-9 h-9 overflow-hidden rounded-lg bg-[var(--primary)] shadow-md group-hover:shadow-[0_0_16px_rgba(0,200,255,0.5)] transition-shadow">
+              <Image
+                src="/assets/logo/bluestrike_logo_header.png"
+                alt="BlueStrike"
+                width={36}
+                height={36}
+                priority
+                className="relative z-10 h-9 w-9 rounded-lg object-cover"
+              />
             </div>
             <span className="text-xl font-black tracking-tight">
               Blue<span className="text-[var(--primary)]">Strike</span>
@@ -136,7 +146,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                     <div className="max-w-[160px] truncate text-sm font-semibold group-hover:text-[var(--primary)] transition-colors">
                       {user.displayName}
                     </div>
-                    <HeaderElo initialElo={user.elo} />
+                    <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
                   </div>
                 </Link>
 
@@ -235,7 +245,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
 
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold">{user.displayName}</div>
-                      <HeaderElo initialElo={user.elo} />
+                      <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
                     </div>
                   </Link>
 

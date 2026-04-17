@@ -383,6 +383,45 @@ export async function getFaceitTeams(faceitPlayerId: string): Promise<FaceitTeam
   }
 }
 
+export async function getFaceitTeamsByIds(teamIds: string[]): Promise<FaceitTeam[]> {
+  const apiKey = process.env.FACEIT_API_KEY;
+  if (!apiKey || teamIds.length === 0) return [];
+
+  const settled = await Promise.allSettled(
+    teamIds.slice(0, 60).map((id) =>
+      fetch(`https://open.faceit.com/data/v4/teams/${id}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        next: { revalidate: 1800 },
+      }).then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null))
+    )
+  );
+
+  return settled
+    .filter(
+      (r): r is PromiseFulfilledResult<Record<string, unknown>> =>
+        r.status === "fulfilled" && r.value !== null
+    )
+    .map(({ value: d }) => {
+      const rawMembers = Array.isArray(d.members)
+        ? (d.members as Record<string, unknown>[])
+        : [];
+      return {
+        teamId: String(d.team_id ?? ""),
+        name: String(d.name ?? ""),
+        nickname: String(d.nickname ?? ""),
+        avatar: d.avatar ? String(d.avatar) : null,
+        faceitUrl: d.faceit_url ? resolveLang(String(d.faceit_url)) : "",
+        members: rawMembers.map((m) => ({
+          userId: String(m.user_id ?? ""),
+          nickname: String(m.nickname ?? ""),
+          avatar: m.avatar ? String(m.avatar) : null,
+          faceitUrl: m.faceit_url ? resolveLang(String(m.faceit_url)) : "",
+          membership: String(m.membership ?? "member"),
+        })),
+      };
+    });
+}
+
 // ── Championship Matches ─────────────────────────────────────────────────────
 
 export async function getFaceitChampionshipMatches(
