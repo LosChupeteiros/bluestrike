@@ -29,7 +29,7 @@ export default function Hero({ isLoggedIn = false }: HeroProps) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--destructive)] opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--destructive)]" />
               </span>
-              Campeonatos transmitidos ao vivo · ELO · PIX
+              Campeonatos transmitidos ao vivo · Ranking · PIX
             </div>
 
             <h1 className="text-5xl sm:text-5xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-[0.9] mb-5 animate-slide-up">
@@ -42,7 +42,7 @@ export default function Hero({ isLoggedIn = false }: HeroProps) {
               className="text-sm text-[var(--muted-foreground)] mb-5 leading-relaxed animate-slide-up mx-auto lg:mx-0"
               style={{ animationDelay: "0.1s" }}
             >
-              A plataforma brasileira de CS2. Monte seu time, entre em torneios e dispute ranking e ganhe dinheiro.
+              A plataforma brasileira de CS2. Monte seu time, entre em torneios, dispute ranking e ganhe dinheiro.
             </p>
 
             {/* ── Destaque: premiação PIX ──────────────────────────────────── */}

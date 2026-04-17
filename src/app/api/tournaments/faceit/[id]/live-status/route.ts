@@ -21,7 +21,7 @@ export async function GET(
 
   const registration = await getRegistration(championshipId, profile.id);
   if (!registration) {
-    return NextResponse.json({ friendCheck: false, teamConfirmed: false, registrationStatus: "active" });
+    return NextResponse.json({ friendCheck: false, teamConfirmed: false, registrationStatus: "active", paymentStatus: "pending" });
   }
 
   const apiKey = process.env.FACEIT_API_KEY;
@@ -33,6 +33,7 @@ export async function GET(
       friendCheck: registration.friendCheck,
       teamConfirmed: registration.teamConfirmed,
       registrationStatus: registration.registrationStatus,
+      paymentStatus: registration.paymentStatus,
     });
   }
 
@@ -89,5 +90,10 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({ friendCheck, teamConfirmed, registrationStatus });
+  return NextResponse.json({
+    friendCheck,
+    teamConfirmed,
+    registrationStatus,
+    paymentStatus: registration.paymentStatus,
+  });
 }
