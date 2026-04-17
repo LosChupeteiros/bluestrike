@@ -29,8 +29,14 @@ function validateSignature(request: NextRequest, body: string): boolean {
   const url = new URL(request.url);
   const dataId = url.searchParams.get("data.id") ?? "";
 
-  // Template de assinatura conforme documentação MP
-  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  // Monta template removendo campos ausentes (conforme doc MP)
+  // "Se algum dos valores não estiver presente, você deve removê-lo"
+  const parts2: string[] = [];
+  if (dataId) parts2.push(`id:${dataId}`);
+  if (xRequestId) parts2.push(`request-id:${xRequestId}`);
+  if (ts) parts2.push(`ts:${ts}`);
+  const manifest = parts2.join(";") + ";";
+
   const expected = createHmac("sha256", secret).update(manifest).digest("hex");
 
   return expected === v1;
