@@ -47,14 +47,6 @@ export async function createPixPreference(
         name: params.payerName,
       },
       payment_methods: {
-        // Exclui tudo exceto bank_transfer (PIX) — não usar default_payment_method_id
-        excluded_payment_types: [
-          { id: "credit_card" },
-          { id: "debit_card" },
-          { id: "ticket" },
-          { id: "atm" },
-          { id: "prepaid_card" },
-        ],
         installments: 1,
       },
       external_reference: params.registrationId,
