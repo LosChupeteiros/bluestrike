@@ -14,6 +14,8 @@ export default async function HeaderWithUser() {
               elo: currentProfile.elo,
               publicId: currentProfile.publicId,
               isAdmin: currentProfile.isAdmin,
+              faceitLevel: currentProfile.faceitLevel,
+              faceitElo: currentProfile.faceitElo,
             }
           : null
       }

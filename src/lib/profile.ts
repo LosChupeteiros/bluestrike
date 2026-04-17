@@ -82,6 +82,13 @@ export interface UserProfile {
   faceitElo: number | null;
   faceitLevel: number | null;
   faceitTeamIds: string[] | null;
+  // Faceit lifetime stats (cached from API, refreshed periodically)
+  faceitKdRatio: number | null;
+  faceitWinStreak: number | null;
+  faceitMatches: number | null;
+  faceitWinRate: number | null;
+  faceitHsRate: number | null;
+  faceitStatsSyncedAt: string | null;
 }
 
 export const REQUIRED_PROFILE_FIELDS = [

@@ -9,7 +9,7 @@ import {
   getMockTeamsForProfile,
 } from "@/data/competitive-mock";
 import { getPublicDisplayName, isProfileComplete, type UserProfile } from "@/lib/profile";
-import { getCurrentProfile, getProfileByPublicId, refreshFaceitStats, syncFaceitTeams } from "@/lib/profiles";
+import { getCurrentProfile, getFaceitRankingPosition, getProfileByPublicId, refreshFaceitStats, syncFaceitTeams } from "@/lib/profiles";
 import { getTeamsForProfile } from "@/lib/teams";
 import type { FaceitTeam } from "@/lib/faceit";
 
@@ -48,8 +48,17 @@ async function getPageProfile(publicId: number) {
 }
 
 async function getProfilePresentation(profile: UserProfile, useRealTeams: boolean) {
+  const faceitStats =
+    profile.faceitKdRatio != null
+      ? {
+          winRate: profile.faceitWinRate ?? 50,
+          kdRatio: profile.faceitKdRatio,
+          hsRate: profile.faceitHsRate ?? 40,
+        }
+      : null;
+
   return {
-    stats: getMockProfileStats(profile.publicId) ?? getFallbackProfileStats(profile),
+    stats: faceitStats ?? getMockProfileStats(profile.publicId) ?? getFallbackProfileStats(profile),
     teams: useRealTeams ? await getTeamsForProfile(profile.id) : getMockTeamsForProfile(profile.publicId),
     recentMatches: getMockRecentMatchesForProfile(profile.publicId),
   };
@@ -96,11 +105,14 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const isOwner = currentProfile?.id === profile.id;
   const isRealProfile = Boolean(profile.id && !profile.id.startsWith("mock-profile-"));
 
-  const [presentation, faceitTeams] = await Promise.all([
+  const [presentation, faceitTeams, faceitRankingPosition] = await Promise.all([
     getProfilePresentation(profile, isRealProfile),
     isRealProfile && profile.faceitId
-      ? syncFaceitTeams(profile)             // busca API + persiste team_ids se mudaram + retorna completo
+      ? syncFaceitTeams(profile)
       : Promise.resolve<FaceitTeam[]>([]),
+    isRealProfile && profile.faceitId
+      ? getFaceitRankingPosition(profile.id)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -117,6 +129,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       defaultTab={query.tab === "teams" ? "teams" : "matches"}
       showTeamCreatedNotice={isOwner && query.teamCreated === "1"}
       showTeamDeletedNotice={isOwner && query.teamDeleted === "1"}
+      faceitRankingPosition={faceitRankingPosition}
     />
   );
 }

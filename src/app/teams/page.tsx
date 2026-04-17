@@ -5,8 +5,9 @@ export const metadata: Metadata = { title: "Times" };
 
 interface TeamsPageProps {
   searchParams: Promise<{
-    q?: string;
-    page?: string;
+    q?: string | string[];
+    page?: string | string[];
+    faceitQ?: string | string[];
   }>;
 }
 

@@ -17,6 +17,7 @@ import { getCurrentProfile } from "@/lib/profiles";
 import { getRegistration } from "@/lib/faceit-registrations";
 import FaceitChampionshipTabs from "./faceit-championship-tabs";
 import FaceitRegistrationFlow from "./faceit-registration-flow";
+import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,30 +43,6 @@ function statusClasses(status: string): string {
   }
 }
 
-// Cor FACEIT por nível (1–10) — sem SVG externo
-function faceitLevelColor(level: number): string {
-  if (level <= 3) return "#9e9e9e";
-  if (level <= 5) return "#1ce400";
-  if (level <= 7) return "#ffd700";
-  if (level <= 9) return "#ff8000";
-  return "#f10000"; // nível 10
-}
-
-function FaceitLevelBadge({ level }: { level: number }) {
-  const color = faceitLevelColor(level);
-  return (
-    <div
-      className="flex h-7 w-7 items-center justify-center rounded-md text-sm font-black tabular-nums"
-      style={{
-        backgroundColor: color + "22",
-        border: `2px solid ${color}`,
-        color,
-      }}
-    >
-      {level}
-    </div>
-  );
-}
 
 const FACEIT_ICON = (
   <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
@@ -208,9 +185,9 @@ export default async function FaceitTournamentDetailView({ id }: { id: string })
                       Nível exigido
                     </div>
                     <div className="flex flex-1 items-center gap-1">
-                      <FaceitLevelBadge level={championship.joinChecks.minSkillLevel} />
+                      <FaceitSkillIcon level={championship.joinChecks.minSkillLevel} size={28} />
                       <span className="text-xs font-bold text-[var(--muted-foreground)]">–</span>
-                      <FaceitLevelBadge level={championship.joinChecks.maxSkillLevel} />
+                      <FaceitSkillIcon level={championship.joinChecks.maxSkillLevel} size={28} />
                     </div>
                     <span className="text-[10px] font-medium text-[var(--muted-foreground)]">
                       Proibido Smurfing
