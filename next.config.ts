@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     workerThreads: true,
     cpus: 1,
   },
+  serverExternalPackages: ["sharp"],
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",
