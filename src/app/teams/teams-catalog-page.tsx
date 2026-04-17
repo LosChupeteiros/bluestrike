@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Plus, Search, Shield, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
               <Users className="h-4 w-4" />
               Times
             </div>
-            <h1 className="text-4xl font-black tracking-tight">Catalogo de Times</h1>
+            <h1 className="text-4xl font-black tracking-tight">Catálogo de Times</h1>
             <p className="mt-2 text-[var(--muted-foreground)]">
               {teamList.recruitingCount > 0
                 ? `${teamList.recruitingCount} time${teamList.recruitingCount !== 1 ? "s" : ""} recrutando no momento.`
@@ -66,7 +66,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
         <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 lg:flex-row lg:items-center lg:justify-between">
           <form action="/teams" className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-            <Input name="q" defaultValue={teamList.query} className="pl-9" placeholder="Buscar por nome, tag ou descricao..." />
+            <Input name="q" defaultValue={teamList.query} className="pl-9" placeholder="Buscar por nome, tag ou descrição..." />
           </form>
 
           <div className="flex items-center justify-between gap-3 text-sm">
@@ -74,7 +74,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
               {teamList.total} resultado{teamList.total !== 1 ? "s" : ""}
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-[var(--muted-foreground)]">
-              {teamList.page} / {teamList.totalPages} paginas
+              {teamList.page} / {teamList.totalPages} páginas
             </div>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
                         <div className="truncate text-base font-black transition-colors group-hover:text-[var(--primary)]">
                           {team.name}
                         </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">{team.elo} ELO medio</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">{team.elo} ELO médio</div>
                       </div>
                     </div>
 
@@ -156,7 +156,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
                         {team.name}
                       </div>
                       <div className="text-xs text-[var(--muted-foreground)]">
-                        {team.members?.length ?? 0} jogador{(team.members?.length ?? 0) !== 1 ? "es" : ""} · {team.wins}V {team.losses}D · {team.elo} ELO medio
+                        {team.members?.length ?? 0} jogador{(team.members?.length ?? 0) !== 1 ? "es" : ""} · {team.wins}V {team.losses}D · {team.elo} ELO médio
                       </div>
                     </div>
 
@@ -174,27 +174,27 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
         {teamList.totalPages > 1 && (
           <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-[var(--muted-foreground)]">
-              Pagina {teamList.page} de {teamList.totalPages}
+              Página {teamList.page} de {teamList.totalPages}
             </div>
 
             <div className="flex gap-2">
               {teamList.page <= 1 ? (
                 <Button variant="outline" size="sm" disabled>
-                  Pagina anterior
+                  Página anterior
                 </Button>
               ) : (
                 <Button asChild variant="outline" size="sm">
-                  <Link href={buildTeamsHref(teamList.query, teamList.page - 1)}>Pagina anterior</Link>
+                  <Link href={buildTeamsHref(teamList.query, teamList.page - 1)}>Página anterior</Link>
                 </Button>
               )}
 
               {teamList.page >= teamList.totalPages ? (
                 <Button variant="outline" size="sm" disabled>
-                  Proxima pagina
+                  PrÃ³xima página
                 </Button>
               ) : (
                 <Button asChild variant="outline" size="sm">
-                  <Link href={buildTeamsHref(teamList.query, teamList.page + 1)}>Proxima pagina</Link>
+                  <Link href={buildTeamsHref(teamList.query, teamList.page + 1)}>PrÃ³xima página</Link>
                 </Button>
               )}
             </div>

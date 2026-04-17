@@ -102,10 +102,10 @@ export default function ProfileShell({
   const role = roleLabel(profile.inGameRole);
   const teamsDescription = isOwner
     ? "Monte sua line, acompanhe seus elencos e abra o hub do time em um clique."
-    : `Veja os times em que ${profile.steamPersonaName} esta vinculado.`;
+    : `Veja os times em que ${profile.steamPersonaName} está vinculado.`;
   const emptyTeamsMessage = isOwner
     ? "Crie seu time com 5 titulares e 1 substituto opcional para competir no hub."
-    : "Este jogador ainda nao tem times ativos vinculados ao perfil.";
+    : "Este jogador ainda não tem times ativos vinculados ao perfil.";
 
   const openEditor = useCallback(() => {
     setIsEditModalOpen(true);

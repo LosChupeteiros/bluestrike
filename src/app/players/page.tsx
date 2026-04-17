@@ -3,7 +3,7 @@ import PlayersPage from "./players-page";
 
 export const metadata: Metadata = {
   title: "Players | BlueStrike",
-  description: "Encontre jogadores do hub BlueStrike, veja ELO, patente e funcao.",
+  description: "Encontre jogadores do hub BlueStrike, veja ELO, patente e função.",
 };
 
 interface Props {

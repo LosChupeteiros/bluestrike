@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const team = await getTeamBySlug(slug);
 
   if (!team) {
-    return { title: "Time nao encontrado" };
+    return { title: "Time não encontrado" };
   }
 
   return { title: `${team.name} [${team.tag}]` };

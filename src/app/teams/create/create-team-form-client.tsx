@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
@@ -102,7 +102,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
         };
 
         if (!response.ok || !payload.team) {
-          throw new Error(payload.error ?? "Nao foi possivel criar o time.");
+          throw new Error(payload.error ?? "Não foi possível criar o time.");
         }
 
         setSuccessPayload({
@@ -111,7 +111,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
           teamPath: `/teams/${payload.team.slug}`,
         });
       } catch (error) {
-        setFeedback(error instanceof Error ? error.message : "Nao foi possivel criar o time.");
+        setFeedback(error instanceof Error ? error.message : "Não foi possível criar o time.");
       }
     });
   }
@@ -128,7 +128,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
               </div>
               <h2 className="text-2xl font-black tracking-tight">Nome e tag do time</h2>
               <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                Escolha um nome unico. A tag aparece nas partidas e vira parte da identidade publica da line.
+                Escolha um nome único. A tag aparece nas partidas e vira parte da identidade pública da line.
               </p>
             </div>
 
@@ -236,7 +236,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Minimo 4 caracteres"
+                  placeholder="Mínimo 4 caracteres"
                   minLength={4}
                   maxLength={32}
                   className="pr-10"
@@ -257,7 +257,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
               <div>
                 <h2 className="text-lg font-black tracking-tight">Tudo pronto?</h2>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                  Assim que criar, o time ja entra no catalogo e voce vira capitao automaticamente.
+                  Assim que criar, o time já entra no catálogo e você vira capitão automaticamente.
                 </p>
               </div>
 
@@ -286,12 +286,12 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                 {
                   step: "1",
                   title: "Crie o time",
-                  desc: "Voce vira capitao automaticamente e ganha a pagina publica da equipe.",
+                  desc: "Você vira capitão automaticamente e ganha a página pública da equipe.",
                 },
                 {
                   step: "2",
                   title: "Compartilhe o convite",
-                  desc: "O codigo de entrada fica disponivel para voce levar a line pelo Discord ou WhatsApp.",
+                  desc: "O código de entrada fica disponível para você levar a line pelo Discord ou WhatsApp.",
                 },
                 {
                   step: "3",
@@ -301,7 +301,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                 {
                   step: "4",
                   title: "Gerencie a equipe",
-                  desc: "Na pagina do time voce pode expulsar jogadores, ajustar vagas e excluir a equipe se precisar.",
+                  desc: "Na página do time você pode expulsar jogadores, ajustar vagas e excluir a equipe se precisar.",
                 },
               ].map((item) => (
                 <li key={item.step} className="flex gap-3">
@@ -339,8 +339,8 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[var(--muted-foreground)]">Voce</span>
-                <Badge variant="gold">Capitao</Badge>
+                <span className="text-[var(--muted-foreground)]">Você</span>
+                <Badge variant="gold">Capitão</Badge>
               </div>
             </div>
           </section>
@@ -359,7 +359,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
               {successPayload.name} <span className="text-[var(--primary)]">[{successPayload.tag}]</span>
             </h3>
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
-              O time ja entrou no hub, aparece no catalogo publico e estamos te levando para a aba
+              O time já entrou no hub, aparece no catálogo público e estamos te levando para a aba
               de time do seu perfil agora.
             </p>
 

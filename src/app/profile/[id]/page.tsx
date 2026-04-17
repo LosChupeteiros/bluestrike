@@ -9,8 +9,9 @@ import {
   getMockTeamsForProfile,
 } from "@/data/competitive-mock";
 import { getPublicDisplayName, isProfileComplete, type UserProfile } from "@/lib/profile";
-import { getCurrentProfile, getProfileByPublicId } from "@/lib/profiles";
+import { getCurrentProfile, getProfileByPublicId, refreshFaceitStats, syncFaceitTeams } from "@/lib/profiles";
 import { getTeamsForProfile } from "@/lib/teams";
+import type { FaceitTeam } from "@/lib/faceit";
 
 interface ProfilePageProps {
   params: Promise<{
@@ -81,20 +82,33 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
     notFound();
   }
 
-  const profile = await getPageProfile(publicId);
+  let profile = await getPageProfile(publicId);
 
   if (!profile) {
     notFound();
   }
 
+  // Atualiza ELO/level Faceit a cada carregamento de página (perfis reais com conta vinculada)
+  if (profile.faceitId && !profile.id.startsWith("mock-profile-")) {
+    profile = await refreshFaceitStats(profile);
+  }
+
   const isOwner = currentProfile?.id === profile.id;
-  const presentation = await getProfilePresentation(profile, Boolean(profile.id && !profile.id.startsWith("mock-profile-")));
+  const isRealProfile = Boolean(profile.id && !profile.id.startsWith("mock-profile-"));
+
+  const [presentation, faceitTeams] = await Promise.all([
+    getProfilePresentation(profile, isRealProfile),
+    isRealProfile && profile.faceitId
+      ? syncFaceitTeams(profile)             // busca API + persiste team_ids se mudaram + retorna completo
+      : Promise.resolve<FaceitTeam[]>([]),
+  ]);
 
   return (
     <ProfileShellView
       profile={profile}
       stats={presentation.stats}
       teams={presentation.teams}
+      faceitTeams={faceitTeams}
       recentMatches={presentation.recentMatches}
       isOwner={isOwner}
       defaultEditOpen={isOwner && query.edit === "1"}

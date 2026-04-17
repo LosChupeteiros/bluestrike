@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { updateProfile } from "@/lib/profiles";
-import { getProfilePath, type ProfileUpdateInput } from "@/lib/profile";
+import { type ProfileUpdateInput } from "@/lib/profile";
 
 export async function saveProfile(
   _prevState: string | null,
@@ -34,7 +34,7 @@ export async function saveProfile(
 
     const profile = await updateProfile(session.profileId, input);
 
-    redirect(getProfilePath(profile.publicId));
+    redirect("/");
   } catch (error) {
     if (isRedirectError(error)) throw error;
     if (error instanceof ZodError) return error.issues[0]?.message ?? "Dados inválidos.";

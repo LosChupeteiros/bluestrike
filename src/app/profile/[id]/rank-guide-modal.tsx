@@ -62,8 +62,8 @@ export default function RankGuideModal({ currentElo, isOpen, onClose }: RankGuid
               Como ler
             </div>
             <div className="space-y-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
-              <p>O guia mostra os marcos de progressao de cada patente dentro do ecossistema BlueStrike.</p>
-              <p>Seu card atual fica destacado para voce enxergar rapido a faixa em que esta agora.</p>
+              <p>O guia mostra os marcos de progressão de cada patente dentro do ecossistema BlueStrike.</p>
+              <p>Seu card atual fica destacado para você enxergar rápido a faixa em que está agora.</p>
               <p>A partir de 3700 ELO, o jogador entra em Global Elite e passa a competir no topo do hub.</p>
             </div>
           </div>

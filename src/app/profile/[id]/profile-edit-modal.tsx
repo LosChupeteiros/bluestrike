@@ -64,7 +64,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Nao foi possivel salvar.");
+        throw new Error(payload.error ?? "Não foi possível salvar.");
       }
 
       onClose();
@@ -74,7 +74,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error instanceof Error ? error.message : "Nao foi possivel salvar.",
+        message: error instanceof Error ? error.message : "Não foi possível salvar.",
       });
     } finally {
       setIsSaving(false);
@@ -86,7 +86,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
       open={isOpen}
       onClose={onClose}
       title="Editar perfil"
-      description="Atualize apenas o que aparece no seu perfil publico: bio e funcao em jogo."
+      description="Atualize apenas o que aparece no seu perfil público: bio e função em jogo."
       widthClassName="max-w-2xl"
     >
       <div className="space-y-6 p-6">
@@ -99,7 +99,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
               </div>
               <h3 className="text-lg font-black text-[var(--foreground)]">{profile.steamPersonaName}</h3>
               <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                Ajuste como voce se apresenta para capitaes, lineups e organizadores.
+                Ajuste como você se apresenta para capitães, lineups e organizadores.
               </p>
             </div>
 
@@ -113,7 +113,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
         <form onSubmit={handleSubmit} className="space-y-6">
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <label className="text-sm font-semibold text-[var(--foreground)]">Bio publica</label>
+              <label className="text-sm font-semibold text-[var(--foreground)]">Bio pública</label>
               <span className="text-xs text-[var(--muted-foreground)]">{bioLengthLabel}</span>
             </div>
             <Textarea
@@ -121,17 +121,17 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
               onChange={(event) => setBio(event.target.value)}
               maxLength={280}
               className="min-h-32"
-              placeholder="Descreva seu estilo, comunicacao, pontos fortes e o tipo de time em que voce rende melhor."
+              placeholder="Descreva seu estilo, comunicação, pontos fortes e o tipo de time em que você rende melhor."
             />
           </section>
 
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <label className="text-sm font-semibold text-[var(--foreground)]">Funcao em jogo</label>
+              <label className="text-sm font-semibold text-[var(--foreground)]">Função em jogo</label>
               <Badge variant="secondary">{currentRoleLabel}</Badge>
             </div>
 
-            <div role="radiogroup" aria-label="Funcao em jogo" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div role="radiogroup" aria-label="Função em jogo" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {IN_GAME_ROLES.map((role) => {
                 const isActive = inGameRole === role.value;
                 const RoleIcon = ROLE_ICONS[role.value];
@@ -189,7 +189,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
               onClick={() => setInGameRole(null)}
               className="mt-3 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
-              Limpar funcao
+              Limpar função
             </button>
           </section>
 
@@ -210,7 +210,7 @@ export default function ProfileEditModal({ profile, isOpen, onClose }: ProfileEd
               Cancelar
             </Button>
             <Button type="submit" variant="gradient" loading={isSaving}>
-              Salvar alteracoes
+              Salvar alterações
             </Button>
           </div>
         </form>
