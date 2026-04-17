@@ -94,6 +94,8 @@ export async function createPixPayment(
 
   const origin = process.env.PUBLIC_APP_ORIGIN ?? "http://localhost:3000";
 
+  const sandbox = isSandboxMode();
+
   const result = await payment.create({
     body: {
       transaction_amount: params.amount,
@@ -101,6 +103,8 @@ export async function createPixPayment(
       payment_method_id: "pix",
       payer: {
         email: params.payerEmail,
+        // Em sandbox, first_name "APRO" simula aprovação automática pelo MP
+        ...(sandbox ? { first_name: "APRO" } : {}),
       },
       external_reference: params.registrationId,
       notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
