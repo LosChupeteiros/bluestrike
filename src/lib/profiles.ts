@@ -37,6 +37,12 @@ export interface ProfileRow {
   faceit_elo: number | null;
   faceit_level: number | null;
   faceit_team_ids: string[] | null;
+  faceit_kd_ratio: number | null;
+  faceit_win_streak: number | null;
+  faceit_matches: number | null;
+  faceit_win_rate: number | null;
+  faceit_hs_rate: number | null;
+  faceit_stats_synced_at: string | null;
 }
 
 export function mapProfileRow(row: ProfileRow): UserProfile {
@@ -65,6 +71,12 @@ export function mapProfileRow(row: ProfileRow): UserProfile {
     faceitElo: row.faceit_elo ?? null,
     faceitLevel: row.faceit_level ?? null,
     faceitTeamIds: Array.isArray(row.faceit_team_ids) ? (row.faceit_team_ids as string[]) : null,
+    faceitKdRatio: row.faceit_kd_ratio ?? null,
+    faceitWinStreak: row.faceit_win_streak ?? null,
+    faceitMatches: row.faceit_matches ?? null,
+    faceitWinRate: row.faceit_win_rate ?? null,
+    faceitHsRate: row.faceit_hs_rate ?? null,
+    faceitStatsSyncedAt: row.faceit_stats_synced_at ?? null,
   };
 }
 
@@ -241,7 +253,9 @@ export async function listPublicProfiles(options: PlayersListOptions = {}) {
 
   if (query) {
     const escaped = query.replace(/[%_,]/g, "");
-    dbQuery = dbQuery.ilike("steam_persona_name", `%${escaped}%`);
+    dbQuery = dbQuery.or(
+      `steam_persona_name.ilike.%${escaped}%,faceit_nickname.ilike.%${escaped}%`
+    );
   }
 
   const { data, count, error } = await dbQuery.range(from, to).returns<ProfileRow[]>();
@@ -261,6 +275,13 @@ export async function listPublicProfiles(options: PlayersListOptions = {}) {
  * Busca ELO e level atuais na API Faceit e persiste no Supabase se mudaram.
  * Retorna o perfil atualizado (ou o original em caso de erro/sem chave).
  */
+const STATS_TTL_MS = 30 * 60 * 1000; // 30 minutos
+
+function statsAreStale(syncedAt: string | null): boolean {
+  if (!syncedAt) return true;
+  return Date.now() - new Date(syncedAt).getTime() > STATS_TTL_MS;
+}
+
 export async function refreshFaceitStats(profile: UserProfile): Promise<UserProfile> {
   if (!profile.faceitId) return profile;
 
@@ -268,45 +289,82 @@ export async function refreshFaceitStats(profile: UserProfile): Promise<UserProf
   if (!apiKey) return profile;
 
   try {
-    const res = await fetch(
-      `https://open.faceit.com/data/v4/players/${profile.faceitId}`,
-      {
+    const [playerRes, statsRes] = await Promise.all([
+      fetch(`https://open.faceit.com/data/v4/players/${profile.faceitId}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
         cache: "no-store",
-      }
-    );
+      }),
+      statsAreStale(profile.faceitStatsSyncedAt)
+        ? fetch(`https://open.faceit.com/data/v4/players/${profile.faceitId}/stats/cs2`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            cache: "no-store",
+          })
+        : Promise.resolve(null),
+    ]);
 
-    if (!res.ok) return profile;
+    if (!playerRes.ok) return profile;
 
-    const data = await res.json();
-    const gameData = (data.games?.cs2 ?? data.games?.csgo) as
+    const playerData = await playerRes.json();
+    const gameData = (playerData.games?.cs2 ?? playerData.games?.csgo) as
       | { faceit_elo: number; skill_level: number }
       | undefined;
 
     const newElo = gameData?.faceit_elo ?? null;
     const newLevel = gameData?.skill_level ?? null;
-    const newAvatar = (data.avatar as string | undefined) ?? profile.faceitAvatar;
-    const newNickname = (data.nickname as string | undefined) ?? profile.faceitNickname ?? "";
+    const newAvatar = (playerData.avatar as string | undefined) ?? profile.faceitAvatar;
+    const newNickname = (playerData.nickname as string | undefined) ?? profile.faceitNickname ?? "";
 
-    // Só persiste se algo mudou
-    if (
-      newElo === profile.faceitElo &&
-      newLevel === profile.faceitLevel &&
-      newAvatar === profile.faceitAvatar &&
-      newNickname === profile.faceitNickname
-    ) {
-      return profile;
+    let statsUpdate: {
+      faceit_kd_ratio?: number | null;
+      faceit_win_streak?: number | null;
+      faceit_matches?: number | null;
+      faceit_win_rate?: number | null;
+      faceit_hs_rate?: number | null;
+      faceit_stats_synced_at?: string;
+    } = {};
+
+    if (statsRes && statsRes.ok) {
+      const statsData = await statsRes.json();
+      const lifetime = statsData.lifetime as Record<string, string> | undefined;
+      if (lifetime) {
+        statsUpdate = {
+          faceit_kd_ratio: parseFloat(lifetime["Average K/D Ratio"] ?? "0") || null,
+          faceit_win_streak: parseInt(lifetime["Longest Win Streak"] ?? "0", 10) || null,
+          faceit_matches: parseInt(lifetime["Matches"] ?? "0", 10) || null,
+          faceit_win_rate: parseInt(lifetime["Win Rate %"] ?? "0", 10) || null,
+          faceit_hs_rate: parseInt(lifetime["Average Headshots %"] ?? "0", 10) || null,
+          faceit_stats_synced_at: new Date().toISOString(),
+        };
+      }
     }
 
-    return await updateFaceitProfile(profile.id, {
-      faceitId: profile.faceitId,
-      faceitNickname: newNickname,
-      faceitAvatar: newAvatar,
-      faceitElo: newElo,
-      faceitLevel: newLevel,
-    });
+    const profileChanged =
+      newElo !== profile.faceitElo ||
+      newLevel !== profile.faceitLevel ||
+      newAvatar !== profile.faceitAvatar ||
+      newNickname !== profile.faceitNickname;
+
+    const hasStatsUpdate = Object.keys(statsUpdate).length > 0;
+
+    if (!profileChanged && !hasStatsUpdate) return profile;
+
+    const { data, error } = await createSupabaseAdminClient()
+      .from("profiles")
+      .update({
+        faceit_id: profile.faceitId,
+        faceit_nickname: newNickname,
+        faceit_avatar: newAvatar,
+        faceit_elo: newElo,
+        faceit_level: newLevel,
+        ...statsUpdate,
+      })
+      .eq("id", profile.id)
+      .select("*")
+      .single<ProfileRow>();
+
+    if (error) return profile;
+    return mapProfileRow(data);
   } catch {
-    // Retorna dados em cache silenciosamente se a API falhar
     return profile;
   }
 }
@@ -389,4 +447,110 @@ export async function requireCurrentProfile(nextPath = "/profile") {
   }
 
   return profile;
+}
+
+export async function getFaceitRankingPosition(profileId: string): Promise<number | null> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: target, error: targetError } = await supabase
+    .from("profiles")
+    .select("faceit_elo")
+    .eq("id", profileId)
+    .not("faceit_id", "is", null)
+    .maybeSingle<{ faceit_elo: number | null }>();
+
+  if (targetError || !target || target.faceit_elo == null) return null;
+
+  const { count, error: countError } = await supabase
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .not("faceit_id", "is", null)
+    .not("faceit_elo", "is", null)
+    .gt("faceit_elo", target.faceit_elo);
+
+  if (countError) return null;
+  return (count ?? 0) + 1;
+}
+
+export async function listRegisteredFaceitTeamIds(limit = 60): Promise<string[]> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("profiles")
+    .select("faceit_team_ids")
+    .not("faceit_team_ids", "is", null)
+    .returns<{ faceit_team_ids: string[] | null }[]>();
+
+  if (error || !data) return [];
+
+  const seen = new Set<string>();
+  for (const row of data) {
+    for (const id of row.faceit_team_ids ?? []) {
+      seen.add(id);
+      if (seen.size >= limit) return [...seen];
+    }
+  }
+
+  return [...seen];
+}
+
+export interface FaceitRankingEntry {
+  position: number;
+  id: string;
+  publicId: number;
+  nickname: string;
+  avatar: string | null;
+  faceitNickname: string;
+  faceitAvatar: string | null;
+  faceitElo: number;
+  faceitLevel: number;
+  faceitKdRatio: number | null;
+  faceitWinStreak: number | null;
+  faceitMatches: number | null;
+  faceitWinRate: number | null;
+  faceitStatsSyncedAt: string | null;
+}
+
+export async function listFaceitRanking(limit = 50): Promise<FaceitRankingEntry[]> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("profiles")
+    .select(
+      "id, public_id, steam_persona_name, steam_avatar_url, faceit_nickname, faceit_avatar, faceit_elo, faceit_level, faceit_kd_ratio, faceit_win_streak, faceit_matches, faceit_win_rate, faceit_stats_synced_at"
+    )
+    .not("faceit_id", "is", null)
+    .not("faceit_elo", "is", null)
+    .order("faceit_elo", { ascending: false })
+    .limit(limit)
+    .returns<{
+      id: string;
+      public_id: number;
+      steam_persona_name: string;
+      steam_avatar_url: string | null;
+      faceit_nickname: string | null;
+      faceit_avatar: string | null;
+      faceit_elo: number;
+      faceit_level: number | null;
+      faceit_kd_ratio: number | null;
+      faceit_win_streak: number | null;
+      faceit_matches: number | null;
+      faceit_win_rate: number | null;
+      faceit_stats_synced_at: string | null;
+    }[]>();
+
+  if (error) throw new Error(`Falha ao buscar ranking FACEIT: ${error.message}`);
+
+  return (data ?? []).map((row, i) => ({
+    position: i + 1,
+    id: row.id,
+    publicId: row.public_id,
+    nickname: row.steam_persona_name,
+    avatar: row.steam_avatar_url,
+    faceitNickname: row.faceit_nickname ?? row.steam_persona_name,
+    faceitAvatar: row.faceit_avatar,
+    faceitElo: row.faceit_elo,
+    faceitLevel: row.faceit_level ?? 1,
+    faceitKdRatio: row.faceit_kd_ratio,
+    faceitWinStreak: row.faceit_win_streak,
+    faceitMatches: row.faceit_matches,
+    faceitWinRate: row.faceit_win_rate,
+    faceitStatsSyncedAt: row.faceit_stats_synced_at,
+  }));
 }

@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileEditModal from "./profile-edit-modal";
 import RankGuideModal from "./rank-guide-modal";
 import FaceitConnectModal from "./faceit-connect-modal";
+import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
 import {
   calculateProfileCompletion,
   getEloBand,
@@ -57,6 +58,7 @@ interface ProfileShellViewProps {
   defaultTab: "matches" | "teams";
   showTeamCreatedNotice: boolean;
   showTeamDeletedNotice: boolean;
+  faceitRankingPosition?: number | null;
 }
 
 export default function ProfileShellView({
@@ -72,6 +74,7 @@ export default function ProfileShellView({
   defaultTab,
   showTeamCreatedNotice,
   showTeamDeletedNotice,
+  faceitRankingPosition,
 }: ProfileShellViewProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -609,14 +612,7 @@ export default function ProfileShellView({
                     </div>
                     {profile.faceitLevel != null && (
                       <div className="flex items-center gap-1.5">
-                        <Image
-                          src={`/assets/faceit_ranks/${profile.faceitLevel}.svg`}
-                          alt={`Level ${profile.faceitLevel}`}
-                          width={24}
-                          height={24}
-                          className="h-6 w-6 object-contain"
-                          unoptimized
-                        />
+                        <FaceitSkillIcon level={profile.faceitLevel} size={24} />
                         <span className="text-xs font-bold text-[var(--muted-foreground)]">
                           Nível {profile.faceitLevel}
                         </span>
@@ -655,18 +651,19 @@ export default function ProfileShellView({
                           {profile.faceitElo} <span className="text-xs font-semibold text-[var(--muted-foreground)]">ELO</span>
                         </div>
                       )}
+                      {faceitRankingPosition != null && (
+                        <div className="mt-1 flex items-center gap-1">
+                          <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">Ranking comunidade</span>
+                          <span className="rounded-md border border-[#FF5500]/25 bg-[#FF5500]/10 px-1.5 py-0.5 text-[10px] font-black tabular-nums" style={{ color: "#FF5500" }}>
+                            #{faceitRankingPosition}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Level badge grande */}
                     {profile.faceitLevel != null && (
-                      <Image
-                        src={`/assets/faceit_ranks/${profile.faceitLevel}.svg`}
-                        alt={`Level ${profile.faceitLevel}`}
-                        width={36}
-                        height={36}
-                        className="h-9 w-9 shrink-0 object-contain drop-shadow"
-                        unoptimized
-                      />
+                      <FaceitSkillIcon level={profile.faceitLevel} size={36} className="shrink-0 drop-shadow" />
                     )}
                   </div>
                 </section>

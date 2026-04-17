@@ -171,7 +171,7 @@ export default function ProfileShell({
                 Time criado com sucesso
               </div>
               <p className="mt-2 text-sm leading-relaxed text-green-100/80">
-                Seu time ja esta no hub, aparece no catalogo publico e pode receber convites para campeonato.
+                Seu time ja esta no hub, aparece no catalogo público e pode receber convites para campeonato.
               </p>
             </div>
           )}

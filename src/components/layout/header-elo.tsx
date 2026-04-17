@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { Zap } from "lucide-react";
+import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
 
 interface HeaderEloProps {
-  /** ELO inicial vindo do servidor — evita flash de conteúdo no primeiro render */
   initialElo: number;
+  faceitLevel?: number | null;
+  faceitElo?: number | null;
 }
 
-export default function HeaderElo({ initialElo }: HeaderEloProps) {
+export default function HeaderElo({ initialElo, faceitLevel, faceitElo }: HeaderEloProps) {
   const pathname = usePathname();
   const [elo, setElo] = useState(initialElo);
 
@@ -22,7 +25,7 @@ export default function HeaderElo({ initialElo }: HeaderEloProps) {
           setElo(data.elo);
         }
       })
-      .catch(() => {/* silencioso — fallback para o valor inicial */});
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -30,8 +33,21 @@ export default function HeaderElo({ initialElo }: HeaderEloProps) {
   }, [pathname]);
 
   return (
-    <div className="mt-0.5 text-[11px] font-mono font-semibold uppercase tracking-[0.18em] text-[var(--primary)]/80">
-      {elo} ELO
+    <div className="mt-0.5 flex items-center gap-2">
+      <div className="flex items-center gap-1">
+        <Zap className="h-3 w-3 fill-[var(--primary)] text-[var(--primary)]" />
+        <span className="text-[11px] font-mono font-bold text-[var(--primary)]">{elo}</span>
+      </div>
+
+      {faceitLevel != null && faceitElo != null && (
+        <>
+          <span className="text-[var(--border)] select-none">|</span>
+          <div className="flex items-center gap-1">
+            <FaceitSkillIcon level={faceitLevel} size={15} />
+            <span className="text-[11px] font-mono font-bold text-orange-400">{faceitElo}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
