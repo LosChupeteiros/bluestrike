@@ -247,6 +247,12 @@ function seedToUserProfile(seed: MockProfileSeed): UserProfile {
     isAdmin: Boolean(seed.isAdmin),
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-04-14T00:00:00.000Z",
+    faceitId: null,
+    faceitNickname: null,
+    faceitAvatar: null,
+    faceitElo: null,
+    faceitLevel: null,
+    faceitTeamIds: null,
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Copy, QrCode, Trophy } from "lucide-react";
+import { CheckCircle2, Copy, QrCode, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 
@@ -126,16 +126,44 @@ export default function TournamentRegistrationCard({
               </div>
 
               <div className="space-y-3">
+                {/* Subtotal PIX */}
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--secondary)] p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    Valor da inscricao
+                    Valor da inscrição
                   </div>
                   <div className="mt-2 text-3xl font-black text-[var(--primary)]">{formatCurrency(entryFee)}</div>
+                  <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">valor total do time (5 players)</div>
+                </div>
+
+                {/* Arte de divisão BlueStrike */}
+                <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-4">
+                  <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[var(--primary)]">
+                    <Users className="h-3 w-3" />
+                    Sugestão da BlueStrike
+                  </div>
+                  <div className="flex items-center gap-1 mb-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 flex flex-col items-center gap-1 rounded-lg bg-[var(--primary)]/10 border border-[var(--primary)]/20 py-1.5"
+                      >
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--primary)]/15 border border-[var(--primary)]/25">
+                          <Users className="h-3 w-3 text-[var(--primary)]" />
+                        </div>
+                        <div className="text-[10px] font-black text-[var(--primary)]">
+                          {formatCurrency(Math.ceil(entryFee / 5))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-[var(--muted-foreground)]">
+                    Divida o valor da inscrição em partes iguais entre os 5 players.
+                  </p>
                 </div>
 
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--secondary)] p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    Chave PIX fake
+                    Chave PIX
                   </div>
                   <div className="mt-2 break-all font-mono text-sm text-[var(--foreground)]">pix@bluestrike.gg</div>
                 </div>

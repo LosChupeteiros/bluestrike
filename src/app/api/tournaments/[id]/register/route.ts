@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, context: TournamentRegisterRout
   const currentProfile = await getCurrentProfile();
 
   if (!currentProfile) {
-    return NextResponse.json({ error: "Voce precisa entrar com a Steam antes de inscrever um time." }, { status: 401 });
+    return NextResponse.json({ error: "Você precisa entrar com a Steam antes de inscrever um time." }, { status: 401 });
   }
 
   try {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, context: TournamentRegisterRout
 
     return NextResponse.json(payload);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel concluir a inscricao.";
+    const message = error instanceof Error ? error.message : "Não foi possível concluir a inscrição.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

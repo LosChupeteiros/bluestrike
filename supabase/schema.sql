@@ -38,6 +38,12 @@ alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 alter table public.profiles add column if not exists created_at timestamptz not null default timezone('utc', now());
 alter table public.profiles add column if not exists updated_at timestamptz not null default timezone('utc', now());
+alter table public.profiles add column if not exists faceit_id       text;
+alter table public.profiles add column if not exists faceit_nickname text;
+alter table public.profiles add column if not exists faceit_avatar   text;
+alter table public.profiles add column if not exists faceit_elo      integer;
+alter table public.profiles add column if not exists faceit_level    integer;
+alter table public.profiles add column if not exists faceit_team_ids text[];
 
 update public.profiles set steam_level = 0 where steam_level is null;
 update public.profiles set elo = 1000 where elo is null;
@@ -129,3 +135,12 @@ for each row
 execute procedure public.set_updated_at();
 
 alter table public.profiles enable row level security;
+
+-- faceit_registrations: status de inscrição (nunca deletar a linha, só atualizar)
+alter table public.faceit_registrations
+  add column if not exists registration_status text not null default 'active'
+  check (registration_status in ('active', 'cancelled'));
+
+-- índice para buscas de sincronização
+create index if not exists faceit_registrations_championship_status_idx
+  on public.faceit_registrations (championship_id, registration_status);

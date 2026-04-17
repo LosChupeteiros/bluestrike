@@ -24,6 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileEditModal from "./profile-edit-modal";
 import RankGuideModal from "./rank-guide-modal";
+import FaceitConnectModal from "./faceit-connect-modal";
 import {
   calculateProfileCompletion,
   getEloBand,
@@ -37,6 +38,7 @@ import { getPlayerRank } from "@/lib/ranks";
 import { cn, formatDate } from "@/lib/utils";
 import type { MockRecentMatchSummary } from "@/data/competitive-mock";
 import type { Team } from "@/types";
+import type { FaceitTeam } from "@/lib/faceit";
 
 interface ProfileShellViewProps {
   profile: UserProfile;
@@ -46,6 +48,7 @@ interface ProfileShellViewProps {
     hsRate: number;
   };
   teams: Team[];
+  faceitTeams: FaceitTeam[];
   recentMatches: MockRecentMatchSummary[];
   isOwner: boolean;
   defaultEditOpen: boolean;
@@ -60,6 +63,7 @@ export default function ProfileShellView({
   profile,
   stats,
   teams,
+  faceitTeams,
   recentMatches,
   isOwner,
   defaultEditOpen,
@@ -73,6 +77,7 @@ export default function ProfileShellView({
   const searchParams = useSearchParams();
   const [isEditModalOpen, setIsEditModalOpen] = useState(defaultEditOpen);
   const [isRankGuideOpen, setIsRankGuideOpen] = useState(false);
+  const [isFaceitModalOpen, setIsFaceitModalOpen] = useState(false);
   const searchParamsString = searchParams.toString();
   const activeTab = searchParams.get("tab") === "teams" ? "teams" : defaultTab;
 
@@ -129,7 +134,7 @@ export default function ProfileShellView({
     : `Veja os times em que ${profile.steamPersonaName} esta vinculado.`;
   const emptyTeamsMessage = isOwner
     ? "Crie seu time com 5 titulares e 1 substituto opcional para competir no hub."
-    : "Este jogador ainda nao tem times ativos vinculados ao perfil.";
+    : "Este jogador ainda não tem times ativos vinculados ao perfil.";
 
   const openEditor = useCallback(() => {
     setIsEditModalOpen(true);
@@ -197,7 +202,7 @@ export default function ProfileShellView({
                 Time criado com sucesso
               </div>
               <p className="mt-2 text-sm leading-relaxed text-green-100/80">
-                Seu time ja esta no hub, aparece no catalogo publico e pode receber convites para campeonato.
+                Seu time já está no hub, aparece no catálogo público e pode receber convites para campeonato.
               </p>
             </div>
           )}
@@ -246,7 +251,7 @@ export default function ProfileShellView({
 
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--muted-foreground)]">
                   {profile.bio ??
-                    "Ainda sem bio publica. Abra a edicao para contar como voce joga, como se comunica e o que seu time pode esperar de voce no servidor."}
+                    "Ainda sem bio pública. Abra a edição para contar como você joga, como se comunica e o que seu time pode esperar de você no servidor."}
                 </p>
               </div>
             </div>
@@ -264,6 +269,20 @@ export default function ProfileShellView({
                     <ExternalLink className="h-4 w-4" />
                   </Link>
                 </Button>
+              )}
+
+              {isOwner && !profile.faceitId && (
+                <button
+                  type="button"
+                  onClick={() => setIsFaceitModalOpen(true)}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-black text-white transition-opacity hover:opacity-85"
+                  style={{ backgroundColor: "#FF5500" }}
+                >
+                  <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
+                    <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="white"/>
+                  </svg>
+                  Conectar FACEIT
+                </button>
               )}
 
               {isOwner && (
@@ -369,94 +388,208 @@ export default function ProfileShellView({
                       <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
                       <h3 className="mb-2 font-semibold">Nenhuma partida recente</h3>
                       <p className="text-sm text-[var(--muted-foreground)]">
-                        Assim que voce jogar suas partidas ranqueadas, elas aparecem aqui.
+                        Assim que você jogar suas partidas ranqueadas, elas aparecem aqui.
                       </p>
                     </div>
                   )}
                 </TabsContent>
 
-                <TabsContent value="teams">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="font-bold">Times</h3>
-                      <p className="text-sm text-[var(--muted-foreground)]">{teamsDescription}</p>
+                <TabsContent value="teams" className="space-y-8">
+
+                  {/* ── Times BlueStrike ── */}
+                  <div>
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
+                          <Users className="h-4 w-4" />
+                          Times BlueStrike
+                        </div>
+                        <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{teamsDescription}</p>
+                      </div>
+                      {isOwner && (
+                        <Button asChild variant="gradient" size="sm" className="gap-2">
+                          <Link href="/teams/create">
+                            <Users className="h-4 w-4" />
+                            Criar time
+                          </Link>
+                        </Button>
+                      )}
                     </div>
 
-                    {isOwner && (
-                      <Button asChild variant="gradient" size="sm" className="gap-2">
-                        <Link href="/teams/create">
-                          <Users className="h-4 w-4" />
-                          Criar time
-                        </Link>
-                      </Button>
+                    {teams.length > 0 ? (
+                      <div className="space-y-5">
+                        {teams.map((team) => (
+                          <div key={team.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+                            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 font-black text-[var(--primary)]">
+                                  {team.tag}
+                                </div>
+                                <div>
+                                  <div className="text-lg font-black">{team.name}</div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                                    <span>{team.wins}V / {team.losses}D</span>
+                                    <span>|</span>
+                                    <span>{team.elo} ELO</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant={team.isRecruiting ? "open" : "secondary"}>
+                                  {team.isRecruiting ? "Recrutando" : "Line fechada"}
+                                </Badge>
+                                <Button asChild variant="outline" size="sm">
+                                  <Link href={`/teams/${team.slug}`}>Abrir time</Link>
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {team.members?.map((member) => {
+                                const nick = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "-";
+                                const avatar = member.profile?.steamAvatarUrl ?? undefined;
+                                const elo = member.profile?.elo ?? 0;
+                                const isCaptain = member.profileId === team.captainId;
+                                const memberRole = roleLabel(member.inGameRole as InGameRole | null);
+                                return (
+                                  <div key={member.id} className="flex items-center gap-3 rounded-xl bg-[var(--secondary)]/85 p-3">
+                                    <Avatar className="h-9 w-9">
+                                      <AvatarImage src={avatar} alt={nick} />
+                                      <AvatarFallback className="text-xs font-bold">{nick.slice(0, 1).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate text-sm font-semibold text-[var(--foreground)]">{nick}</div>
+                                      <div className="text-xs text-[var(--muted-foreground)]">{memberRole}</div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {isCaptain && <Badge variant="gold">Capitao</Badge>}
+                                      <span className="text-xs font-bold text-[var(--primary)]">{elo} ELO</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-10 text-center">
+                        <Users className="mx-auto mb-4 h-10 w-10 text-[var(--muted-foreground)] opacity-40" />
+                        <h3 className="mb-1 font-semibold">Nenhum time vinculado</h3>
+                        <p className="text-sm text-[var(--muted-foreground)]">{emptyTeamsMessage}</p>
+                      </div>
                     )}
                   </div>
 
-                  {teams.length > 0 ? (
-                    <div className="space-y-5">
-                      {teams.map((team) => (
-                        <div key={team.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-                          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 font-black text-[var(--primary)]">
-                                {team.tag}
-                              </div>
-                              <div>
-                                <div className="text-lg font-black">{team.name}</div>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
-                                  <span>{team.wins}V / {team.losses}D</span>
-                                  <span>|</span>
-                                  <span>{team.elo} ELO</span>
-                                </div>
-                              </div>
-                            </div>
+                  {/* ── Times FACEIT ── */}
+                  {profile.faceitId && (
+                    <div>
+                      <div className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: "#FF5500" }}>
+                        <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
+                          <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500"/>
+                        </svg>
+                        Times FACEIT
+                      </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant={team.isRecruiting ? "open" : "secondary"}>
-                                {team.isRecruiting ? "Recrutando" : "Line fechada"}
-                              </Badge>
-                              <Button asChild variant="outline" size="sm">
-                                <Link href={`/teams/${team.slug}`}>Abrir time</Link>
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            {team.members?.map((member) => {
-                              const nick = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "-";
-                              const avatar = member.profile?.steamAvatarUrl ?? undefined;
-                              const elo = member.profile?.elo ?? 0;
-                              const isCaptain = member.profileId === team.captainId;
-                              const memberRole = roleLabel(member.inGameRole as InGameRole | null);
-
-                              return (
-                                <div key={member.id} className="flex items-center gap-3 rounded-xl bg-[var(--secondary)]/85 p-3">
-                                  <Avatar className="h-9 w-9">
-                                    <AvatarImage src={avatar} alt={nick} />
-                                    <AvatarFallback className="text-xs font-bold">{nick.slice(0, 1).toUpperCase()}</AvatarFallback>
-                                  </Avatar>
-
-                                  <div className="min-w-0 flex-1">
-                                    <div className="truncate text-sm font-semibold text-[var(--foreground)]">{nick}</div>
-                                    <div className="text-xs text-[var(--muted-foreground)]">{memberRole}</div>
-                                  </div>
-
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {isCaptain && <Badge variant="gold">Capitao</Badge>}
-                                    <span className="text-xs font-bold text-[var(--primary)]">{elo} ELO</span>
+                      {faceitTeams.length > 0 ? (
+                        <div className="space-y-4">
+                          {faceitTeams.map((team) => (
+                            <div key={team.teamId} className="overflow-hidden rounded-2xl border border-[#FF5500]/20 bg-[var(--card)]">
+                              {/* Cabeçalho do time */}
+                              <div className="flex items-center justify-between border-b border-[#FF5500]/10 bg-[#FF5500]/6 px-5 py-4">
+                                <div className="flex items-center gap-3">
+                                  {team.avatar ? (
+                                    <Image
+                                      src={team.avatar}
+                                      alt={team.name}
+                                      width={44}
+                                      height={44}
+                                      className="h-11 w-11 rounded-xl object-cover"
+                                      unoptimized
+                                    />
+                                  ) : (
+                                    <div
+                                      className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-black text-white"
+                                      style={{ backgroundColor: "#FF5500" }}
+                                    >
+                                      {team.nickname.slice(0, 2).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="text-base font-black text-[var(--foreground)]">{team.name}</div>
+                                    <div className="text-xs text-[var(--muted-foreground)]">
+                                      #{team.nickname} · CS2
+                                    </div>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
+
+                                {team.faceitUrl && (
+                                  <Link
+                                    href={team.faceitUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF5500]/30 px-3 py-1.5 text-xs font-bold transition-colors hover:border-[#FF5500]/60 hover:bg-[#FF5500]/10"
+                                    style={{ color: "#FF5500" }}
+                                  >
+                                    Ver na FACEIT
+                                    <ExternalLink className="h-3 w-3" />
+                                  </Link>
+                                )}
+                              </div>
+
+                              {/* Membros */}
+                              {team.members.length > 0 && (
+                                <div className="space-y-1.5 p-4">
+                                  {team.members.map((member) => (
+                                    <Link
+                                      key={member.userId}
+                                      href={member.faceitUrl || "#"}
+                                      target={member.faceitUrl ? "_blank" : undefined}
+                                      rel="noreferrer"
+                                      className="group flex items-center gap-3 rounded-xl bg-[var(--secondary)]/70 p-2.5 transition-colors hover:bg-[#FF5500]/8"
+                                    >
+                                      {member.avatar ? (
+                                        <Image
+                                          src={member.avatar}
+                                          alt={member.nickname}
+                                          width={36}
+                                          height={36}
+                                          className="h-9 w-9 rounded-full object-cover ring-1 ring-[#FF5500]/20"
+                                          unoptimized
+                                        />
+                                      ) : (
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FF5500]/15 text-xs font-black" style={{ color: "#FF5500" }}>
+                                          {member.nickname.slice(0, 1).toUpperCase()}
+                                        </div>
+                                      )}
+
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-semibold text-[var(--foreground)] transition-colors group-hover:text-[#FF5500]">
+                                          {member.nickname}
+                                        </div>
+                                        {member.membership === "leader" && (
+                                          <div className="text-xs" style={{ color: "#FF5500" }}>Capitão</div>
+                                        )}
+                                      </div>
+
+                                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)] opacity-0 transition-opacity group-hover:opacity-100" />
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-12 text-center">
-                      <Users className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
-                      <h3 className="mb-2 font-semibold">Nenhum time vinculado</h3>
-                      <p className="text-sm text-[var(--muted-foreground)]">{emptyTeamsMessage}</p>
+                      ) : (
+                        <div className="rounded-2xl border border-[#FF5500]/15 bg-[var(--card)] px-6 py-10 text-center">
+                          <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-3 h-8 w-8 opacity-30" aria-hidden="true">
+                            <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500"/>
+                          </svg>
+                          <h3 className="mb-1 font-semibold">Nenhum time CS2 na FACEIT</h3>
+                          <p className="text-sm text-[var(--muted-foreground)]">
+                            Crie ou entre em um time de CS2 na FACEIT para ele aparecer aqui.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </TabsContent>
@@ -464,19 +597,94 @@ export default function ProfileShellView({
             </div>
 
             <div className="space-y-5">
+              {profile.faceitId && (
+                <section className="overflow-hidden rounded-2xl border border-[#FF5500]/25 bg-[var(--card)]">
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-[#FF5500]/15 bg-[#FF5500]/8 px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
+                        <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500"/>
+                      </svg>
+                      <span className="text-sm font-black" style={{ color: "#FF5500" }}>FACEIT</span>
+                    </div>
+                    {profile.faceitLevel != null && (
+                      <div className="flex items-center gap-1.5">
+                        <Image
+                          src={`/assets/faceit_ranks/${profile.faceitLevel}.svg`}
+                          alt={`Level ${profile.faceitLevel}`}
+                          width={24}
+                          height={24}
+                          className="h-6 w-6 object-contain"
+                          unoptimized
+                        />
+                        <span className="text-xs font-bold text-[var(--muted-foreground)]">
+                          Nível {profile.faceitLevel}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Body */}
+                  <div className="flex items-center gap-3 p-4">
+                    {/* Avatar Faceit */}
+                    <div className="relative shrink-0">
+                      {profile.faceitAvatar ? (
+                        <Image
+                          src={profile.faceitAvatar}
+                          alt={profile.faceitNickname ?? ""}
+                          width={44}
+                          height={44}
+                          className="h-11 w-11 rounded-full object-cover ring-2"
+                          style={{ "--tw-ring-color": "#FF550050" } as React.CSSProperties}
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FF5500]/15 text-sm font-black" style={{ color: "#FF5500" }}>
+                          {(profile.faceitNickname ?? "F").slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black text-[var(--foreground)]">
+                        {profile.faceitNickname}
+                      </div>
+                      {profile.faceitElo != null && (
+                        <div className="mt-0.5 font-mono text-lg font-black leading-none" style={{ color: "#FF5500" }}>
+                          {profile.faceitElo} <span className="text-xs font-semibold text-[var(--muted-foreground)]">ELO</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Level badge grande */}
+                    {profile.faceitLevel != null && (
+                      <Image
+                        src={`/assets/faceit_ranks/${profile.faceitLevel}.svg`}
+                        alt={`Level ${profile.faceitLevel}`}
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 shrink-0 object-contain drop-shadow"
+                        unoptimized
+                      />
+                    )}
+                  </div>
+                </section>
+              )}
+
               <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
                 <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
                   <Users className="h-4 w-4" />
-                  Perfil publico
+                  Perfil público
                 </div>
 
                 <div className="space-y-4 text-sm">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[var(--muted-foreground)]">Idade</span>
-                    <span className="font-medium">{age ? `${age} anos` : "Nao informada"}</span>
+                    <span className="font-medium">{age ? `${age} anos` : "Não informada"}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-[var(--muted-foreground)]">Funcao</span>
+                    <span className="text-[var(--muted-foreground)]">Função</span>
                     <span className="font-medium">{role}</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
@@ -512,7 +720,7 @@ export default function ProfileShellView({
                 <Progress value={completion} />
 
                 <p className="mt-4 text-xs leading-relaxed text-[var(--muted-foreground)]">
-                  CPF, celular e data de nascimento ficam protegidos e so aparecem no modo de edicao do proprio jogador.
+                  CPF, celular e data de nascimento ficam protegidos e só aparecem no modo de edição do próprio jogador.
                 </p>
               </section>
 
@@ -539,6 +747,7 @@ export default function ProfileShellView({
                   </div>
                 </section>
               )}
+
             </div>
           </div>
         </div>
@@ -546,6 +755,7 @@ export default function ProfileShellView({
 
       <ProfileEditModal profile={profile} isOpen={isEditModalOpen} onClose={closeEditor} />
       <RankGuideModal currentElo={profile.elo} isOpen={isRankGuideOpen} onClose={closeRankGuide} />
+      <FaceitConnectModal isOpen={isFaceitModalOpen} onClose={() => setIsFaceitModalOpen(false)} />
     </>
   );
 }

@@ -3,7 +3,9 @@ import { Shield, Trophy, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCurrentProfile } from "@/lib/profiles";
 import { listTournaments } from "@/lib/tournaments";
+import { getFaceitChampionships } from "@/lib/faceit";
 import CreateTournamentPanel from "./create-tournament-panel";
+import FaceitPrizesPanel from "./faceit-prizes-panel";
 
 export default async function AdminConsolePage() {
   const currentProfile = await getCurrentProfile();
@@ -16,7 +18,10 @@ export default async function AdminConsolePage() {
     redirect("/");
   }
 
-  const tournaments = await listTournaments();
+  const [tournaments, faceitChampionships] = await Promise.all([
+    listTournaments(),
+    getFaceitChampionships({ activeOnly: false }),
+  ]);
 
   return (
     <div className="min-h-screen pb-20 pt-20">
@@ -26,7 +31,7 @@ export default async function AdminConsolePage() {
             <Shield className="h-4 w-4" />
             Painel admin
           </div>
-          <h1 className="text-3xl font-black tracking-tight">Administracao BlueStrike</h1>
+          <h1 className="text-3xl font-black tracking-tight">Administrção BlueStrike</h1>
           <p className="mt-2 text-[var(--muted-foreground)]">
             Organize campeonatos, confira as equipes inscritas e mantenha o ecossistema do hub sob controle.
           </p>
@@ -35,7 +40,7 @@ export default async function AdminConsolePage() {
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <CreateTournamentPanel />
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6" aria-label="Campeonatos cadastrados">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
               <Trophy className="h-4 w-4" />
               Campeonatos cadastrados
@@ -96,6 +101,11 @@ export default async function AdminConsolePage() {
               )}
             </div>
           </section>
+        </div>
+
+        {/* FACEIT prize management */}
+        <div className="mt-8">
+          <FaceitPrizesPanel championships={faceitChampionships} />
         </div>
       </div>
     </div>

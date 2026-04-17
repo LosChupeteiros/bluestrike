@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils";
 import HeaderElo from "./header-elo";
 
 const navLinks = [
-  { href: "/tournaments", label: "Campeonatos" },
-  { href: "/teams", label: "Times" },
-  { href: "/players", label: "Players" },
-  { href: "/ranking", label: "Ranking" },
+  { href: "/live", label: "Ao vivo", badge: null, live: true },
+  { href: "/teams", label: "Times", badge: null, live: false },
+  { href: "/players", label: "Players", badge: null, live: false },
+  { href: "/ranking", label: "Ranking", badge: null, live: false },
 ];
 
 interface HeaderUser {
@@ -60,8 +60,8 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
       return () => window.cancelIdleCallback(idleId);
     }
 
-    const timeout = window.setTimeout(prefetchRoutes, 250);
-    return () => window.clearTimeout(timeout);
+    const timeout = setTimeout(prefetchRoutes, 250);
+    return () => clearTimeout(timeout);
   }, [router, user]);
 
   function closeMobileMenu() {
@@ -95,13 +95,24 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 href={link.href}
                 prefetch
                 className={cn(
-                  "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
                   pathname === link.href || pathname.startsWith(`${link.href}/`)
                     ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)]"
+                    : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
                 )}
               >
+                {link.live && (
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--destructive)]" />
+                )}
                 {link.label}
+                {link.badge && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
+                    style={{ color: "#f5c842", backgroundColor: "rgba(245,200,66,0.12)" }}
+                  >
+                    {link.badge}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
@@ -158,7 +169,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 </Link>
                 <Link href="/auth/login" prefetch>
                   <Button size="sm" variant="gradient">
-                    Comecar agora
+                    Começar agora
                   </Button>
                 </Link>
               </>
@@ -185,13 +196,24 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 prefetch
                 onClick={closeMobileMenu}
                 className={cn(
-                  "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
                   pathname === link.href || pathname.startsWith(`${link.href}/`)
                     ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)]"
+                    : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
                 )}
               >
+                {link.live && (
+                  <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--destructive)]" />
+                )}
                 {link.label}
+                {link.badge && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
+                    style={{ color: "#f5c842", backgroundColor: "rgba(245,200,66,0.12)" }}
+                  >
+                    {link.badge}
+                  </span>
+                )}
               </Link>
             ))}
 
@@ -246,7 +268,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                   </Link>
                   <Link href="/auth/login" prefetch onClick={closeMobileMenu} className="w-full">
                     <Button size="sm" variant="gradient" className="w-full">
-                      Comecar agora
+                      Começar agora
                     </Button>
                   </Link>
                 </div>

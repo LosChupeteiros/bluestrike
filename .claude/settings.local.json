@@ -14,7 +14,16 @@
       "Bash(node -e \"const r = require\\('e:/dev/bluestrike/node_modules/react'\\); console.log\\(r.version\\); console.log\\(typeof r.useActionState\\)\")",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies.next\\)\")",
-      "Bash(grep -r \"SUPABASE_URL\\\\|supabase_url\" e:/dev/bluestrike/.env*)"
+      "Bash(grep -r \"SUPABASE_URL\\\\|supabase_url\" e:/dev/bluestrike/.env*)",
+      "WebFetch(domain:dev.twitch.tv)",
+      "Bash(npx next *)",
+      "Bash(powershell -Command ' *)",
+      "Bash(ls assets/*.cur)",
+      "Bash(powershell -ExecutionPolicy Bypass -File fix_accents.ps1)",
+      "Bash(grep -n \"[A-Za-zÀ-ú]\\\\{3,\\\\}[aeiou]o\\\\b\\\\|publico\\\\|voce\\\\|catalogo\\\\|edicao\\\\|funcao\\\\|informada\\\\|protegidos\" \"e:/dev/bluestrike/src/app/profile/[id]/profile-shell-view.tsx\")",
+      "Bash(python3 -c ' *)",
+      "Bash(grep -rn 'é\\\\|Ãµ\\\\|Ã£\\\\|Ã¢\\\\|á\\\\|Ãº\\\\|Ã­\\\\|Ã³\\\\|Ã|Ã§ \\\\ *)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('e:/dev/bluestrike/src/app/tournaments/[id]/faceit-registration-flow.tsx', 'utf8'\\); const match = content.match\\(/\\\\`\\(.\\).*SUPORTE/\\); if\\(match\\) { const ch = match[1]; console.log\\('codepoints:', [...ch].map\\(c => 'U+' + c.codePointAt\\(0\\).toString\\(16\\).toUpperCase\\(\\).padStart\\(4,'0'\\)\\)\\); }\")"
     ]
   }
 }

@@ -9,7 +9,7 @@ import type { Tournament, TournamentStatus } from "@/types";
 
 const STATUS_FILTERS: { label: string; value: TournamentStatus | "all" }[] = [
   { label: "Todos", value: "all" },
-  { label: "Inscricoes abertas", value: "open" },
+  { label: "Inscrições abertas", value: "open" },
   { label: "Em andamento", value: "ongoing" },
   { label: "Em breve", value: "upcoming" },
   { label: "Finalizados", value: "finished" },
@@ -38,20 +38,21 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
   return (
     <div className="min-h-screen pb-20 pt-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
         <div className="mb-10">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
-            <Trophy className="h-4 w-4" />
-            Campeonatos
+            <Trophy className="h-4 w-4" aria-hidden="true" />
+            BlueStrike
           </div>
-          <h1 className="mb-2 text-4xl font-black tracking-tight">Todos os Campeonatos</h1>
+          <h1 className="mb-2 text-4xl font-black tracking-tight">Campeonatos BlueStrike</h1>
           <p className="text-[var(--muted-foreground)]">
-            Encontre o campeonato ideal para o seu time e acompanhe as inscricoes em tempo real.
+            !ws ativo — use qualquer faca ou skin. Premiação em PIX, bracket automático.
           </p>
         </div>
 
         <div className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
           <div className="relative max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" aria-hidden="true" />
             <Input
               placeholder="Buscar campeonato..."
               value={search}
@@ -63,6 +64,7 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
                 type="button"
                 onClick={() => setSearch("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                aria-label="Limpar busca"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -79,6 +81,7 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
                   ? "bg-[var(--background)] text-[var(--foreground)] shadow-sm"
                   : "text-[var(--muted-foreground)]"
               )}
+              aria-label="Visualização em grade"
             >
               <LayoutGrid className="h-4 w-4" />
             </button>
@@ -91,6 +94,7 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
                   ? "bg-[var(--background)] text-[var(--foreground)] shadow-sm"
                   : "text-[var(--muted-foreground)]"
               )}
+              aria-label="Visualização em lista"
             >
               <List className="h-4 w-4" />
             </button>
@@ -120,8 +124,8 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-20 text-center">
-            <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
+          <div className="py-16 text-center">
+            <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" aria-hidden="true" />
             <h3 className="mb-1 text-lg font-semibold">Nenhum campeonato encontrado</h3>
             <p className="text-sm text-[var(--muted-foreground)]">Tente ajustar os filtros de busca.</p>
           </div>

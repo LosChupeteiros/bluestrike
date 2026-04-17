@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Trophy, Plus } from "lucide-react";
+import { ArrowRight, Plus, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import TournamentsCarousel from "./tournaments-carousel";
+import TournamentsCarousel, { type CarouselItem } from "./tournaments-carousel";
 import { listTournaments } from "@/lib/tournaments";
+import { getFaceitChampionships } from "@/lib/faceit";
 import type { Tournament } from "@/types";
 
 const STATUS_PRIORITY: Record<Tournament["status"], number> = {
@@ -12,25 +13,55 @@ const STATUS_PRIORITY: Record<Tournament["status"], number> = {
   finished: 3,
 };
 
+const FACEIT_STATUS_PRIORITY: Record<string, number> = {
+  join: 0,
+  checking_in: 1,
+  ongoing: 2,
+  finished: 3,
+  cancelled: 4,
+};
+
 export default async function FeaturedTournaments() {
-  let tournaments: Tournament[] = [];
+  let bsTournaments: Tournament[] = [];
+  let faceitChampionships: Awaited<ReturnType<typeof getFaceitChampionships>> = [];
   let hasError = false;
 
   try {
-    tournaments = await listTournaments({ status: "all" });
+    [bsTournaments, faceitChampionships] = await Promise.all([
+      listTournaments({ status: "all" }),
+      getFaceitChampionships(),
+    ]);
   } catch {
     hasError = true;
   }
 
-  // Prioriza featured, depois ordena por status e data
-  const sorted = [...tournaments].sort((a, b) => {
-    if (a.featured !== b.featured) return a.featured ? -1 : 1;
-    const sp = (STATUS_PRIORITY[a.status] ?? 3) - (STATUS_PRIORITY[b.status] ?? 3);
-    if (sp !== 0) return sp;
-    const da = a.startsAt ? Date.parse(a.startsAt) : 0;
-    const db = b.startsAt ? Date.parse(b.startsAt) : 0;
-    return da - db;
+  // Constrói lista mista ordenada: featured primeiro, depois por status e data
+  const items: CarouselItem[] = [
+    ...bsTournaments.map((t): CarouselItem => ({ source: "bluestrike", tournament: t })),
+    ...faceitChampionships.map((c): CarouselItem => ({ source: "faceit", championship: c })),
+  ].sort((a, b) => {
+    const aFeatured = a.source === "bluestrike" ? a.tournament.featured : a.championship.featured;
+    const bFeatured = b.source === "bluestrike" ? b.tournament.featured : b.championship.featured;
+    if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
+
+    const aPriority = a.source === "bluestrike"
+      ? (STATUS_PRIORITY[a.tournament.status] ?? 3)
+      : (FACEIT_STATUS_PRIORITY[a.championship.status] ?? 3);
+    const bPriority = b.source === "bluestrike"
+      ? (STATUS_PRIORITY[b.tournament.status] ?? 3)
+      : (FACEIT_STATUS_PRIORITY[b.championship.status] ?? 3);
+    if (aPriority !== bPriority) return aPriority - bPriority;
+
+    const aDate = a.source === "bluestrike"
+      ? (a.tournament.startsAt ? Date.parse(a.tournament.startsAt) : 0)
+      : a.championship.championshipStart;
+    const bDate = b.source === "bluestrike"
+      ? (b.tournament.startsAt ? Date.parse(b.tournament.startsAt) : 0)
+      : b.championship.championshipStart;
+    return aDate - bDate;
   });
+
+  const isEmpty = items.length === 0;
 
   return (
     <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,7 +91,7 @@ export default async function FeaturedTournaments() {
         </div>
       )}
 
-      {!hasError && tournaments.length === 0 && (
+      {!hasError && isEmpty && (
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-8 py-16 text-center">
           <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-30" />
           <h3 className="mb-2 text-lg font-bold">Nenhum campeonato ativo no momento</h3>
@@ -76,11 +107,9 @@ export default async function FeaturedTournaments() {
         </div>
       )}
 
-      {!hasError && tournaments.length > 0 && (
-        <TournamentsCarousel tournaments={sorted} />
-      )}
+      {!hasError && !isEmpty && <TournamentsCarousel items={items} />}
 
-      {tournaments.length > 0 && (
+      {!isEmpty && (
         <div className="mt-8 text-center md:hidden">
           <Link href="/tournaments">
             <Button variant="outline" className="gap-2">

@@ -61,7 +61,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                 <Badge variant="ongoing">[{team.tag}]</Badge>
                 {team.isRecruiting && <Badge variant="open">Recrutando</Badge>}
                 {!team.isActive && <Badge variant="finished">Inativo</Badge>}
-                <span className="text-xs text-[var(--muted-foreground)]">{team.elo} ELO medio</span>
+                <span className="text-xs text-[var(--muted-foreground)]">{team.elo} ELO médio</span>
               </div>
               <div className="mt-3 flex items-start gap-2">
                 {team.description ? (
@@ -69,7 +69,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                     {team.description}
                   </p>
                 ) : isCaptain ? (
-                  <p className="text-sm italic text-[var(--muted-foreground)]/60">Sem descricao ainda.</p>
+                  <p className="text-sm italic text-[var(--muted-foreground)]/60">Sem descrição ainda.</p>
                 ) : null}
                 {isCaptain && (
                   <EditDescriptionButton teamSlug={team.slug} currentDescription={team.description} />
@@ -112,7 +112,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
               <div className="space-y-3">
                 {starters.map((member) => {
                   const displayName = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "Jogador";
-                  const role = member.inGameRole ? ROLE_LABELS[member.inGameRole] ?? member.inGameRole : "Sem funcao";
+                  const role = member.inGameRole ? ROLE_LABELS[member.inGameRole] ?? member.inGameRole : "Sem função";
                   const isMemberCaptain = member.profileId === team.captainId;
 
                   const profileHref = member.profile?.publicId
@@ -149,7 +149,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
-                        {isMemberCaptain && <Badge variant="gold">Capitao</Badge>}
+                        {isMemberCaptain && <Badge variant="gold">Capitão</Badge>}
                         <span className="text-xs font-bold text-[var(--primary)]">{member.profile?.elo ?? 1000} ELO</span>
                         {isCaptain && !isMemberCaptain && (
                           <KickMemberButton teamSlug={team.slug} memberId={member.id} displayName={displayName} />
@@ -230,7 +230,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
               <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
                 <Trophy className="h-4 w-4" />
-                Estatisticas
+                Estatísticas
               </div>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
@@ -246,7 +246,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                   <span className="font-bold">{team.members?.length ?? 0}/6</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">ELO medio</span>
+                  <span className="text-[var(--muted-foreground)]">ELO médio</span>
                   <span className="font-bold text-[var(--primary)]">{team.elo}</span>
                 </div>
               </div>
@@ -255,11 +255,11 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
             <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
                 <Shield className="h-4 w-4" />
-                Informacoes
+                Informações
               </div>
               <div className="space-y-2 text-xs text-[var(--muted-foreground)]">
                 <div className="flex justify-between gap-3">
-                  <span>Codigo de convite</span>
+                  <span>Código de convite</span>
                   <span className="font-mono text-[var(--foreground)]">{team.joinCode}</span>
                 </div>
                 <div className="flex justify-between gap-3">
@@ -279,10 +279,10 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
 
             {isCaptain && (
               <section className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
-                <div className="mb-3 text-sm font-semibold text-red-300">Gestao do capitao</div>
+                <div className="mb-3 text-sm font-semibold text-red-300">Gestão do capitão</div>
                 <p className="mb-4 text-xs leading-relaxed text-red-100/80">
-                  Se a line acabar ou voce quiser reorganizar tudo, pode arquivar o time por aqui. O sistema
-                  bloqueia a exclusao se ainda houver campeonato ativo vinculado.
+                  Se a line acabar ou você quiser reorganizar tudo, pode arquivar o time por aqui. O sistema
+                  bloqueia a exclusão se ainda houver campeonato ativo vinculado.
                 </p>
                 <DeleteTeamButton teamSlug={team.slug} redirectPath={`${backHref}?tab=teams&teamDeleted=1`} />
               </section>

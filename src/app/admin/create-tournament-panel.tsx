@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
@@ -65,7 +65,7 @@ export default function CreateTournamentPanel() {
 
       setBannerUrl(payload.url);
     } catch {
-      setUploadError("Erro de conexao ao enviar imagem.");
+      setUploadError("Erro de conexão ao enviar imagem.");
       setBannerPreview(null);
     } finally {
       setIsUploading(false);
@@ -114,7 +114,7 @@ export default function CreateTournamentPanel() {
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setFeedback({ type: "error", message: payload.error ?? "Nao foi possivel cadastrar o campeonato." });
+        setFeedback({ type: "error", message: payload.error ?? "Não foi possível cadastrar o campeonato." });
         return;
       }
 
@@ -132,11 +132,11 @@ export default function CreateTournamentPanel() {
       <div className="mb-6">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
           <Shield className="h-4 w-4" />
-          Area administrativa
+          Área administrativa
         </div>
         <h2 className="text-2xl font-black tracking-tight">Cadastrar campeonato</h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-          Esse formulario ja grava o campeonato no Supabase com valor de inscricao pronto para o fluxo fake de PIX.
+          Esse formulário já grava o campeonato no Supabase com valor de inscrição pronto para o fluxo fake de PIX.
         </p>
       </div>
 
@@ -215,27 +215,27 @@ export default function CreateTournamentPanel() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-2 block text-sm font-semibold">Descricao</label>
+            <label className="mb-2 block text-sm font-semibold">Descrição</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Explique proposta, publico e nivel do campeonato."
+              placeholder="Explique proposta, público e nível do campeonato."
               className="min-h-28"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold">Premiacao total</label>
+            <label className="mb-2 block text-sm font-semibold">Premiação total</label>
             <Input type="number" min={0} value={prizeTotal} onChange={(e) => setPrizeTotal(e.target.value)} />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold">Inscricao via PIX</label>
+            <label className="mb-2 block text-sm font-semibold">Inscrição via PIX</label>
             <Input type="number" min={0} value={entryFee} onChange={(e) => setEntryFee(e.target.value)} />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold">Maximo de times</label>
+            <label className="mb-2 block text-sm font-semibold">Máximo de times</label>
             <Input type="number" min={2} value={maxTeams} onChange={(e) => setMaxTeams(e.target.value)} />
           </div>
 
@@ -246,8 +246,8 @@ export default function CreateTournamentPanel() {
               onChange={(e) => setFormat(e.target.value)}
               className="flex h-10 w-full rounded-md border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm"
             >
-              <option value="single_elimination">Eliminacao simples</option>
-              <option value="double_elimination">Eliminacao dupla</option>
+              <option value="single_elimination">Eliminação simples</option>
+              <option value="double_elimination">Eliminação dupla</option>
               <option value="round_robin">Round robin</option>
               <option value="swiss">Swiss</option>
             </select>
@@ -261,14 +261,14 @@ export default function CreateTournamentPanel() {
               className="flex h-10 w-full rounded-md border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm"
             >
               <option value="upcoming">Em breve</option>
-              <option value="open">Inscricoes abertas</option>
+              <option value="open">Inscrições abertas</option>
               <option value="ongoing">Em andamento</option>
               <option value="finished">Finalizado</option>
             </select>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-semibold">Inscricoes ate</label>
+            <label className="mb-2 block text-sm font-semibold">Inscrições até</label>
             <Input type="datetime-local" value={registrationEnds} onChange={(e) => setRegistrationEnds(e.target.value)} />
           </div>
 

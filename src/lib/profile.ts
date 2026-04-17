@@ -75,6 +75,13 @@ export interface UserProfile {
   isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
+  // Faceit integration
+  faceitId: string | null;
+  faceitNickname: string | null;
+  faceitAvatar: string | null;
+  faceitElo: number | null;
+  faceitLevel: number | null;
+  faceitTeamIds: string[] | null;
 }
 
 export const REQUIRED_PROFILE_FIELDS = [
