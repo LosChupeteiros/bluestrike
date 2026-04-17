@@ -86,7 +86,7 @@ export default function SocialProof({ isLoggedIn = false }: SocialProofProps) {
                 Confira os campeonatos abertos, monte sua line e inscreva seu time.
               </p>
               <Link
-                href="/tournaments"
+                href="#"
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-[var(--primary)] text-black font-bold text-sm hover:bg-[var(--primary)]/90 transition-colors shadow-md hover:shadow-[0_0_20px_rgba(0,200,255,0.4)]"
               >
                 Ver campeonatos

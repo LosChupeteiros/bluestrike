@@ -23,7 +23,9 @@
       "Bash(grep -n \"[A-Za-zÀ-ú]\\\\{3,\\\\}[aeiou]o\\\\b\\\\|publico\\\\|voce\\\\|catalogo\\\\|edicao\\\\|funcao\\\\|informada\\\\|protegidos\" \"e:/dev/bluestrike/src/app/profile/[id]/profile-shell-view.tsx\")",
       "Bash(python3 -c ' *)",
       "Bash(grep -rn 'é\\\\|Ãµ\\\\|Ã£\\\\|Ã¢\\\\|á\\\\|Ãº\\\\|Ã­\\\\|Ã³\\\\|Ã|Ã§ \\\\ *)",
-      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('e:/dev/bluestrike/src/app/tournaments/[id]/faceit-registration-flow.tsx', 'utf8'\\); const match = content.match\\(/\\\\`\\(.\\).*SUPORTE/\\); if\\(match\\) { const ch = match[1]; console.log\\('codepoints:', [...ch].map\\(c => 'U+' + c.codePointAt\\(0\\).toString\\(16\\).toUpperCase\\(\\).padStart\\(4,'0'\\)\\)\\); }\")"
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('e:/dev/bluestrike/src/app/tournaments/[id]/faceit-registration-flow.tsx', 'utf8'\\); const match = content.match\\(/\\\\`\\(.\\).*SUPORTE/\\); if\\(match\\) { const ch = match[1]; console.log\\('codepoints:', [...ch].map\\(c => 'U+' + c.codePointAt\\(0\\).toString\\(16\\).toUpperCase\\(\\).padStart\\(4,'0'\\)\\)\\); }\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"const mp = require\\('mercadopago'\\); console.log\\(Object.keys\\(mp\\).slice\\(0,10\\)\\)\")"
     ]
   }
 }

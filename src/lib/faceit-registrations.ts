@@ -8,6 +8,8 @@ export interface FaceitRegistration {
   faceitTeamName: string;
   faceitTeamAvatar: string | null;
   paymentStatus: "pending" | "paid";
+  mpPreferenceId: string | null;
+  mpPaymentId: string | null;
   friendCheck: boolean;
   teamConfirmed: boolean;
   registrationStatus: "active" | "cancelled";
@@ -22,6 +24,8 @@ type RegistrationRow = {
   faceit_team_name: string;
   faceit_team_avatar: string | null;
   payment_status: string;
+  mp_preference_id: string | null;
+  mp_payment_id: string | null;
   friend_check: boolean;
   team_confirmed: boolean;
   registration_status: string;
@@ -37,6 +41,8 @@ function mapRow(row: RegistrationRow): FaceitRegistration {
     faceitTeamName: row.faceit_team_name,
     faceitTeamAvatar: row.faceit_team_avatar,
     paymentStatus: row.payment_status as "pending" | "paid",
+    mpPreferenceId: row.mp_preference_id ?? null,
+    mpPaymentId: row.mp_payment_id ?? null,
     friendCheck: row.friend_check,
     teamConfirmed: row.team_confirmed,
     registrationStatus: (row.registration_status ?? "active") as "active" | "cancelled",
@@ -92,6 +98,48 @@ export async function markPaymentPaid(registrationId: string): Promise<void> {
     .from("faceit_registrations")
     .update({ payment_status: "paid", updated_at: new Date().toISOString() })
     .eq("id", registrationId);
+}
+
+export async function saveMpPreferenceId(
+  registrationId: string,
+  preferenceId: string
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  await supabase
+    .from("faceit_registrations")
+    .update({ mp_preference_id: preferenceId, updated_at: new Date().toISOString() })
+    .eq("id", registrationId);
+}
+
+export async function markPaymentPaidByMp(
+  registrationId: string,
+  mpPaymentId: string
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  await supabase
+    .from("faceit_registrations")
+    .update({
+      payment_status: "paid",
+      mp_payment_id: mpPaymentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", registrationId);
+}
+
+export async function getRegistrationById(
+  registrationId: string
+): Promise<FaceitRegistration | null> {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data } = await supabase
+      .from("faceit_registrations")
+      .select("*")
+      .eq("id", registrationId)
+      .maybeSingle<RegistrationRow>();
+    return data ? mapRow(data) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function updateLiveChecks(
