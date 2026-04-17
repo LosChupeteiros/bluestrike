@@ -73,6 +73,56 @@ export async function createPixPreference(
   };
 }
 
+export interface CreatePixPaymentParams {
+  registrationId: string;
+  championshipName: string;
+  amount: number;
+  payerEmail: string;
+}
+
+export interface PixPaymentResult {
+  paymentId: string;
+  qrCodeBase64: string;
+  qrCode: string;
+}
+
+export async function createPixPayment(
+  params: CreatePixPaymentParams
+): Promise<PixPaymentResult> {
+  const client = getClient();
+  const payment = new Payment(client);
+
+  const origin = process.env.PUBLIC_APP_ORIGIN ?? "http://localhost:3000";
+
+  const result = await payment.create({
+    body: {
+      transaction_amount: params.amount,
+      description: `Inscrição — ${params.championshipName}`,
+      payment_method_id: "pix",
+      payer: {
+        email: params.payerEmail,
+      },
+      external_reference: params.registrationId,
+      notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
+      date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    },
+    requestOptions: {
+      idempotencyKey: params.registrationId,
+    },
+  });
+
+  const txData = result.point_of_interaction?.transaction_data;
+  if (!txData?.qr_code_base64 || !txData?.qr_code) {
+    throw new Error("MP não retornou dados do QR Code PIX.");
+  }
+
+  return {
+    paymentId: String(result.id!),
+    qrCodeBase64: txData.qr_code_base64,
+    qrCode: txData.qr_code,
+  };
+}
+
 export async function getPaymentById(paymentId: string) {
   const client = getClient();
   const payment = new Payment(client);

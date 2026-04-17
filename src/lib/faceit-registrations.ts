@@ -111,6 +111,17 @@ export async function saveMpPreferenceId(
     .eq("id", registrationId);
 }
 
+export async function saveMpPaymentId(
+  registrationId: string,
+  paymentId: string
+): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  await supabase
+    .from("faceit_registrations")
+    .update({ mp_payment_id: paymentId, updated_at: new Date().toISOString() })
+    .eq("id", registrationId);
+}
+
 export async function markPaymentPaidByMp(
   registrationId: string,
   mpPaymentId: string
