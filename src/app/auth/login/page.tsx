@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, ShieldCheck, Swords } from "lucide-react";
 import type { Metadata } from "next";
@@ -8,12 +8,12 @@ import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 export const metadata: Metadata = { title: "Entrar" };
 
 const LOGIN_ERROR_MESSAGES: Record<string, string> = {
-  steam_not_configured: "A chave da Steam ainda nao foi configurada no ambiente.",
-  supabase_not_configured: "As variaveis do Supabase ainda nao foram configuradas no ambiente.",
-  steam_validation_failed: "Nao foi possivel validar o retorno da Steam. Tente novamente.",
-  steam_profile_fetch_failed: "A Steam autenticou, mas falhou ao buscar os dados publicos do perfil.",
-  profile_save_failed: "A Steam autenticou, mas o BlueStrike nao conseguiu salvar seu perfil no Supabase. Use uma chave secreta de backend em SUPABASE_SECRET_KEY.",
-  steam_login_failed: "A Steam autenticou, mas houve uma falha ao criar sua sessao no BlueStrike.",
+  steam_not_configured: "A chave da Steam ainda não foi configurada no ambiente.",
+  supabase_not_configured: "As variáveis do Supabase ainda não foram configuradas no ambiente.",
+  steam_validation_failed: "Não foi possí­vel validar o retorno da Steam. Tente novamente.",
+  steam_profile_fetch_failed: "A Steam autenticou, mas falhou ao buscar os dados públicos do perfil.",
+  profile_save_failed: "A Steam autenticou, mas o BlueStrike não conseguiu salvar seu perfil no Supabase. Use uma chave secreta de backend em SUPABASE_SECRET_KEY.",
+  steam_login_failed: "A Steam autenticou, mas houve uma falha ao criar sua sessão no BlueStrike.",
 };
 
 function SteamIcon() {
@@ -42,7 +42,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   const steamLoginHref =
     nextPath === "/profile" ? "/api/auth/steam" : `/api/auth/steam?next=${encodeURIComponent(nextPath)}`;
-  const errorMessage = params.error ? LOGIN_ERROR_MESSAGES[params.error] ?? "Nao foi possivel entrar com a Steam." : null;
+  const errorMessage = params.error ? LOGIN_ERROR_MESSAGES[params.error] ?? "NÃ£o foi possí­vel entrar com a Steam." : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-20 pb-12">
@@ -98,7 +98,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]/80">
-              Cadastro obrigatorio apos login
+              Cadastro obrigatório após login
             </div>
             <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
               Vamos pedir Nome Completo, CPF, Celular e Data de Nascimento para liberar o seu perfil competitivo.
@@ -112,18 +112,18 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </span>
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
-              Sessao protegida
+              Sessão protegida
             </span>
           </div>
 
           <p className="text-center text-xs text-[var(--muted-foreground)] mt-6 leading-relaxed">
-            Ao entrar, voce concorda com nossos{" "}
+            Ao entrar, você concorda com nossos{" "}
             <Link href="/terms" className="text-[var(--primary)] hover:underline">
               Termos de Uso
             </Link>{" "}
             e{" "}
             <Link href="/privacy" className="text-[var(--primary)] hover:underline">
-              Politica de Privacidade
+              Polí­tica de Privacidade
             </Link>
             .
           </p>
@@ -134,7 +134,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             href="/"
             className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
           >
-            Voltar para o inicio
+            Voltar para o iní­cio
           </Link>
         </div>
       </div>

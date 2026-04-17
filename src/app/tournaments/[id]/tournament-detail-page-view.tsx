@@ -26,8 +26,8 @@ import { formatCurrency, formatDate, getStatusLabel } from "@/lib/utils";
 import TournamentRegistrationCard from "./tournament-registration-card";
 
 const FORMAT_LABELS: Record<string, string> = {
-  single_elimination: "Eliminacao Simples",
-  double_elimination: "Eliminacao Dupla",
+  single_elimination: "Eliminação Simples",
+  double_elimination: "Eliminação Dupla",
   round_robin: "Round Robin",
   swiss: "Swiss",
 };
@@ -71,19 +71,19 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   } else if (!currentTeam) {
     registrationDisabledReason = "Crie um time antes de tentar se inscrever.";
   } else if (currentTeam.captainId !== currentProfile.id) {
-    registrationDisabledReason = "A inscricao precisa ser feita pelo capitao do time.";
+    registrationDisabledReason = "A inscrição precisa ser feita pelo capitão do time.";
   } else if (currentTeamAlreadyRegistered) {
-    registrationDisabledReason = "Seu time ja esta inscrito nesse campeonato.";
+    registrationDisabledReason = "Seu time já está inscrito nesse campeonato.";
   } else if (isFull) {
-    registrationDisabledReason = "Esse campeonato ja lotou.";
+    registrationDisabledReason = "Esse campeonato já lotou.";
   } else if (tournament.status !== "open") {
-    registrationDisabledReason = "As inscricoes ainda nao estao abertas para esse campeonato.";
+    registrationDisabledReason = "As inscrições ainda não estão abertas para esse campeonato.";
   } else if ((currentTeam.members?.filter((member) => member.isStarter).length ?? 0) < 5) {
     registrationDisabledReason = "Seu time precisa de 5 titulares para se inscrever.";
   } else if (tournament.minElo !== null && currentTeam.elo < tournament.minElo) {
-    registrationDisabledReason = `Seu time precisa de pelo menos ${tournament.minElo} ELO medio.`;
+    registrationDisabledReason = `Seu time precisa de pelo menos ${tournament.minElo} ELO médio.`;
   } else if (tournament.maxElo !== null && currentTeam.elo > tournament.maxElo) {
-    registrationDisabledReason = `Seu time excede o teto de ${tournament.maxElo} ELO medio.`;
+    registrationDisabledReason = `Seu time excede o teto de ${tournament.maxElo} ELO médio.`;
   }
 
   return (
@@ -129,7 +129,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
 
             <div className="rounded-2xl border border-yellow-500/20 bg-black/35 px-5 py-4 backdrop-blur">
               <div className="text-3xl font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
-              <div className="text-xs text-[var(--muted-foreground)]">premiacao total</div>
+              <div className="text-xs text-[var(--muted-foreground)]">premiação total</div>
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
           <div className="lg:col-span-2">
             <Tabs defaultValue="info">
               <TabsList className="mb-6 w-full justify-start border border-[var(--border)] bg-[var(--card)]">
-                <TabsTrigger value="info">Informacoes</TabsTrigger>
+                <TabsTrigger value="info">Informações</TabsTrigger>
                 <TabsTrigger value="teams">Times ({registered})</TabsTrigger>
                 <TabsTrigger value="rules">Regras</TabsTrigger>
                 <TabsTrigger value="bracket">Chaveamento</TabsTrigger>
@@ -160,7 +160,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-5">
                       <h3 className="mb-4 flex items-center gap-2 font-bold">
                         <Trophy className="h-4 w-4 text-yellow-400" />
-                        Distribuicao de premios
+                        Distribuição de prêmios
                       </h3>
                       <div className="space-y-3">
                         {tournament.prizeBreakdown.map((prize, index) => (
@@ -179,10 +179,16 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     {[
                       { label: "Inicio", value: formatDate(tournament.startsAt ?? ""), icon: Calendar },
                       { label: "Termino", value: formatDate(tournament.endsAt ?? ""), icon: Calendar },
-                      { label: "Inscricoes ate", value: formatDate(tournament.registrationEnds ?? ""), icon: Clock },
+                      { label: "Inscrições até", value: formatDate(tournament.registrationEnds ?? ""), icon: Clock },
                       { label: "Formato", value: FORMAT_LABELS[tournament.format], icon: Swords },
                       { label: "Regiao", value: tournament.region, icon: MapPin },
-                      { label: "Valor da inscricao", value: formatCurrency(tournament.entryFee ?? 0), icon: Trophy },
+                      {
+                        label: "Valor da inscrição",
+                        value: tournament.entryFee
+                          ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))} por player`
+                          : "Gratuito",
+                        icon: Trophy,
+                      },
                     ].map((item) => (
                       <div key={item.label} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
                         <div className="mb-1 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
@@ -200,14 +206,14 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       <span className="text-[var(--muted-foreground)]">
                         {tournament.minElo !== null && (
                           <>
-                            ELO minimo:{" "}
+                            ELO mínimo:{" "}
                             <span className="font-bold text-[var(--primary)]">{tournament.minElo}</span>
                           </>
                         )}
                         {tournament.minElo !== null && tournament.maxElo !== null ? " · " : null}
                         {tournament.maxElo !== null && (
                           <>
-                            ELO maximo:{" "}
+                            ELO máximo:{" "}
                             <span className="font-bold text-[var(--primary)]">{tournament.maxElo}</span>
                           </>
                         )}
@@ -254,7 +260,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     >
                       <div className="w-8 text-center text-sm text-[var(--muted-foreground)]">#{registered + index + 1}</div>
                       <div className="h-10 w-10 rounded-lg border border-dashed border-[var(--border)]" />
-                      <div className="text-sm text-[var(--muted-foreground)]">Vaga disponivel</div>
+                      <div className="text-sm text-[var(--muted-foreground)]">Vaga disponível</div>
                     </div>
                   ))}
                 </div>
@@ -280,7 +286,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                   <div className="flex items-start gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
                     <p className="text-xs text-yellow-200/80">
-                      O nao cumprimento das regras pode resultar em desclassificacao e bloqueio do time.
+                      O não cumprimento das regras pode resultar em desclassificação e bloqueio do time.
                     </p>
                   </div>
                 </div>
@@ -291,14 +297,14 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                   {tournament.status === "open" || tournament.status === "upcoming" ? (
                     <>
                       <Swords className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
-                      <h3 className="mb-2 font-semibold">Chaveamento ainda nao gerado</h3>
+                      <h3 className="mb-2 font-semibold">Chaveamento ainda não gerado</h3>
                       <p className="text-sm text-[var(--muted-foreground)]">
-                        O bracket aparece quando as inscricoes forem encerradas e os confrontos forem sorteados.
+                        O bracket aparece quando as inscrições forem encerradas e os confrontos forem sorteados.
                       </p>
                     </>
                   ) : (
                     <div className="text-sm text-[var(--muted-foreground)]">
-                      A estrutura do chaveamento sera ligada na proxima etapa, em cima das inscricoes ja persistidas no Supabase.
+                      A estrutura do chaveamento será ligada na próxima etapa, em cima das inscrições já persistidas no Supabase.
                     </div>
                   )}
                 </div>
@@ -343,7 +349,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
             </div>
 
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-              <h4 className="mb-4 text-sm font-semibold">Informacoes Rapidas</h4>
+              <h4 className="mb-4 text-sm font-semibold">Informações Rápidas</h4>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-[var(--muted-foreground)]">Formato</span>
@@ -361,8 +367,19 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">Inscricao</span>
-                  <span className="font-medium">{formatCurrency(tournament.entryFee ?? 0)}</span>
+                  <span className="text-[var(--muted-foreground)]">Inscrição</span>
+                  <div className="text-right">
+                    <div className="font-medium">
+                      {tournament.entryFee
+                        ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))} / player`
+                        : "Gratuito"}
+                    </div>
+                    {tournament.entryFee ? (
+                      <div className="text-[10px] text-[var(--muted-foreground)]">
+                        total {formatCurrency(tournament.entryFee)}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>

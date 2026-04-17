@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["26.69.145.194"],
+  allowedDevOrigins: ["26.69.145.194", "bluestrike"],
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",
@@ -24,6 +24,15 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "cdn.cloudflare.steamstatic.com",
+      },
+      // Faceit CDN — avatares e assets dos jogadores Faceit
+      {
+        protocol: "https",
+        hostname: "assets.faceit-cdn.net",
+      },
+      {
+        protocol: "https",
+        hostname: "distribution.faceit-cdn.net",
       },
     ],
   },

@@ -177,7 +177,7 @@ export default function ProfileForm({ profile, onCancel, onSaved }: ProfileFormP
             </div>
             <h2 className="text-2xl font-black tracking-tight">Ajuste sua ficha competitiva</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--muted-foreground)]">
-              CPF, celular e nascimento ficam privados. No perfil publico aparecem nome, idade, bio,
+              CPF, celular e nascimento ficam privados. No perfil público aparecem nome, idade, bio,
               função e seu ELO.
             </p>
           </div>

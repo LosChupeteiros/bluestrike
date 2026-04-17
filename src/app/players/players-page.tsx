@@ -224,7 +224,7 @@ export default async function PlayersPage({ query, page, view }: PlayersPageProp
         {result.totalPages > 1 && (
           <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-sm text-[var(--muted-foreground)]">
-              Pagina {result.page} de {result.totalPages} &middot; {result.total} jogadores
+              Página {result.page} de {result.totalPages} &middot; {result.total} jogadores
             </span>
 
             <div className="flex gap-2">
