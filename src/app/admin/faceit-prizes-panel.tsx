@@ -151,7 +151,7 @@ function ChampionshipRow({ championship: c }: ChampionshipRowProps) {
             <Input
               type="number"
               min={0}
-              step={10}
+              step={1}
               placeholder="0"
               value={entryFee}
               onChange={(e) => setEntryFee(e.target.value)}
