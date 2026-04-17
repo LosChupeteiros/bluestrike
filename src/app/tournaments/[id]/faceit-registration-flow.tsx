@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardCopy,
+  Clock,
   ExternalLink,
   Loader2,
   Lock,
@@ -523,8 +524,8 @@ function PostRegistrationCard({
       <Modal
         open={retomandoModalOpen}
         onClose={() => setRetomandoModalOpen(false)}
-        title="Pagar com PIX"
-        subtitle="Escaneie o QR Code ou use o Copia e Cola."
+        title={isPaid ? "Pagamento confirmado" : "Pagar com PIX"}
+        subtitle={isPaid ? undefined : "Escaneie o QR Code ou use o Copia e Cola."}
       >
         <div className="p-5">
           <PixCheckout
@@ -532,9 +533,11 @@ function PostRegistrationCard({
             qrCodeBase64={retomandoPixData?.qrCodeBase64 ?? ""}
             qrCode={retomandoPixData?.qrCode ?? ""}
             expiresAt={retomandoPixData?.expiresAt ?? Date.now()}
+            isPaid={isPaid}
             loading={retomandoPix && !retomandoPixData}
             error={retomandoErro}
             onRetry={() => { setRetomandoPixData(null); handleRetomar(); }}
+            onApproved={() => setRetomandoModalOpen(false)}
           />
         </div>
       </Modal>
@@ -711,17 +714,21 @@ function PixCheckout({
   qrCodeBase64,
   qrCode,
   expiresAt,
+  isPaid,
   loading,
   error,
   onRetry,
+  onApproved,
 }: {
   amount: number;
   qrCodeBase64: string;
   qrCode: string;
   expiresAt: number;
+  isPaid?: boolean;
   loading: boolean;
   error: string;
   onRetry: () => void;
+  onApproved?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(() =>
@@ -746,20 +753,105 @@ function PixCheckout({
 
   const mins = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const secs = String(secondsLeft % 60).padStart(2, "0");
+  const expired = secondsLeft === 0 && !loading && !!qrCode;
 
+  // ── Estado: Pagamento aprovado ──────────────────────────────────────────
+  if (isPaid) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-6 text-center">
+        {/* Ícone animado */}
+        <div className="relative flex items-center justify-center">
+          <div
+            className="absolute h-28 w-28 animate-ping rounded-full bg-green-500/15"
+            style={{ animationDuration: "2.5s" }}
+          />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-green-500/12 ring-2 ring-green-500/30 ring-offset-2 ring-offset-[var(--background)]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20">
+              <Check className="h-9 w-9 text-green-400" strokeWidth={2.5} />
+            </div>
+          </div>
+        </div>
+
+        {/* Texto */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold uppercase tracking-widest text-green-500/70">Mercado Pago</p>
+          <p className="text-2xl font-black text-green-300">Pagamento aprovado!</p>
+          <p className="text-3xl font-black text-green-400">{formatCurrency(amount)}</p>
+        </div>
+
+        {/* Info próximo passo */}
+        <div className="w-full rounded-xl border border-green-500/20 bg-green-500/6 px-4 py-3.5 text-left">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-green-400/70">Próximos passos</p>
+          <div className="space-y-1.5">
+            <div className="flex items-start gap-2 text-xs text-green-300/80">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-400" />
+              Adicione a BlueStrikeCS como amigo na FACEIT
+            </div>
+            <div className="flex items-start gap-2 text-xs text-green-300/80">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-400" />
+              Entre no torneio na FACEIT com seu time
+            </div>
+          </div>
+        </div>
+
+        {onApproved && (
+          <button
+            type="button"
+            onClick={onApproved}
+            className="w-full rounded-xl border border-green-500/25 py-3 text-sm font-black text-green-300 transition-all hover:bg-green-500/10"
+          >
+            Ver status da inscrição
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── Estado: QR expirado ─────────────────────────────────────────────────
+  if (expired) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-6 text-center">
+        {/* Ícone relógio */}
+        <div className="flex h-24 w-24 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]">
+          <Clock className="h-11 w-11 text-[var(--muted-foreground)]" />
+        </div>
+
+        {/* Contador zerado */}
+        <div className="space-y-1.5">
+          <p className="font-mono text-4xl font-black tabular-nums text-[var(--muted-foreground)]">00:00</p>
+          <p className="text-xl font-black text-[var(--foreground)]">QR Code expirado</p>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            O tempo para pagamento esgotou.<br />Gere um novo código para continuar.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#00c8ff]/10 py-3.5 text-sm font-black text-[#00c8ff] ring-1 ring-[#00c8ff]/25 transition-all hover:bg-[#00c8ff]/20"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Gerar novo QR Code
+        </button>
+      </div>
+    );
+  }
+
+  // ── Estado: Carregando ──────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex flex-col items-center gap-4 py-8 text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#00c8ff]" />
+      <div className="flex flex-col items-center gap-4 py-10 text-center">
+        <Loader2 className="h-9 w-9 animate-spin text-[#00c8ff]" />
         <p className="text-sm font-semibold text-[var(--foreground)]">Gerando QR Code...</p>
         <p className="text-xs text-[var(--muted-foreground)]">Aguarde um instante.</p>
       </div>
     );
   }
 
+  // ── Estado: Erro ────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 py-2">
         <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           {error}
@@ -776,6 +868,7 @@ function PixCheckout({
     );
   }
 
+  // ── Estado: QR Code ativo ───────────────────────────────────────────────
   return (
     <div className="flex flex-col items-center gap-5">
       {/* Valor */}
@@ -831,7 +924,7 @@ function PixCheckout({
       <div className="w-full space-y-1.5">
         <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
           <Timer className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
-          <span>Expira em <span className="font-black text-[var(--foreground)]">{mins}:{secs}</span></span>
+          <span>Expira em <span className="font-black tabular-nums text-[var(--foreground)]">{mins}:{secs}</span></span>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
           <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
@@ -901,7 +994,22 @@ export default function FaceitRegistrationFlow({
   const [pixLoading, setPixLoading] = useState(false);
   const [pixError, setPixError] = useState("");
   const [pixData, setPixData] = useState<PixData | null>(null);
+  const [pixPaid, setPixPaid] = useState(false);
   const [pendingReg, setPendingReg] = useState<FaceitRegistration | null>(null);
+
+  // Polling de status de pagamento enquanto o modal PIX está aberto
+  useEffect(() => {
+    if (flowStep !== "pix" || !pendingReg || pixPaid) return;
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/tournaments/faceit/${championship.id}/live-status`);
+        if (!res.ok) return;
+        const d = await res.json() as { paymentStatus?: string };
+        if (d.paymentStatus === "paid") setPixPaid(true);
+      } catch { /* best-effort */ }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [flowStep, pendingReg, pixPaid, championship.id]);
 
   // Carrega times FACEIT na primeira abertura do dropdown
   async function loadTeams() {
@@ -1294,9 +1402,9 @@ export default function FaceitRegistrationFlow({
       {/* ── Modal 3: PIX Checkout Transparente ──────────────────────────── */}
       <Modal
         open={flowStep === "pix"}
-        onClose={() => { setFlowStep("idle"); setPixError(""); setPixData(null); }}
-        title="Pagar com PIX"
-        subtitle="Escaneie o QR Code ou use o Copia e Cola."
+        onClose={() => { if (!pixPaid) { setFlowStep("idle"); setPixData(null); } setPixError(""); }}
+        title={pixPaid ? "Pagamento confirmado" : "Pagar com PIX"}
+        subtitle={pixPaid ? undefined : "Escaneie o QR Code ou use o Copia e Cola."}
       >
         <div className="p-5">
           <PixCheckout
@@ -1304,9 +1412,11 @@ export default function FaceitRegistrationFlow({
             qrCodeBase64={pixData?.qrCodeBase64 ?? ""}
             qrCode={pixData?.qrCode ?? ""}
             expiresAt={pixData?.expiresAt ?? Date.now()}
+            isPaid={pixPaid}
             loading={pixLoading}
             error={pixError}
-            onRetry={handlePixCreate}
+            onRetry={() => { setPixPaid(false); handlePixCreate(); }}
+            onApproved={() => { setFlowStep("idle"); setPixData(null); setPixPaid(false); router.refresh(); }}
           />
         </div>
       </Modal>
