@@ -5,7 +5,7 @@ import Image from "next/image";
 import {
   Trophy, Crown, Swords, Clock, Check, Copy, Wifi,
   Loader2, AlertTriangle, Server, X, Star, Eye, EyeOff,
-  ChevronDown, ChevronUp, Terminal,
+  ChevronDown, ChevronUp, Terminal, Lock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail } from "@/lib/matches";
@@ -429,7 +429,9 @@ function PostVetoPanel({
 
   const isError = server?.status === "error";
   const ip = server?.rawIp ?? server?.ip ?? null;
-  const hasConnection = Boolean(server && !isError && ip && server.port > 0 && server.password);
+  // Connect info is only revealed when server is truly ready — not while still in pre_live
+  const serverReady = server?.status === "ready" || server?.status === "live";
+  const hasConnection = Boolean(!isPreLive && serverReady && server && !isError && ip && server.port > 0 && server.password);
   const isServerLive = server?.status === "live";
   const connectCmd = hasConnection ? `connect ${ip}:${server!.port}; password ${server!.password}` : "";
   const steamUrl = hasConnection
@@ -437,7 +439,11 @@ function PostVetoPanel({
     : "#";
   const { copied, copy: copyCmd } = useCopyStr(connectCmd);
 
-  // Sound: ready state change
+  // Optimistic ready display — last team to click turns green immediately without waiting for poll
+  const displayReady1 = readyTeam1 || (localReady && userIsTeam1 === true);
+  const displayReady2 = readyTeam2 || (localReady && userIsTeam1 === false);
+
+  // Sound: ready state change (based on polled values to avoid double-trigger)
   useEffect(() => {
     if (readyTeam1 !== prevR1.current || readyTeam2 !== prevR2.current) {
       if (readyTeam1 && readyTeam2) playReadyBoth();
@@ -453,8 +459,8 @@ function PostVetoPanel({
     prevHasConn.current = hasConnection;
   }, [hasConnection]);
 
-  const myReady = localReady || (userIsTeam1 === true ? readyTeam1 : userIsTeam1 === false ? readyTeam2 : false);
-  const bothReady = readyTeam1 && readyTeam2;
+  const myReady = displayReady1 && userIsTeam1 === true ? true : displayReady2 && userIsTeam1 === false ? true : false;
+  const bothReady = displayReady1 && displayReady2;
 
   async function confirmReady() {
     setReadyError(null); setReadyLoading(true);
@@ -495,18 +501,18 @@ function PostVetoPanel({
 
           {isPreLive ? (
             <>
-              {/* Team ready indicators */}
+              {/* Team ready indicators — uses optimistic displayReady values */}
               <div className="grid grid-cols-[1fr_28px_1fr] items-center gap-2">
                 <div className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-300 ${
-                  readyTeam1 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
+                  displayReady1 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
                 }`}>
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-black transition-all duration-300 ${
-                    readyTeam1 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
+                    displayReady1 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
                   }`}>
-                    {readyTeam1 ? <Check className="h-4 w-4" /> : team1Tag}
+                    {displayReady1 ? <Check className="h-4 w-4" /> : team1Tag}
                   </div>
-                  <div className={`text-[10px] font-bold transition-colors ${readyTeam1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
-                    {readyTeam1 ? "READY" : "Aguardando"}
+                  <div className={`text-[10px] font-bold transition-colors ${displayReady1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                    {displayReady1 ? "READY" : "Aguardando"}
                   </div>
                 </div>
 
@@ -515,15 +521,15 @@ function PostVetoPanel({
                 </div>
 
                 <div className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-300 ${
-                  readyTeam2 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
+                  displayReady2 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
                 }`}>
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-black transition-all duration-300 ${
-                    readyTeam2 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
+                    displayReady2 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
                   }`}>
-                    {readyTeam2 ? <Check className="h-4 w-4" /> : team2Tag}
+                    {displayReady2 ? <Check className="h-4 w-4" /> : team2Tag}
                   </div>
-                  <div className={`text-[10px] font-bold transition-colors ${readyTeam2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
-                    {readyTeam2 ? "READY" : "Aguardando"}
+                  <div className={`text-[10px] font-bold transition-colors ${displayReady2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                    {displayReady2 ? "READY" : "Aguardando"}
                   </div>
                 </div>
               </div>
@@ -567,8 +573,31 @@ function PostVetoPanel({
             )}
           </div>
 
-          {/* ── Error ── */}
-          {isError ? (
+          {/* ── Locked: waiting for second ready-up ── */}
+          {isPreLive ? (
+            <div className="relative flex flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-xl py-6">
+              {/* Blurred ghost UI in background */}
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-20 blur-sm select-none">
+                <div className="h-8 w-32 rounded-lg bg-[var(--primary)]" />
+                <div className="h-4 w-full rounded bg-[var(--border)]" />
+                <div className="h-4 w-4/5 rounded bg-[var(--border)]" />
+              </div>
+              {/* Lock overlay */}
+              <div className="relative flex flex-col items-center gap-3">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]/60">
+                  <Lock className="h-6 w-6 text-[var(--muted-foreground)]/50" />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-[var(--muted-foreground)]">Servidor sendo alocado</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]/60">
+                    Confirmem o check-in para liberar
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          ) : isError ? (
+          /* ── Error ── */
             <div className="flex flex-1 flex-col gap-3">
               <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
@@ -602,11 +631,9 @@ function PostVetoPanel({
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-sm font-bold text-[var(--foreground)]">
-                  {server ? "Servidor iniciando…" : "Aguardando servidor…"}
-                </div>
+                <div className="text-sm font-bold text-[var(--foreground)]">Servidor iniciando…</div>
                 <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
-                  {server ? "O CS2 está carregando o mapa." : "Alocando servidor dedicado."}
+                  O CS2 está sendo configurado. Aguarde.
                 </div>
               </div>
               <div className="flex gap-1.5">
