@@ -212,14 +212,16 @@ export async function provisionServerAsync(
 ): Promise<void> {
   const supabase = createSupabaseAdminClient();
 
-  // Skip if already provisioned or in progress (but allow retry on error)
+  // Skip if already provisioned or in progress
+  // Allow retry on: "error" (explicit failure) or "reserving" (stuck — crashed between INSERT and Dathost call)
   const { data: existingRow } = await supabase
     .from("dathost_servers")
     .select("id, status")
     .eq("match_id", matchId)
     .maybeSingle<{ id: string; status: string }>();
 
-  if (existingRow && existingRow.status !== "error") return;
+  const retryableStatuses = new Set(["error", "reserving"]);
+  if (existingRow && !retryableStatuses.has(existingRow.status)) return;
 
   // Find available server, excluding those reserved by other active matches
   const { data: reservedRows } = await supabase
@@ -263,33 +265,49 @@ export async function provisionServerAsync(
   const gotvPort = server.ports.gotv ?? null;
   const password = randomUUID().replace(/-/g, "").slice(0, 12);
 
-  // Write reservation row immediately (prevents concurrent provisioning for same match)
-  const reservationData = {
-    dathost_server_id: server.id,
-    dathost_id: null as string | null,
-    ip: server.ip ?? server.raw_ip ?? "",
-    raw_ip: server.raw_ip ?? null,
+  const ipStr = server.ip ?? server.raw_ip ?? "";
+
+  // Step 1 — reservation INSERT/UPDATE with only guaranteed-present columns.
+  // dathost_id uses "" as placeholder (avoids NOT NULL failure before migration is applied).
+  // Newer columns (dathost_server_id, raw_ip, server_password) are added via a follow-up UPDATE.
+  const baseRow = {
+    dathost_id: "",   // placeholder; replaced after Dathost match is created
+    ip: ipStr,
     port,
     gotv_port: gotvPort,
-    connect_string: null as string | null,
     rcon_password: "",
-    server_password: password,
     status: "reserving",
   };
 
   if (existingRow) {
-    // Retry: update existing error row
-    await supabase.from("dathost_servers").update(reservationData).eq("match_id", matchId);
+    await supabase.from("dathost_servers").update(baseRow).eq("match_id", matchId);
   } else {
     const { error: insertErr } = await supabase.from("dathost_servers").insert({
       match_id: matchId,
-      ...reservationData,
+      ...baseRow,
     });
     if (insertErr) {
-      console.error(`[provision/${matchId}] Insert conflict:`, insertErr.message);
+      console.error(`[provision/${matchId}] DB insert failed:`, insertErr.message);
+      await writeDathostLog({
+        matchId,
+        method: "POST",
+        url: "internal://dathost_servers",
+        errorMessage: `Falha ao reservar servidor no banco: ${insertErr.message}`,
+      });
       return;
     }
   }
+
+  // Step 2 — try to persist newer columns (added by migration 20260425).
+  // Safe to fail silently if migration hasn't been applied yet.
+  await supabase.from("dathost_servers").update({
+    dathost_server_id: server.id,
+    raw_ip: server.raw_ip ?? null,
+    server_password: password,
+  }).eq("match_id", matchId).then(
+    () => {},
+    (e: unknown) => console.warn("[provision] newer columns not set (migration pending?):", e)
+  );
 
   // Fetch team info
   const { data: teamRows } = await supabase
@@ -374,7 +392,15 @@ export async function provisionServerAsync(
     );
     dathostMatchId = dathostMatch.id;
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[provision/${matchId}] createCs2Match failed:`, msg);
     await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
+    await writeDathostLog({
+      matchId,
+      method: "POST",
+      url: "https://dathost.net/api/0.1/cs2-matches",
+      errorMessage: `Falha ao criar partida CS2: ${msg}`,
+    });
     throw err;
   }
 

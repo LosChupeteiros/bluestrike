@@ -117,17 +117,19 @@ function ReadyPanel({
     }
   }, [readyTeam1, readyTeam2]);
 
-  const myReady = localReady || (userIsTeam1 === true ? readyTeam1 : userIsTeam1 === false ? readyTeam2 : false);
-  const bothReady = readyTeam1 && readyTeam2;
+  const displayReady1 = readyTeam1 || (localReady && userIsTeam1 === true);
+  const displayReady2 = readyTeam2 || (localReady && userIsTeam1 === false);
+  const myReady = (userIsTeam1 === true ? displayReady1 : userIsTeam1 === false ? displayReady2 : false);
+  const bothReady = displayReady1 && displayReady2;
 
   async function ready() {
     setError(null); setLoading(true);
+    setLocalReady(true); playReadyOne();   // optimistic — revert on failure
     try {
       const res = await fetch(`/api/matches/${matchId}/ready`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) setError(data.error ?? "Erro.");
-      else { setLocalReady(true); playReadyOne(); }
-    } catch { setError("Erro de rede."); }
+      if (!res.ok) { setLocalReady(false); setError(data.error ?? "Erro."); }
+    } catch { setLocalReady(false); setError("Erro de rede."); }
     finally { setLoading(false); }
   }
 
@@ -147,12 +149,12 @@ function ReadyPanel({
         {/* Team 1 */}
         <div className="flex flex-col items-center gap-2">
           <div className={`relative flex h-12 w-12 items-center justify-center rounded-xl border-2 text-base font-black transition-all ${
-            readyTeam1
+            displayReady1
               ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_16px_rgba(34,197,94,0.2)]"
               : "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"
           }`}>
             {team1Tag}
-            {readyTeam1 && (
+            {displayReady1 && (
               <div className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500">
                 <Check className="h-2.5 w-2.5 text-white" />
               </div>
@@ -160,8 +162,8 @@ function ReadyPanel({
           </div>
           <div className="text-center">
             <div className="text-xs font-bold text-[var(--foreground)] truncate max-w-[90px]">{team1Name}</div>
-            <div className={`text-[10px] font-semibold ${readyTeam1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
-              {readyTeam1 ? "✓ READY" : "Aguardando"}
+            <div className={`text-[10px] font-semibold ${displayReady1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+              {displayReady1 ? "✓ READY" : "Aguardando"}
             </div>
           </div>
         </div>
@@ -173,12 +175,12 @@ function ReadyPanel({
         {/* Team 2 */}
         <div className="flex flex-col items-center gap-2">
           <div className={`relative flex h-12 w-12 items-center justify-center rounded-xl border-2 text-base font-black transition-all ${
-            readyTeam2
+            displayReady2
               ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_16px_rgba(34,197,94,0.2)]"
               : "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"
           }`}>
             {team2Tag}
-            {readyTeam2 && (
+            {displayReady2 && (
               <div className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500">
                 <Check className="h-2.5 w-2.5 text-white" />
               </div>
@@ -186,8 +188,8 @@ function ReadyPanel({
           </div>
           <div className="text-center">
             <div className="text-xs font-bold text-[var(--foreground)] truncate max-w-[90px]">{team2Name}</div>
-            <div className={`text-[10px] font-semibold ${readyTeam2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
-              {readyTeam2 ? "✓ READY" : "Aguardando"}
+            <div className={`text-[10px] font-semibold ${displayReady2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+              {displayReady2 ? "✓ READY" : "Aguardando"}
             </div>
           </div>
         </div>
@@ -464,12 +466,12 @@ function PostVetoPanel({
 
   async function confirmReady() {
     setReadyError(null); setReadyLoading(true);
+    setLocalReady(true); playReadyOne();   // optimistic — revert on failure
     try {
       const res = await fetch(`/api/matches/${matchId}/ready`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) setReadyError(data.error ?? "Erro.");
-      else { setLocalReady(true); playReadyOne(); }
-    } catch { setReadyError("Erro de rede."); }
+      if (!res.ok) { setLocalReady(false); setReadyError(data.error ?? "Erro."); }
+    } catch { setLocalReady(false); setReadyError("Erro de rede."); }
     finally { setReadyLoading(false); }
   }
 
