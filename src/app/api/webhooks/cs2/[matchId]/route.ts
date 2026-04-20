@@ -190,6 +190,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   switch (lastEvent) {
     case "all_players_connected":
     case "match_started": {
+      // Server status "live" drives the "Ao vivo" badge in the UI
+      await supabase
+        .from("dathost_servers")
+        .update({ status: "live" })
+        .eq("match_id", matchId);
       if (match.status !== "live" && match.status !== "finished") {
         await supabase
           .from("matches")
@@ -200,6 +205,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     case "match_ended": {
+      await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
       if (match.status === "finished") {
         return NextResponse.json({ ok: true, note: "already_finished" });
       }
@@ -236,6 +242,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     case "match_canceled": {
+      await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
       if (match.status !== "finished" && match.status !== "cancelled") {
         await supabase
           .from("matches")
@@ -245,10 +252,43 @@ export async function POST(request: NextRequest, context: RouteContext) {
       break;
     }
 
+    case "booting_server": {
+      await supabase
+        .from("dathost_servers")
+        .update({ status: "provisioning" })
+        .eq("match_id", matchId);
+      break;
+    }
+
+    case "server_ready_for_players": {
+      const serverUpdate: Record<string, unknown> = { status: "ready" };
+
+      // Refresh IP — the server might not have had one when we first reserved it
+      if (payload.game_server_id) {
+        try {
+          const { getGameServer } = await import("@/lib/dathost");
+          const serverInfo = await getGameServer(payload.game_server_id, matchId);
+          if (serverInfo.raw_ip) {
+            const { data: sRow } = await supabase
+              .from("dathost_servers")
+              .select("port, server_password")
+              .eq("match_id", matchId)
+              .maybeSingle<{ port: number; server_password: string | null }>();
+            if (sRow?.server_password) {
+              serverUpdate.ip = serverInfo.raw_ip;
+              serverUpdate.raw_ip = serverInfo.raw_ip;
+              serverUpdate.connect_string = `steam://connect/${serverInfo.raw_ip}:${sRow.port}/${sRow.server_password}`;
+            }
+          }
+        } catch { /* best-effort refresh */ }
+      }
+
+      await supabase.from("dathost_servers").update(serverUpdate).eq("match_id", matchId);
+      break;
+    }
+
     // Informational events — acknowledge without side-effects
-    case "booting_server":
     case "loading_map":
-    case "server_ready_for_players":
     case "round_end":
     case "player_connected":
     case "player_disconnected":
