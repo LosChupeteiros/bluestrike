@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail } from "@/lib/matches";
 import { CS2_MAP_POOL, getVetoSequence, type MapPresentation } from "@/lib/maps";
-import { playReadyOne, playReadyBoth, playVeto, playVetoDone } from "@/lib/sounds";
+import { playReadyOne, playReadyBoth, playVeto, playVetoDone, playServerReady } from "@/lib/sounds";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -402,41 +402,70 @@ function VetoPanel({
   );
 }
 
-// ── Server panel ───────────────────────────────────────────────────────────────
+// ── Post-veto panel: ready (left) + server/connect (right) ────────────────────
 
-function ServerPanel({
-  server, isPlayer, isAdmin, matchId, tournamentId, team1Name, team2Name, chosenMap,
+function PostVetoPanel({
+  matchId, tournamentId,
+  team1Tag, team2Tag, team1Name, team2Name,
+  isCaptain, isPlayer, isAdmin,
+  readyTeam1, readyTeam2, userIsTeam1,
+  server, chosenMap, isPreLive,
 }: {
-  server: ServerInfo | null;
-  isPlayer: boolean;
-  isAdmin: boolean;
-  matchId: string;
-  tournamentId: string;
-  team1Name: string;
-  team2Name: string;
-  chosenMap: MapPresentation | null;
+  matchId: string; tournamentId: string;
+  team1Tag: string; team2Tag: string; team1Name: string; team2Name: string;
+  isCaptain: boolean; isPlayer: boolean; isAdmin: boolean;
+  readyTeam1: boolean; readyTeam2: boolean; userIsTeam1: boolean | null;
+  server: ServerInfo | null; chosenMap: MapPresentation | null; isPreLive: boolean;
 }) {
+  const [readyLoading, setReadyLoading] = useState(false);
+  const [readyError, setReadyError] = useState<string | null>(null);
+  const [localReady, setLocalReady] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const prevR1 = useRef(readyTeam1);
+  const prevR2 = useRef(readyTeam2);
+  const prevHasConn = useRef(false);
 
-  const ip = server?.rawIp ?? server?.ip ?? null;
   const isError = server?.status === "error";
-  const hasConnection = server !== null && !isError && ip && server.port > 0 && server.password;
-
+  const ip = server?.rawIp ?? server?.ip ?? null;
+  const hasConnection = Boolean(server && !isError && ip && server.port > 0 && server.password);
+  const isServerLive = server?.status === "live";
   const connectCmd = hasConnection ? `connect ${ip}:${server!.port}; password ${server!.password}` : "";
   const steamUrl = hasConnection
     ? (server!.connectString ?? `steam://connect/${ip}:${server!.port}/${server!.password}`)
     : "#";
   const { copied, copy: copyCmd } = useCopyStr(connectCmd);
 
-  const matchUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/tournaments/${tournamentId}/matches/${matchId}`
-    : `https://bluestrike.gg/tournaments/${tournamentId}/matches/${matchId}`;
-  const waText = encodeURIComponent(
-    `⚠️ BlueStrike — Servidor não alocado\nPartida: ${team1Name} vs ${team2Name}\nMatch ID: ${matchId}\nURL: ${matchUrl}`
-  );
-  const waUrl = `https://wa.me/5511961223798?text=${waText}`;
+  // Sound: ready state change
+  useEffect(() => {
+    if (readyTeam1 !== prevR1.current || readyTeam2 !== prevR2.current) {
+      if (readyTeam1 && readyTeam2) playReadyBoth();
+      else playReadyOne();
+      prevR1.current = readyTeam1;
+      prevR2.current = readyTeam2;
+    }
+  }, [readyTeam1, readyTeam2]);
+
+  // Sound: server connect info just became available
+  useEffect(() => {
+    if (hasConnection && !prevHasConn.current) playServerReady();
+    prevHasConn.current = hasConnection;
+  }, [hasConnection]);
+
+  const myReady = localReady || (userIsTeam1 === true ? readyTeam1 : userIsTeam1 === false ? readyTeam2 : false);
+  const bothReady = readyTeam1 && readyTeam2;
+
+  async function confirmReady() {
+    setReadyError(null); setReadyLoading(true);
+    try {
+      const res = await fetch(`/api/matches/${matchId}/ready`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) setReadyError(data.error ?? "Erro.");
+      else { setLocalReady(true); playReadyOne(); }
+    } catch { setReadyError("Erro de rede."); }
+    finally { setReadyLoading(false); }
+  }
 
   async function retryProvision() {
     setRetrying(true); setRetryError(null);
@@ -448,142 +477,197 @@ function ServerPanel({
     finally { setRetrying(false); }
   }
 
-  const WhatsAppBtn = ({ label, compact }: { label: string; compact?: boolean }) => (
-    <a href={waUrl} target="_blank" rel="noopener noreferrer"
-      className={`flex items-center justify-center gap-2 rounded-xl border border-green-600/25 bg-green-600/8 font-semibold text-green-400 transition-all hover:bg-green-600/14 ${compact ? "px-4 py-2 text-xs" : "w-full py-3 text-sm"}`}>
-      <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-      </svg>
-      {label}
-    </a>
-  );
-
-  // ── Error / no server yet ──
-  if (!server || isError) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-red-500/20 bg-[var(--card)]">
-        <div className="flex items-center gap-4 px-5 py-5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-red-300 text-sm">
-              {isError ? "Falha ao alocar servidor" : "Aguardando servidor…"}
-            </div>
-            <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-              {isError ? "Ocorreu um erro ao iniciar o servidor CS2." : "O servidor ainda não foi alocado."}
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-[var(--border)] flex flex-col gap-2 px-5 py-3">
-          {isAdmin && (
-            <button type="button" onClick={retryProvision} disabled={retrying}
-              className="flex items-center justify-center gap-2 w-full rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/10 py-2.5 text-sm font-bold text-[var(--primary)] transition-all hover:bg-[var(--primary)]/15 disabled:opacity-50">
-              {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Server className="h-4 w-4" />}
-              {retrying ? "Procurando servidor…" : "Tentar novamente"}
-            </button>
-          )}
-          {retryError && <p className="text-center text-[11px] text-red-400">{retryError}</p>}
-          {(isPlayer || !isAdmin) && <WhatsAppBtn label="Chamar administrador" />}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Provisioning — reserved but still booting ──
-  if (!hasConnection) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-[var(--primary)]/20 bg-[var(--card)]">
-        <div className="flex items-center gap-4 px-5 py-5">
-          <div className="relative shrink-0">
-            <div className="absolute inset-0 h-9 w-9 animate-ping rounded-full bg-[var(--primary)]/15" />
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10">
-              <Loader2 className="h-4 w-4 animate-spin text-[var(--primary)]" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-[var(--foreground)] text-sm">Servidor iniciando…</div>
-            <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">O CS2 está carregando. O botão aparece em instantes.</div>
-          </div>
-          {(isPlayer || !isAdmin) && <WhatsAppBtn label="Ajuda" compact />}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Ready — full connect UI ──
-  const isServerLive = server.status === "live";
+  const matchUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/tournaments/${tournamentId}/matches/${matchId}`
+    : "";
+  const waText = encodeURIComponent(`⚠️ BlueStrike — Servidor não alocado\nPartida: ${team1Name} vs ${team2Name}\nMatch ID: ${matchId}\nURL: ${matchUrl}`);
+  const waUrl = `https://wa.me/5511961223798?text=${waText}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--primary)]/40 bg-[var(--card)] shadow-[0_0_32px_rgba(0,200,255,0.05)]">
-      <div className="grid sm:grid-cols-[180px_1fr]">
-        {/* Map image */}
-        {chosenMap ? (
-          <div className="relative h-32 sm:h-auto overflow-hidden">
-            <Image src={chosenMap.localImage} alt={chosenMap.name} fill className="object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[var(--card)]/80 sm:bg-gradient-to-b sm:from-transparent sm:to-[var(--card)]/60" />
-            <div className="absolute bottom-2 left-2">
-              <span className="rounded bg-black/70 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-white">
-                {chosenMap.name}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="hidden sm:flex h-full items-center justify-center bg-[var(--secondary)]/40">
-            <Server className="h-8 w-8 text-[var(--muted-foreground)]/30" />
-          </div>
-        )}
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+      <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]">
 
-        {/* Connection info */}
-        <div className="flex flex-col gap-3 p-5">
+        {/* ── LEFT: Confirm ready ── */}
+        <div className="flex flex-col gap-4 p-5">
+          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">
+            Confirmar início
+          </div>
+
+          {isPreLive ? (
+            <>
+              {/* Team ready indicators */}
+              <div className="grid grid-cols-[1fr_28px_1fr] items-center gap-2">
+                <div className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-300 ${
+                  readyTeam1 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
+                }`}>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-black transition-all duration-300 ${
+                    readyTeam1 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
+                  }`}>
+                    {readyTeam1 ? <Check className="h-4 w-4" /> : team1Tag}
+                  </div>
+                  <div className={`text-[10px] font-bold transition-colors ${readyTeam1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                    {readyTeam1 ? "READY" : "Aguardando"}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center">
+                  <Swords className={`h-3.5 w-3.5 transition-colors duration-300 ${bothReady ? "text-[var(--primary)]" : "text-[var(--border)]"}`} />
+                </div>
+
+                <div className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-300 ${
+                  readyTeam2 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
+                }`}>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-black transition-all duration-300 ${
+                    readyTeam2 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
+                  }`}>
+                    {readyTeam2 ? <Check className="h-4 w-4" /> : team2Tag}
+                  </div>
+                  <div className={`text-[10px] font-bold transition-colors ${readyTeam2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                    {readyTeam2 ? "READY" : "Aguardando"}
+                  </div>
+                </div>
+              </div>
+
+              {isCaptain && !myReady && (
+                <button type="button" onClick={confirmReady} disabled={readyLoading}
+                  className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-black shadow-[0_0_16px_rgba(0,200,255,0.2)] transition-all hover:brightness-110 hover:shadow-[0_0_24px_rgba(0,200,255,0.3)] active:scale-[0.98] disabled:opacity-50">
+                  {readyLoading ? <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> : "Confirmar Ready"}
+                </button>
+              )}
+              {isCaptain && myReady && !bothReady && (
+                <div className="flex items-center justify-center gap-1.5 rounded-xl border border-green-500/20 bg-green-500/5 py-2.5 text-[10px] text-green-400">
+                  <Check className="h-3 w-3" /> Confirmado. Aguardando adversário…
+                </div>
+              )}
+              {readyError && <p className="text-center text-[10px] text-red-400">{readyError}</p>}
+            </>
+          ) : (
+            /* Both confirmed — steady green state */
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-500 bg-green-500/10 shadow-[0_0_24px_rgba(34,197,94,0.2)]">
+                <Check className="h-6 w-6 text-green-400" />
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-green-400">Ambos confirmados</div>
+                <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">Iniciando servidor CS2…</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: Server / Connect ── */}
+        <div className="flex flex-col gap-4 p-5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">
-              Servidor pronto
-            </span>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Servidor</div>
             {isServerLive && (
               <div className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.8)]" />
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.9)]" />
                 <span className="text-[10px] font-bold text-green-400">Ao vivo</span>
               </div>
             )}
           </div>
 
-          {isPlayer ? (
-            <>
-              {/* Steam connect CTA */}
-              <a href={steamUrl}
-                className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black shadow-[0_0_20px_rgba(0,200,255,0.25)] transition-all hover:brightness-110 hover:shadow-[0_0_28px_rgba(0,200,255,0.35)] active:scale-[0.98]">
-                <Wifi className="h-4 w-4" />
-                Entrar no servidor
-              </a>
-
-              {/* Censored command */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
-                    Comando CS2
-                  </span>
-                  <button type="button" onClick={() => setRevealed((v) => !v)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
-                    {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                    {revealed ? "ocultar" : "revelar"}
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-black/40 px-3 py-2.5">
-                  <code className="flex-1 font-mono text-xs text-[var(--foreground)] break-all select-all">
-                    {revealed ? connectCmd : "●".repeat(Math.min(connectCmd.length, 44))}
-                  </code>
-                  <button type="button" onClick={copyCmd} title="Copiar"
-                    className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
-                    {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
+          {/* ── Error ── */}
+          {isError ? (
+            <div className="flex flex-1 flex-col gap-3">
+              <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                <div>
+                  <div className="text-xs font-bold text-red-300">Falha ao alocar servidor</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">Ocorreu um erro ao iniciar o CS2.</div>
                 </div>
               </div>
-            </>
+              {isAdmin && (
+                <button type="button" onClick={retryProvision} disabled={retrying}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/10 py-2.5 text-xs font-bold text-[var(--primary)] transition-all hover:bg-[var(--primary)]/15 disabled:opacity-50">
+                  {retrying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Server className="h-3.5 w-3.5" />}
+                  {retrying ? "Procurando…" : "Tentar novamente"}
+                </button>
+              )}
+              {retryError && <p className="text-center text-[10px] text-red-400">{retryError}</p>}
+              <a href={waUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl border border-green-600/25 bg-green-600/8 py-2.5 text-xs font-semibold text-green-400 transition-all hover:bg-green-600/14">
+                Chamar administrador
+              </a>
+            </div>
+
+          ) : !hasConnection ? (
+            /* ── Loading / provisioning ── */
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
+              <div className="relative flex h-16 w-16 items-center justify-center">
+                <div className="absolute inset-0 animate-ping rounded-full bg-[var(--primary)]/8" />
+                <div className="absolute inset-0 animate-ping rounded-full bg-[var(--primary)]/5 [animation-delay:0.4s]" />
+                <div className="relative flex h-16 w-16 items-center justify-center rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/5">
+                  <Server className="h-7 w-7 text-[var(--primary)]/50" />
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-bold text-[var(--foreground)]">
+                  {server ? "Servidor iniciando…" : "Aguardando servidor…"}
+                </div>
+                <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                  {server ? "O CS2 está carregando o mapa." : "Alocando servidor dedicado."}
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--primary)]/40"
+                    style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            </div>
+
           ) : (
-            <p className="text-xs text-[var(--muted-foreground)]">
-              Conexão disponível apenas para os jogadores da partida.
-            </p>
+            /* ── Connect unlocked ── */
+            <div className="flex flex-1 flex-col gap-3">
+              {/* Map chip */}
+              {chosenMap && (
+                <div className="relative h-[72px] overflow-hidden rounded-xl">
+                  <Image src={chosenMap.localImage} alt={chosenMap.name} fill className="object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="absolute bottom-2 left-2.5">
+                    <span className="rounded bg-black/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+                      {chosenMap.name}
+                    </span>
+                  </div>
+                  <div className="absolute right-2 top-2">
+                    <span className="rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/15 px-2 py-0.5 text-[9px] font-bold text-[var(--primary)]">
+                      Servidor pronto
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isPlayer ? (
+                <>
+                  <a href={steamUrl}
+                    className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black shadow-[0_0_20px_rgba(0,200,255,0.25)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgba(0,200,255,0.35)] active:scale-[0.98]">
+                    <Wifi className="h-4 w-4" /> Entrar no servidor
+                  </a>
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Comando CS2</span>
+                      <button type="button" onClick={() => setRevealed((v) => !v)}
+                        className="flex items-center gap-1 text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+                        {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                        {revealed ? "ocultar" : "revelar"}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-black/40 px-3 py-2.5">
+                      <code className="flex-1 break-all font-mono text-xs text-[var(--foreground)] select-all">
+                        {revealed ? connectCmd : "●".repeat(Math.min(connectCmd.length, 38))}
+                      </code>
+                      <button type="button" onClick={copyCmd} title="Copiar"
+                        className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+                        {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-[var(--muted-foreground)]">Conexão disponível apenas para os jogadores da partida.</p>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -814,9 +898,20 @@ export default function MatchPageClient({
               <Badge variant="secondary">{match.boType === 1 ? "BO1" : match.boType === 3 ? "BO3" : "BO5"}</Badge>
             </div>
 
-            {/* Team tags + VS — centered */}
-            <div className="grid grid-cols-[1fr_52px_1fr] items-center gap-3">
+            {/* 4-col layout: [players1] [team1] [team2] [players2] */}
+            <div className="grid grid-cols-[1fr_auto_auto_1fr] items-center gap-x-3 gap-y-0">
 
+              {/* Col 1 — Team 1 players (left edge, avatar→nick) */}
+              <div className="flex flex-col gap-1.5 pr-2">
+                {team1Members.map((m) => (
+                  <div key={m.profileId} className="flex items-center gap-1.5">
+                    <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
+                    <span className="truncate text-xs font-bold text-white leading-none">{m.nickname}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Col 2 — Team 1 */}
               <div className="flex flex-col items-center gap-1.5">
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-xl font-black transition-all ${
                   isFinished && winner?.id === match.team1Id
@@ -824,7 +919,7 @@ export default function MatchPageClient({
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t1Tag}</div>
                 <div className="text-center">
-                  <div className={`text-base font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
+                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
                   {match.team1 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team1.elo} ELO</div>}
                   {isFinished && winner?.id === match.team1Id && (
                     <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400">
@@ -834,10 +929,10 @@ export default function MatchPageClient({
                 </div>
               </div>
 
-              <div className="flex items-center justify-center">
-                <Swords className="h-6 w-6 text-[var(--primary)] opacity-60" />
-              </div>
+              {/* VS swords — spans both team cols' boundary */}
+              {/* (invisible spacer row for VS icon — handled below) */}
 
+              {/* Col 3 — Team 2 */}
               <div className="flex flex-col items-center gap-1.5">
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-xl font-black transition-all ${
                   isFinished && winner?.id === match.team2Id
@@ -845,7 +940,7 @@ export default function MatchPageClient({
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t2Tag}</div>
                 <div className="text-center">
-                  <div className={`text-base font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
+                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
                   {match.team2 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team2.elo} ELO</div>}
                   {isFinished && winner?.id === match.team2Id && (
                     <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400">
@@ -854,31 +949,22 @@ export default function MatchPageClient({
                   )}
                 </div>
               </div>
+
+              {/* Col 4 — Team 2 players (right edge, nick→avatar) */}
+              <div className="flex flex-col gap-1.5 pl-2">
+                {team2Members.map((m) => (
+                  <div key={m.profileId} className="flex items-center justify-end gap-1.5">
+                    <span className="truncate text-xs font-bold text-white leading-none">{m.nickname}</span>
+                    <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Players — team1 bottom-left corner, team2 bottom-right corner */}
-            {(team1Members.length > 0 || team2Members.length > 0) && (
-              <div className="mt-5 grid grid-cols-2 gap-4">
-                {/* Team 1: avatar left, nick right — pinned to left edge */}
-                <div className="space-y-1.5">
-                  {team1Members.map((m) => (
-                    <div key={m.profileId} className="flex items-center gap-2">
-                      <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
-                      <span className="truncate text-xs font-bold text-white">{m.nickname}</span>
-                    </div>
-                  ))}
-                </div>
-                {/* Team 2: nick left, avatar right — pinned to right edge */}
-                <div className="space-y-1.5">
-                  {team2Members.map((m) => (
-                    <div key={m.profileId} className="flex items-center justify-end gap-2">
-                      <span className="truncate text-xs font-bold text-white">{m.nickname}</span>
-                      <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* VS icon centered between team cols */}
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <Swords className="h-5 w-5 text-[var(--primary)] opacity-40" />
+            </div>
           </div>
         </div>
 
@@ -916,11 +1002,16 @@ export default function MatchPageClient({
           team1Name={t1Name} team2Name={t2Name} />
       )}
 
-      {/* ── Server panel — ABOVE veto map grid (priority) ── */}
-      {vetoDone && (effectiveStatus === "live" || effectiveStatus === "pre_live" || effectiveServer !== null) && (
-        <ServerPanel server={effectiveServer} isPlayer={isPlayer} isAdmin={isAdmin}
+      {/* ── Post-veto: ready (left) + server/connect (right) ── */}
+      {vetoDone && (isPreLive || effectiveStatus === "live" || effectiveServer !== null) && (
+        <PostVetoPanel
           matchId={match.id} tournamentId={tournamentId}
-          team1Name={t1Name} team2Name={t2Name} chosenMap={chosenMap} />
+          team1Tag={t1Tag} team2Tag={t2Tag} team1Name={t1Name} team2Name={t2Name}
+          isCaptain={isCaptain} isPlayer={isPlayer} isAdmin={isAdmin}
+          readyTeam1={effectiveReadyTeam1} readyTeam2={effectiveReadyTeam2}
+          userIsTeam1={userIsTeam1}
+          server={effectiveServer} chosenMap={chosenMap} isPreLive={isPreLive}
+        />
       )}
 
       {/* ── Veto panel ── */}
@@ -930,14 +1021,6 @@ export default function MatchPageClient({
           team1Name={t1Name} team2Name={t2Name} team1Tag={t1Tag} team2Tag={t2Tag}
           userTeamId={userTeamId} isPlayer={isPlayer} isVetoActive={isVetoActive}
           onVetoDone={doPoll} />
-      )}
-
-      {/* ── Phase 2 ready (post-veto) ── */}
-      {isPreLive && (isCaptain || isPlayer) && (
-        <ReadyPanel matchId={match.id} phase="pre_live" isCaptain={isCaptain}
-          readyTeam1={effectiveReadyTeam1} readyTeam2={effectiveReadyTeam2}
-          userIsTeam1={userIsTeam1} team1Tag={t1Tag} team2Tag={t2Tag}
-          team1Name={t1Name} team2Name={t2Name} />
       )}
 
       {/* ── Admin result form ── */}

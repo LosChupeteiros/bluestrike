@@ -68,3 +68,11 @@ export function playVetoDone() {
   ] as const;
   seq.forEach(([f, t, d]) => tone(f, t, d, 0.2, "sine", ctx));
 }
+
+// Rising sweep — server ready, connect info unlocked
+export function playServerReady() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const notes = [392, 494, 587, 740, 988, 1174] as const;
+  notes.forEach((f, i) => tone(f, i * 0.07, 0.22, 0.18, "sine", ctx));
+}
