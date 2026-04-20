@@ -18,6 +18,9 @@ interface MatchRow {
   finished_at: string | null;
   webhook_secret: string | null;
   dathost_match_id: string | null;
+  ready_team1: boolean;
+  ready_team2: boolean;
+  teams_assigned_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -193,9 +196,14 @@ async function advanceWinner(
 
   if (nextMatch) {
     const isEvenSlot = match.match_index % 2 === 0;
+    const otherTeamAlreadySet = isEvenSlot ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
+    const update = isEvenSlot
+      ? { team1_id: winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
+      : { team2_id: winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+
     await supabase
       .from("matches")
-      .update(isEvenSlot ? { team1_id: winnerId } : { team2_id: winnerId })
+      .update(update)
       .eq("id", nextMatch.id);
   } else {
     // This was the final
@@ -325,7 +333,7 @@ interface DathostServerRow {
 }
 
 export interface FullMatchDetail {
-  match: Match & { readyTeam1: boolean; readyTeam2: boolean };
+  match: Match & { readyTeam1: boolean; readyTeam2: boolean; teamsAssignedAt: string | null };
   vetoes: import("@/types").MapVeto[];
   server: {
     dathostId: string;
@@ -370,6 +378,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
     ...mapMatchRow(matchData, teams),
     readyTeam1: matchData.ready_team1 ?? false,
     readyTeam2: matchData.ready_team2 ?? false,
+    teamsAssignedAt: matchData.teams_assigned_at ?? null,
   };
 
   // Fetch vetoes

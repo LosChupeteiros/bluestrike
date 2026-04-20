@@ -398,6 +398,7 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
     winner_id: string | null;
     bo_type: number;
     webhook_secret: string;
+    teams_assigned_at?: string;
   };
 
   const toInsert: MatchInsert[] = [];
@@ -409,6 +410,7 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
         const t1 = shuffled[idx * 2] || null;
         const t2 = shuffled[idx * 2 + 1] || null;
         const isBye = (t1 && !t2) || (!t1 && t2);
+        const bothTeams = t1 && t2 && !isBye;
         toInsert.push({
           tournament_id: tournament.id,
           team1_id: t1,
@@ -419,6 +421,7 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
           winner_id: isBye ? (t1 ?? t2) : null,
           bo_type: 1,
           webhook_secret: randomUUID(),
+          ...(bothTeams ? { teams_assigned_at: new Date().toISOString() } : {}),
         });
       } else {
         toInsert.push({

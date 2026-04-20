@@ -1,11 +1,9 @@
-// Match flow orchestration: schedule → ready-up → veto → provision server
+// Match flow orchestration: ready-up → veto → provision server
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import type { MapVeto } from "@/types";
 import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
 import { findAvailableServer, createCs2Match, getGameServer } from "@/lib/dathost";
-
-const SCHEDULE_MAX_FUTURE_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,47 +24,9 @@ export interface MatchRow {
   dathost_match_id: string | null;
   ready_team1: boolean;
   ready_team2: boolean;
+  teams_assigned_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-// ── Schedule ──────────────────────────────────────────────────────────────────
-
-export async function scheduleMatch(
-  matchId: string,
-  requestingTeamId: string,
-  scheduledAt: Date
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const now = new Date();
-  const delta = scheduledAt.getTime() - now.getTime();
-
-  if (delta < 60_000) {
-    return { ok: false, error: "O horário precisa ser pelo menos 1 minuto no futuro." };
-  }
-  if (delta > SCHEDULE_MAX_FUTURE_MS) {
-    return { ok: false, error: "O horário máximo é 2 horas a partir de agora." };
-  }
-
-  const supabase = createSupabaseAdminClient();
-
-  const { data: match } = await supabase
-    .from("matches")
-    .select("id, team1_id, team2_id, status, scheduled_at")
-    .eq("id", matchId)
-    .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id" | "status" | "scheduled_at">>();
-
-  if (!match) return { ok: false, error: "Partida não encontrada." };
-  if (match.status !== "pending") return { ok: false, error: "Essa partida não aceita agendamento agora." };
-  if (requestingTeamId !== match.team1_id && requestingTeamId !== match.team2_id) {
-    return { ok: false, error: "Você não faz parte dessa partida." };
-  }
-
-  await supabase
-    .from("matches")
-    .update({ scheduled_at: scheduledAt.toISOString(), status: "pending" })
-    .eq("id", matchId);
-
-  return { ok: true };
 }
 
 // ── Ready-up ──────────────────────────────────────────────────────────────────

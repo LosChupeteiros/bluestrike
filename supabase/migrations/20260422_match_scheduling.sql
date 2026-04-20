@@ -9,6 +9,11 @@ alter table public.matches
 alter table public.matches
   add column if not exists ready_team2 boolean not null default false;
 
+-- Set when both team1_id and team2_id are assigned. Starts the 1h soft deadline window.
+-- After 1h teams are subject to penalty, but nothing is blocked.
+alter table public.matches
+  add column if not exists teams_assigned_at timestamptz;
+
 -- Raw IP + password stored after server provisioning
 alter table public.dathost_servers
   add column if not exists raw_ip text;
