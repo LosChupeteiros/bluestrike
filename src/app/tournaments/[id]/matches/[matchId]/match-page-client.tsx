@@ -814,74 +814,71 @@ export default function MatchPageClient({
               <Badge variant="secondary">{match.boType === 1 ? "BO1" : match.boType === 3 ? "BO3" : "BO5"}</Badge>
             </div>
 
-            {/* 3-col: team1 | VS | team2 */}
-            <div className="grid grid-cols-[1fr_52px_1fr] items-start gap-3">
+            {/* Team tags + VS — centered */}
+            <div className="grid grid-cols-[1fr_52px_1fr] items-center gap-3">
 
-              {/* Team 1 — avatars on left (outer edge), nicks to the right (inward) */}
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col items-center gap-1.5">
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-xl font-black transition-all ${
                   isFinished && winner?.id === match.team1Id
                     ? "border-green-500 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t1Tag}</div>
-                <div className="text-right">
-                  <div className={`text-lg font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
+                <div className="text-center">
+                  <div className={`text-base font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
                   {match.team1 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team1.elo} ELO</div>}
                   {isFinished && winner?.id === match.team1Id && (
-                    <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] font-bold text-green-400">
+                    <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400">
                       <Crown className="h-3 w-3" /> Vencedor
                     </div>
                   )}
                 </div>
-                {/* Players: avatar (left/outer), nick (right/inward) */}
-                {team1Members.length > 0 && (
-                  <div className="mt-1 w-full space-y-1.5">
-                    {team1Members.map((m) => (
-                      <div key={m.profileId} className="flex items-center justify-end gap-2">
-                        <span className="truncate text-[11px] text-[var(--muted-foreground)]">{m.nickname}</span>
-                        <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              {/* VS */}
-              <div className="flex items-center justify-center pt-3">
-                <div className="flex h-11 w-11 items-center justify-center">
-                  <Swords className="h-6 w-6 text-[var(--primary)] opacity-60" />
-                </div>
+              <div className="flex items-center justify-center">
+                <Swords className="h-6 w-6 text-[var(--primary)] opacity-60" />
               </div>
 
-              {/* Team 2 — nicks left (inward), avatars right (outer edge) */}
-              <div className="flex flex-col items-start gap-2">
+              <div className="flex flex-col items-center gap-1.5">
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-xl font-black transition-all ${
                   isFinished && winner?.id === match.team2Id
                     ? "border-green-500 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t2Tag}</div>
-                <div>
-                  <div className={`text-lg font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
+                <div className="text-center">
+                  <div className={`text-base font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
                   {match.team2 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team2.elo} ELO</div>}
                   {isFinished && winner?.id === match.team2Id && (
-                    <div className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-green-400">
+                    <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400">
                       <Crown className="h-3 w-3" /> Vencedor
                     </div>
                   )}
                 </div>
-                {/* Players: nick (left/inward), avatar (right/outer) */}
-                {team2Members.length > 0 && (
-                  <div className="mt-1 w-full space-y-1.5">
-                    {team2Members.map((m) => (
-                      <div key={m.profileId} className="flex items-center gap-2">
-                        <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
-                        <span className="truncate text-[11px] text-[var(--muted-foreground)]">{m.nickname}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
+
+            {/* Players — team1 bottom-left corner, team2 bottom-right corner */}
+            {(team1Members.length > 0 || team2Members.length > 0) && (
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                {/* Team 1: avatar left, nick right — pinned to left edge */}
+                <div className="space-y-1.5">
+                  {team1Members.map((m) => (
+                    <div key={m.profileId} className="flex items-center gap-2">
+                      <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
+                      <span className="truncate text-xs font-bold text-white">{m.nickname}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Team 2: nick left, avatar right — pinned to right edge */}
+                <div className="space-y-1.5">
+                  {team2Members.map((m) => (
+                    <div key={m.profileId} className="flex items-center justify-end gap-2">
+                      <span className="truncate text-xs font-bold text-white">{m.nickname}</span>
+                      <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
