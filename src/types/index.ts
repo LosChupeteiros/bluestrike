@@ -9,7 +9,7 @@ export type TournamentFormat =
   | "double_elimination"
   | "round_robin"
   | "swiss";
-export type MatchStatus = "pending" | "veto" | "live" | "finished" | "cancelled" | "walkover";
+export type MatchStatus = "pending" | "veto" | "pre_live" | "live" | "finished" | "cancelled" | "walkover";
 export type RegistrationStatus = "pending" | "confirmed" | "eliminated" | "champion" | "withdrawn";
 export type TeamMemberRole = "awper" | "igl" | "entry-fragger" | "rifler" | "lurker" | "support" | "coach";
 export type NotificationType = "match_start" | "checkin_reminder" | "result" | "system" | "team_invite";

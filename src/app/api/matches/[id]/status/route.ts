@@ -7,7 +7,6 @@ interface RouteContext {
 
 export async function GET(_request: NextRequest, context: RouteContext) {
   const { id: matchId } = await context.params;
-
   const supabase = createSupabaseAdminClient();
 
   const { data: match } = await supabase
@@ -20,14 +19,32 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { data: serverRow } = await supabase
     .from("dathost_servers")
-    .select("status")
+    .select("status, raw_ip, ip, port, gotv_port, connect_string, server_password")
     .eq("match_id", matchId)
-    .maybeSingle<{ status: string }>();
+    .maybeSingle<{
+      status: string;
+      raw_ip: string | null;
+      ip: string;
+      port: number;
+      gotv_port: number | null;
+      connect_string: string | null;
+      server_password: string | null;
+    }>();
 
   return NextResponse.json({
     status: match.status,
     readyTeam1: match.ready_team1 ?? false,
     readyTeam2: match.ready_team2 ?? false,
-    serverStatus: serverRow?.status ?? null,
+    server: serverRow
+      ? {
+          status: serverRow.status,
+          rawIp: serverRow.raw_ip,
+          ip: serverRow.ip,
+          port: serverRow.port,
+          gotvPort: serverRow.gotv_port,
+          connectString: serverRow.connect_string,
+          password: serverRow.server_password,
+        }
+      : null,
   });
 }
