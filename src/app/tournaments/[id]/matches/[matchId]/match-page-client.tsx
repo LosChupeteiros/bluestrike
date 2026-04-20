@@ -64,87 +64,48 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   );
 }
 
-// ── Schedule panel ─────────────────────────────────────────────────────────────
+// ── Deadline panel ─────────────────────────────────────────────────────────────
 
-function SchedulePanel({ matchId, isCaptain }: { matchId: string; isCaptain: boolean }) {
-  const [time, setTime] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+function DeadlinePanel({ teamsAssignedAt }: { teamsAssignedAt: string | null }) {
+  const [, forceRender] = useState(0);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const scheduledAt = new Date(time).toISOString();
-      const res = await fetch(`/api/matches/${matchId}/schedule`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduledAt }),
-      });
-      const data = await res.json();
-      if (!res.ok) setError(data.error ?? "Erro ao agendar.");
-      else setDone(true);
-    } catch {
-      setError("Erro de rede.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    const id = setInterval(() => forceRender((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
-  if (!isCaptain) {
+  if (!teamsAssignedAt) return null;
+
+  const deadline = new Date(new Date(teamsAssignedAt).getTime() + 60 * 60 * 1000);
+  const now = new Date();
+  const msLeft = deadline.getTime() - now.getTime();
+  const expired = msLeft <= 0;
+
+  const minsLeft = Math.max(0, Math.floor(msLeft / 60_000));
+  const hoursLeft = Math.floor(minsLeft / 60);
+  const remainLabel = hoursLeft > 0
+    ? `${hoursLeft}h ${minsLeft % 60}min`
+    : `${minsLeft}min`;
+
+  if (expired) {
     return (
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-        <p className="text-center text-xs text-[var(--muted-foreground)]">
-          Aguardando capitão agendar a partida (máx. 2h)
+      <div className="flex items-start gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+        <p className="text-xs text-red-400/90">
+          Prazo de 1 hora expirado. Os times estão sujeitos a penalidades por atraso.
         </p>
       </div>
     );
   }
 
-  if (done) {
-    return (
-      <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-5 text-center text-sm text-green-400">
-        <Check className="mx-auto mb-2 h-5 w-5" /> Partida agendada!
-      </div>
-    );
-  }
-
-  // Min: now + 1min, Max: now + 2h
-  const now = new Date();
-  const minDt = new Date(now.getTime() + 61_000).toISOString().slice(0, 16);
-  const maxDt = new Date(now.getTime() + 2 * 3600_000).toISOString().slice(0, 16);
-
   return (
-    <div className="rounded-xl border border-[var(--primary)]/20 bg-[var(--card)] p-5">
-      <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--primary)]">
-        <Clock className="h-3.5 w-3.5" /> Agendar partida
-      </div>
-      <form onSubmit={submit} className="flex items-end gap-3">
-        <div className="flex-1">
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-            Horário (máx. 2h a partir de agora)
-          </label>
-          <input
-            type="datetime-local"
-            min={minDt}
-            max={maxDt}
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            required
-            className="w-full rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading || !time}
-          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-black transition-opacity disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar"}
-        </button>
-      </form>
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+    <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-5 py-3.5">
+      <Clock className="h-4 w-4 shrink-0 text-[var(--primary)]" />
+      <p className="text-xs text-[var(--muted-foreground)]">
+        Prazo recomendado:{" "}
+        <strong className="text-[var(--foreground)]">{remainLabel} restantes</strong>
+        {" "}para iniciar a partida. Após o prazo os times ficam sujeitos a penalidades.
+      </p>
     </div>
   );
 }
@@ -751,46 +712,30 @@ export default function MatchPageClient({
         </div>
       )}
 
-      {/* ── Schedule panel (only when pending + no scheduled_at) ── */}
-      {effectiveStatus === "pending" && !match.scheduledAt && (isCaptain || isPlayer) && (
-        <SchedulePanel matchId={match.id} isCaptain={isCaptain} />
+      {/* ── Deadline warning (shown when both teams assigned and match not finished) ── */}
+      {!isFinished && match.teamsAssignedAt && (
+        <DeadlinePanel teamsAssignedAt={match.teamsAssignedAt} />
       )}
 
-      {/* ── Scheduled + ready panel ── */}
-      {effectiveStatus === "pending" && match.scheduledAt && (isCaptain || isPlayer) && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-5 py-3">
-            <Clock className="h-4 w-4 text-[var(--primary)]" />
-            <span className="text-sm text-[var(--foreground)]">
-              Agendada para{" "}
-              <strong>
-                {new Date(match.scheduledAt).toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </strong>
-            </span>
-          </div>
-          <ReadyPanel
-            matchId={match.id}
-            isCaptain={isCaptain}
-            readyTeam1={effectiveReadyTeam1}
-            readyTeam2={effectiveReadyTeam2}
-            userIsTeam1={userIsTeam1}
-          />
-        </div>
-      )}
-
-      {/* ── WO warning ── */}
-      {effectiveStatus === "pending" && match.scheduledAt && (
-        <div className="flex items-start gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
-          <p className="text-xs text-yellow-400/80">
-            Ambos os capitães devem dar ready antes do horário agendado. Quem não der ready será declarado W.O.
+      {/* ── Waiting for opponent ── */}
+      {effectiveStatus === "pending" && (!match.team1Id || !match.team2Id) && (
+        <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-5 py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Aguardando adversário — a outra partida ainda não terminou.
           </p>
         </div>
+      )}
+
+      {/* ── Ready panel (both teams defined and pending) ── */}
+      {effectiveStatus === "pending" && match.team1Id && match.team2Id && (isCaptain || isPlayer) && (
+        <ReadyPanel
+          matchId={match.id}
+          isCaptain={isCaptain}
+          readyTeam1={effectiveReadyTeam1}
+          readyTeam2={effectiveReadyTeam2}
+          userIsTeam1={userIsTeam1}
+        />
       )}
 
       {/* ── Veto panel ── */}
