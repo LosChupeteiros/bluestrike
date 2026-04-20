@@ -162,9 +162,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Match not found." }, { status: 404 });
   }
 
-  // Verify authorization header
+  // Verify authorization header only when a secret is configured
   const authHeader = request.headers.get("authorization");
-  if (!match.webhook_secret || authHeader !== `Bearer ${match.webhook_secret}`) {
+  if (match.webhook_secret && authHeader !== `Bearer ${match.webhook_secret}`) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

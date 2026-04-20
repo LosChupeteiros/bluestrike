@@ -345,16 +345,24 @@ export async function provisionServerAsync(
       };
     });
 
-  // Webhook config
+  // Webhook config — ensure a secret exists, generating one if needed
   const { data: matchRow } = await supabase
     .from("matches")
     .select("webhook_secret")
     .eq("id", matchId)
     .maybeSingle<{ webhook_secret: string | null }>();
 
+  let webhookSecret = matchRow?.webhook_secret ?? null;
+  if (!webhookSecret) {
+    webhookSecret = randomUUID().replace(/-/g, "");
+    await supabase
+      .from("matches")
+      .update({ webhook_secret: webhookSecret })
+      .eq("id", matchId);
+  }
+
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.gg";
   const webhookUrl = `${base}/api/webhooks/cs2/${matchId}`;
-  const authHeader = matchRow?.webhook_secret ? `Bearer ${matchRow.webhook_secret}` : undefined;
 
   // Create Dathost CS2 match — this boots the server
   let dathostMatchId: string;
@@ -374,19 +382,18 @@ export async function provisionServerAsync(
           connect_time: 300,
           password,
         },
-        webhooks: authHeader
-          ? {
-              event_url: webhookUrl,
-              authorization_header: authHeader,
-              enabled_events: [
-                "booting_server",
-                "server_ready_for_players",
-                "match_started",
-                "match_ended",
-                "match_canceled",
-              ],
-            }
-          : undefined,
+        webhooks: {
+          event_url: webhookUrl,
+          authorization_header: `Bearer ${webhookSecret}`,
+          enabled_events: [
+            "booting_server",
+            "server_ready_for_players",
+            "all_players_connected",
+            "match_started",
+            "match_ended",
+            "match_canceled",
+          ],
+        },
       },
       matchId
     );
