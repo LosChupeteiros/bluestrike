@@ -2,7 +2,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
-import { findAvailableServer, createCs2Match, getGameServer } from "@/lib/dathost";
+import { findAvailableServer, createCs2Match, getGameServer, writeDathostLog } from "@/lib/dathost";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,9 +29,9 @@ export interface MatchRow {
 }
 
 // ── Ready-up ──────────────────────────────────────────────────────────────────
-// Handles both phases:
-//   - "pending"   → pre-veto ready  → when both ready: status = "veto"
-//   - "pre_live"  → post-veto ready → when both ready: provision server + status = "live"
+// Two phases:
+//   "pending"  → both ready → status = "veto"
+//   "pre_live" → both ready → status = "live" + provision server
 
 export async function readyUpMatch(
   matchId: string,
@@ -63,12 +63,7 @@ export async function readyUpMatch(
     (isTeam2 ? true : match.ready_team2);
 
   if (bothReady) {
-    if (match.status === "pending") {
-      update.status = "veto";
-    } else {
-      // pre_live → live; server provisioned below
-      update.status = "live";
-    }
+    update.status = match.status === "pending" ? "veto" : "live";
     update.ready_team1 = false;
     update.ready_team2 = false;
   }
@@ -76,26 +71,30 @@ export async function readyUpMatch(
   await supabase.from("matches").update(update).eq("id", matchId);
 
   if (bothReady && match.status === "pre_live") {
-    // Resolve map: pick[0] for BO3/BO5, or the remaining decider for BO1
-    const { data: vetoRows } = await supabase
-      .from("map_vetoes")
-      .select("action, map_name")
-      .eq("match_id", matchId)
-      .returns<{ action: string; map_name: string }[]>();
-
-    const picks = (vetoRows ?? []).filter((v) => v.action === "pick").map((v) => v.map_name);
-    const bans = new Set((vetoRows ?? []).filter((v) => v.action === "ban").map((v) => v.map_name));
-    const deciderEntry = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name));
-    const mapName = picks[0] ?? deciderEntry?.name ?? "Mirage";
-    const mapEntry = CS2_MAP_POOL.find((m) => m.name === mapName);
-    const mapId = mapEntry?.mapId ?? "de_mirage";
-
+    const { mapName, mapId } = await resolveMatchMap(matchId);
     provisionServerAsync(matchId, match.team1_id!, match.team2_id!, mapName, mapId).catch(
       (err: unknown) => console.error("[match-flow] provision error:", err)
     );
   }
 
   return { ok: true, bothReady };
+}
+
+// Resolves which map to play from the veto history.
+async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapId: string }> {
+  const supabase = createSupabaseAdminClient();
+  const { data: vetoRows } = await supabase
+    .from("map_vetoes")
+    .select("action, map_name")
+    .eq("match_id", matchId)
+    .returns<{ action: string; map_name: string }[]>();
+
+  const picks = (vetoRows ?? []).filter((v) => v.action === "pick").map((v) => v.map_name);
+  const bans = new Set((vetoRows ?? []).filter((v) => v.action === "ban").map((v) => v.map_name));
+  const decider = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name));
+  const mapName = picks[0] ?? decider?.name ?? "Mirage";
+  const mapEntry = CS2_MAP_POOL.find((m) => m.name === mapName);
+  return { mapName, mapId: mapEntry?.mapId ?? "de_mirage" };
 }
 
 // ── Walkover ──────────────────────────────────────────────────────────────────
@@ -164,21 +163,15 @@ export async function submitVetoAction(
   const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5);
   const currentStep = done.length;
 
-  if (currentStep >= sequence.length) {
-    return { ok: false, error: "Veto já finalizado." };
-  }
+  if (currentStep >= sequence.length) return { ok: false, error: "Veto já finalizado." };
 
   const slot = sequence[currentStep];
   const expectedTeam = slot.turn === "team1" ? match.team1_id : match.team2_id;
 
-  if (requestingTeamId !== expectedTeam) {
-    return { ok: false, error: "Não é a sua vez no veto." };
-  }
+  if (requestingTeamId !== expectedTeam) return { ok: false, error: "Não é a sua vez no veto." };
 
   const usedMaps = new Set(done.map((v) => v.map_name));
-  if (usedMaps.has(mapName)) {
-    return { ok: false, error: "Esse mapa já foi usado no veto." };
-  }
+  if (usedMaps.has(mapName)) return { ok: false, error: "Esse mapa já foi usado no veto." };
 
   await supabase.from("map_vetoes").insert({
     match_id: matchId,
@@ -197,7 +190,6 @@ export async function submitVetoAction(
   const decider = CS2_MAP_POOL.find((m) => !pickedMaps.includes(m.name) && !allBanned.has(m.name))?.name ?? null;
 
   if (isLastStep) {
-    // Veto complete → move to pre_live (waiting for second ready-up before server starts)
     await supabase
       .from("matches")
       .update({ status: "pre_live", ready_team1: false, ready_team2: false })
@@ -208,6 +200,8 @@ export async function submitVetoAction(
 }
 
 // ── Server provisioning ───────────────────────────────────────────────────────
+// Called after both teams ready in pre_live, or by admin retry.
+// Safe to call multiple times — skips if already in a non-error state.
 
 export async function provisionServerAsync(
   matchId: string,
@@ -218,19 +212,20 @@ export async function provisionServerAsync(
 ): Promise<void> {
   const supabase = createSupabaseAdminClient();
 
-  // Prevent double provisioning for this match
+  // Skip if already provisioned or in progress (but allow retry on error)
   const { data: existingRow } = await supabase
     .from("dathost_servers")
-    .select("id")
+    .select("id, status")
     .eq("match_id", matchId)
-    .maybeSingle<{ id: string }>();
+    .maybeSingle<{ id: string; status: string }>();
 
-  if (existingRow) return;
+  if (existingRow && existingRow.status !== "error") return;
 
-  // Find an available server, excluding those already reserved by other active matches
+  // Find available server, excluding those reserved by other active matches
   const { data: reservedRows } = await supabase
     .from("dathost_servers")
     .select("dathost_server_id")
+    .neq("match_id", matchId)
     .not("dathost_server_id", "is", null);
 
   const reservedIds = new Set(
@@ -241,13 +236,26 @@ export async function provisionServerAsync(
 
   const server = await findAvailableServer(matchId, reservedIds);
   if (!server) {
-    console.error(`[provision/${matchId}] No available CS2 server`);
-    await supabase.from("dathost_api_logs").insert({
-      match_id: matchId,
+    const msg = "Nenhum servidor CS2 disponível no momento.";
+    console.error(`[provision/${matchId}] ${msg}`);
+    await writeDathostLog({
+      matchId,
       method: "GET",
       url: "https://dathost.net/api/0.1/game-servers",
-      error_message: "No available server found",
+      errorMessage: msg,
     });
+    if (existingRow) {
+      await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
+    } else {
+      await supabase.from("dathost_servers").insert({
+        match_id: matchId,
+        dathost_id: null,
+        ip: "",
+        port: 0,
+        rcon_password: "",
+        status: "error",
+      });
+    }
     return;
   }
 
@@ -255,29 +263,35 @@ export async function provisionServerAsync(
   const gotvPort = server.ports.gotv ?? null;
   const password = randomUUID().replace(/-/g, "").slice(0, 12);
 
-  // Reserve the physical server in DB immediately — unique constraint on dathost_server_id
-  // prevents two matches from claiming the same server even under concurrent requests.
-  const { error: reserveError } = await supabase.from("dathost_servers").insert({
-    match_id: matchId,
+  // Write reservation row immediately (prevents concurrent provisioning for same match)
+  const reservationData = {
     dathost_server_id: server.id,
-    dathost_id: null,
+    dathost_id: null as string | null,
     ip: server.ip ?? server.raw_ip ?? "",
     raw_ip: server.raw_ip ?? null,
     port,
     gotv_port: gotvPort,
-    connect_string: null,
+    connect_string: null as string | null,
     rcon_password: "",
     server_password: password,
     status: "reserving",
-  });
+  };
 
-  if (reserveError) {
-    // Another process claimed this match or server simultaneously
-    console.error(`[provision/${matchId}] Reserve conflict:`, reserveError.message);
-    return;
+  if (existingRow) {
+    // Retry: update existing error row
+    await supabase.from("dathost_servers").update(reservationData).eq("match_id", matchId);
+  } else {
+    const { error: insertErr } = await supabase.from("dathost_servers").insert({
+      match_id: matchId,
+      ...reservationData,
+    });
+    if (insertErr) {
+      console.error(`[provision/${matchId}] Insert conflict:`, insertErr.message);
+      return;
+    }
   }
 
-  // Team names and tags
+  // Fetch team info
   const { data: teamRows } = await supabase
     .from("teams")
     .select("id, name, tag")
@@ -286,12 +300,8 @@ export async function provisionServerAsync(
 
   const team1Row = teamRows?.find((t) => t.id === team1Id);
   const team2Row = teamRows?.find((t) => t.id === team2Id);
-  const team1Name = team1Row?.name ?? "Time 1";
-  const team2Name = team2Row?.name ?? "Time 2";
-  const team1Flag = team1Row?.tag ?? "T1";
-  const team2Flag = team2Row?.tag ?? "T2";
 
-  // Player steam IDs and nicknames
+  // Fetch player steam IDs + nicknames
   const { data: members } = await supabase
     .from("team_members")
     .select("team_id, profile_id")
@@ -307,10 +317,7 @@ export async function provisionServerAsync(
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
   const players = (members ?? [])
-    .filter((m) => {
-      const p = profileMap.get(m.profile_id);
-      return p?.steam_id;
-    })
+    .filter((m) => profileMap.get(m.profile_id)?.steam_id)
     .map((m) => {
       const p = profileMap.get(m.profile_id)!;
       return {
@@ -331,14 +338,14 @@ export async function provisionServerAsync(
   const webhookUrl = `${base}/api/webhooks/cs2/${matchId}`;
   const authHeader = matchRow?.webhook_secret ? `Bearer ${matchRow.webhook_secret}` : undefined;
 
-  // Create Dathost CS2 match — this boots the server and starts the game
-  let dathostMatch;
+  // Create Dathost CS2 match — this boots the server
+  let dathostMatchId: string;
   try {
-    dathostMatch = await createCs2Match(
+    const dathostMatch = await createCs2Match(
       {
         game_server_id: server.id,
-        team1: { name: team1Name, flag: team1Flag },
-        team2: { name: team2Name, flag: team2Flag },
+        team1: { name: team1Row?.name ?? "Time 1", flag: team1Row?.tag ?? "T1" },
+        team2: { name: team2Row?.name ?? "Time 2", flag: team2Row?.tag ?? "T2" },
         players,
         settings: {
           map: mapId,
@@ -365,23 +372,21 @@ export async function provisionServerAsync(
       },
       matchId
     );
+    dathostMatchId = dathostMatch.id;
   } catch (err) {
-    await supabase
-      .from("dathost_servers")
-      .update({ status: "error" })
-      .eq("match_id", matchId);
+    await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
     throw err;
   }
 
-  // Fetch server info after match creation to get the final IP
-  const serverInfo = await getGameServer(server.id, matchId);
+  // Fetch server info to get confirmed IP after provisioning
+  const serverInfo = await getGameServer(server.id, matchId).catch(() => server);
   const rawIp = serverInfo.raw_ip ?? server.raw_ip ?? server.ip ?? "";
   const connectString = `steam://connect/${rawIp}:${port}/${password}`;
 
   await supabase
     .from("dathost_servers")
     .update({
-      dathost_id: dathostMatch.id,
+      dathost_id: dathostMatchId,
       ip: rawIp,
       raw_ip: rawIp,
       connect_string: connectString,
@@ -391,8 +396,38 @@ export async function provisionServerAsync(
 
   await supabase
     .from("matches")
-    .update({ dathost_match_id: dathostMatch.id })
+    .update({ dathost_match_id: dathostMatchId })
     .eq("id", matchId);
 
-  console.log(`[provision/${matchId}] Server reserved: ${server.id}, map: ${mapName} (${mapId}), IP: ${rawIp}:${port}`);
+  console.log(
+    `[provision/${matchId}] OK — server: ${server.id}, map: ${mapName} (${mapId}), ip: ${rawIp}:${port}`
+  );
+}
+
+// Admin retry: clears error/broken state and re-provisions.
+export async function retryProvision(matchId: string): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("team1_id, team2_id, status")
+    .eq("id", matchId)
+    .maybeSingle<{ team1_id: string | null; team2_id: string | null; status: string }>();
+
+  if (!match?.team1_id || !match?.team2_id) {
+    throw new Error("Times não definidos para esta partida.");
+  }
+  if (match.status !== "live" && match.status !== "pre_live") {
+    throw new Error(`Partida no status "${match.status}" não pode ser reiniciada.`);
+  }
+
+  // Delete broken server row so provisionServerAsync starts fresh
+  await supabase
+    .from("dathost_servers")
+    .delete()
+    .eq("match_id", matchId)
+    .in("status", ["error", "reserving"]);
+
+  const { mapName, mapId } = await resolveMatchMap(matchId);
+  await provisionServerAsync(matchId, match.team1_id, match.team2_id, mapName, mapId);
 }
