@@ -258,6 +258,7 @@ function VetoPanel({
   userTeamId,
   isPlayer,
   isVetoActive,
+  onVetoDone,
 }: {
   matchId: string;
   boType: 1 | 3 | 5;
@@ -271,6 +272,7 @@ function VetoPanel({
   userTeamId: string | null;
   isPlayer: boolean;
   isVetoActive: boolean;
+  onVetoDone?: () => void;
 }) {
   const sequence = getVetoSequence(boType);
   const [vetoes, setVetoes] = useState(existingVetoes);
@@ -341,8 +343,12 @@ function VetoPanel({
         };
         const next = [...vetoes, newVeto];
         setVetoes(next);
-        if (next.length >= sequence.length) playVetoDone();
-        else playVeto();
+        if (next.length >= sequence.length) {
+          playVetoDone();
+          onVetoDone?.();
+        } else {
+          playVeto();
+        }
         prevCount.current = next.length;
       }
     } catch {
@@ -503,28 +509,57 @@ function VetoPanel({
 // ── Server panel ───────────────────────────────────────────────────────────────
 
 function ServerPanel({ server, isPlayer }: { server: ServerInfo | null; isPlayer: boolean }) {
+  const ip = server?.rawIp ?? server?.ip ?? null;
+  const hasConnection = server !== null && ip && server.port > 0 && server.password;
+
+  // No server row yet — waiting for provisioning to begin
   if (!server) {
     return (
-      <div className="flex items-center gap-4 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 px-6 py-5">
-        <Loader2 className="h-6 w-6 shrink-0 animate-spin text-yellow-400" />
+      <div className="flex items-center gap-4 overflow-hidden rounded-2xl border border-yellow-500/20 bg-yellow-500/5 px-6 py-6">
+        <div className="relative shrink-0">
+          <div className="h-10 w-10 animate-ping rounded-full bg-yellow-500/20 absolute inset-0" />
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-yellow-500/30 bg-yellow-500/10">
+            <Loader2 className="h-5 w-5 animate-spin text-yellow-400" />
+          </div>
+        </div>
         <div>
-          <div className="font-bold text-yellow-300">Iniciando servidor…</div>
-          <div className="text-xs text-[var(--muted-foreground)]">O servidor CS2 está sendo alocado. Aguarde.</div>
+          <div className="font-bold text-yellow-300">Alocando servidor…</div>
+          <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">O servidor CS2 está sendo reservado. Isso leva alguns segundos.</div>
         </div>
       </div>
     );
   }
 
-  const displayIp = `${server.rawIp ?? server.ip}:${server.port}`;
-  const connectCmd = server.password
-    ? `connect ${server.rawIp ?? server.ip}:${server.port}; password ${server.password}`
-    : null;
-  const steamUrl = server.connectString ?? (connectCmd ? `steam://connect/${server.rawIp ?? server.ip}:${server.port}/${server.password}` : null);
+  // Server row exists but IP/connection not ready yet (status: "reserving" or "provisioning" without IP)
+  if (!hasConnection) {
+    return (
+      <div className="flex items-center gap-4 overflow-hidden rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 px-6 py-6">
+        <div className="relative shrink-0">
+          <div className="h-10 w-10 animate-ping rounded-full bg-[var(--primary)]/15 absolute inset-0" />
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10">
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--primary)]" />
+          </div>
+        </div>
+        <div>
+          <div className="font-bold text-[var(--foreground)]">Servidor iniciando…</div>
+          <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">O CS2 está carregando. Aguarde o botão de conexão aparecer.</div>
+        </div>
+        <div className="ml-auto hidden sm:flex items-center gap-1.5">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-yellow-400" />
+          <span className="text-xs font-semibold text-yellow-400">Iniciando</span>
+        </div>
+      </div>
+    );
+  }
+
+  const displayIp = `${ip}:${server.port}`;
+  const connectCmd = `connect ${ip}:${server.port}; password ${server.password}`;
+  const steamUrl = server.connectString ?? `steam://connect/${ip}:${server.port}/${server.password}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--primary)]/30 bg-[var(--card)]">
+    <div className="overflow-hidden rounded-2xl border border-[var(--primary)]/40 bg-[var(--card)] shadow-[0_0_40px_rgba(0,200,255,0.06)]">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--primary)]/5 px-6 py-4">
+      <div className="flex items-center gap-3 border-b border-[var(--border)] bg-gradient-to-r from-[var(--primary)]/8 to-transparent px-6 py-4">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/15">
           <Server className="h-4 w-4 text-[var(--primary)]" />
         </div>
@@ -533,38 +568,37 @@ function ServerPanel({ server, isPlayer }: { server: ServerInfo | null; isPlayer
           <div className="font-mono text-xs text-[var(--muted-foreground)]">{displayIp}</div>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-          <span className="text-xs font-semibold text-green-400">Online</span>
+          <div className="h-2 w-2 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
+          <span className="text-xs font-bold text-green-400">Online</span>
         </div>
       </div>
 
       <div className="p-6">
-        {isPlayer && steamUrl && connectCmd ? (
+        {isPlayer ? (
           <div className="space-y-4">
-            {/* Primary CTA */}
+            {/* Primary CTA — connect via Steam */}
             <a
               href={steamUrl}
-              className="flex w-full items-center justify-center gap-3 rounded-xl bg-[var(--primary)] py-4 text-base font-black uppercase tracking-widest text-black shadow-[0_0_20px_rgba(0,200,255,0.25)] transition-all hover:brightness-110 hover:shadow-[0_0_30px_rgba(0,200,255,0.35)]"
+              className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[var(--primary)] py-4 text-base font-black uppercase tracking-widest text-black shadow-[0_0_24px_rgba(0,200,255,0.3)] transition-all hover:brightness-110 hover:shadow-[0_0_36px_rgba(0,200,255,0.45)] active:scale-[0.98]"
             >
-              <Wifi className="h-5 w-5" />
+              <Wifi className="h-5 w-5 transition-transform group-hover:scale-110" />
               Entrar no servidor
             </a>
 
-            {/* Copy commands */}
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-4">
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-                Comando de conexão
+            {/* Connect command — console copy */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/60 p-4">
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                Comando para o console do CS2
               </div>
-              <div className="mb-3 flex items-center gap-2">
-                <code className="flex-1 rounded bg-black/40 px-3 py-2 font-mono text-xs text-[var(--foreground)] break-all">
-                  {connectCmd}
-                </code>
+              <div className="mb-3 rounded-lg bg-black/50 px-4 py-3 font-mono text-sm text-[var(--foreground)] break-all select-all border border-[var(--border)]">
+                {connectCmd}
               </div>
               <div className="flex flex-wrap gap-2">
-                <CopyButton value={connectCmd} label="Copiar connect" large />
+                <CopyButton value={connectCmd} label="Copiar comando" large />
+                <CopyButton value={ip} label={`IP: ${ip}`} />
                 {server.gotvPort && (
                   <CopyButton
-                    value={`connect ${server.rawIp ?? server.ip}:${server.gotvPort}`}
+                    value={`connect ${ip}:${server.gotvPort}`}
                     label="GOTV"
                   />
                 )}
@@ -574,16 +608,14 @@ function ServerPanel({ server, isPlayer }: { server: ServerInfo | null; isPlayer
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-[var(--muted-foreground)]">
-              {isPlayer
-                ? "Informações de conexão não disponíveis."
-                : "O endereço de conexão está disponível apenas para os jogadores da partida."}
+              O endereço de conexão está disponível apenas para os jogadores da partida.
             </p>
             {server.gotvPort && (
               <div>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">GOTV (espectador)</div>
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">GOTV (espectador)</div>
                 <CopyButton
-                  value={`connect ${server.rawIp ?? server.ip}:${server.gotvPort}`}
-                  label={`connect ${server.rawIp ?? server.ip}:${server.gotvPort}`}
+                  value={`connect ${ip}:${server.gotvPort}`}
+                  label={`connect ${ip}:${server.gotvPort}`}
                   large
                 />
               </div>
@@ -992,6 +1024,7 @@ export default function MatchPageClient({
           userTeamId={userTeamId}
           isPlayer={isPlayer}
           isVetoActive={isVetoActive}
+          onVetoDone={doPoll}
         />
       )}
 
