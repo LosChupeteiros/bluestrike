@@ -9,25 +9,84 @@ function dathostAuth(): string {
   return "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
 }
 
+// ── Logging ───────────────────────────────────────────────────────────────────
+
+type LogEntry = {
+  matchId?: string | null;
+  method: string;
+  url: string;
+  requestBody?: unknown;
+  responseStatus?: number;
+  responseBody?: unknown;
+  errorMessage?: string;
+};
+
+export async function writeDathostLog(entry: LogEntry): Promise<void> {
+  if (!entry.matchId) return;
+  try {
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+    await createSupabaseAdminClient()
+      .from("dathost_api_logs")
+      .insert({
+        match_id: entry.matchId,
+        method: entry.method,
+        url: entry.url,
+        request_body: entry.requestBody ? JSON.parse(JSON.stringify(entry.requestBody)) : null,
+        response_status: entry.responseStatus ?? null,
+        response_body: entry.responseBody ? JSON.parse(JSON.stringify(entry.responseBody)) : null,
+        error_message: entry.errorMessage ?? null,
+      });
+  } catch {
+    // Never let logging break the flow
+  }
+}
+
+// ── HTTP ──────────────────────────────────────────────────────────────────────
+
 async function dathostFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { matchId?: string | null } = {}
 ): Promise<T> {
-  const res = await fetch(`${DATHOST_BASE}${path}`, {
-    ...options,
+  const { matchId, ...fetchOptions } = options;
+  const fullUrl = `${DATHOST_BASE}${path}`;
+  const method = (fetchOptions.method ?? "GET").toUpperCase();
+  let requestBody: unknown;
+  if (fetchOptions.body && typeof fetchOptions.body === "string") {
+    try { requestBody = JSON.parse(fetchOptions.body); } catch { requestBody = fetchOptions.body; }
+  }
+
+  const res = await fetch(fullUrl, {
+    ...fetchOptions,
     headers: {
       Authorization: dathostAuth(),
       "Content-Type": "application/json",
-      ...(options.headers ?? {}),
+      ...(fetchOptions.headers ?? {}),
     },
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Dathost ${options.method ?? "GET"} ${path} → ${res.status}: ${text}`);
+  let responseBody: unknown;
+  const contentType = res.headers.get("content-type") ?? "";
+  const rawText = await res.text();
+  try {
+    responseBody = contentType.includes("json") ? JSON.parse(rawText) : rawText;
+  } catch {
+    responseBody = rawText;
   }
 
-  return res.json() as Promise<T>;
+  await writeDathostLog({
+    matchId,
+    method,
+    url: fullUrl,
+    requestBody,
+    responseStatus: res.status,
+    responseBody,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Dathost ${method} ${path} → ${res.status}: ${rawText}`);
+  }
+
+  return responseBody as T;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,24 +106,16 @@ export interface DathostGameServer {
   booting: boolean;
   status_text: string;
   players_online: number;
-  cs2_settings?: {
-    steam_game_server_login_token?: string;
-  };
-  match?: {
-    id: string;
-  } | null;
+  match?: { id: string } | null;
 }
 
 export interface DathostCs2MatchSettings {
   game_server_id: string;
   team1_name: string;
   team2_name: string;
-  team1_flag?: string;
-  team2_flag?: string;
   map: string;
   enable_knife_round?: boolean;
   enable_pause?: boolean;
-  enable_ready?: boolean;
   message_prefix?: string;
   webhooks?: {
     event_url?: string;
@@ -94,27 +145,26 @@ export interface DathostCs2Match {
 
 // ── API functions ─────────────────────────────────────────────────────────────
 
-export async function listGameServers(): Promise<DathostGameServer[]> {
-  return dathostFetch<DathostGameServer[]>("/game-servers");
+export async function listGameServers(matchId?: string | null): Promise<DathostGameServer[]> {
+  return dathostFetch<DathostGameServer[]>("/game-servers", { matchId });
 }
 
-export async function getGameServer(serverId: string): Promise<DathostGameServer> {
-  return dathostFetch<DathostGameServer>(`/game-servers/${serverId}`);
+export async function getGameServer(serverId: string, matchId?: string | null): Promise<DathostGameServer> {
+  return dathostFetch<DathostGameServer>(`/game-servers/${serverId}`, { matchId });
 }
 
-export async function createCs2Match(settings: DathostCs2MatchSettings): Promise<DathostCs2Match> {
+export async function createCs2Match(
+  settings: DathostCs2MatchSettings,
+  matchId?: string | null
+): Promise<DathostCs2Match> {
   return dathostFetch<DathostCs2Match>("/cs2-matches", {
     method: "POST",
     body: JSON.stringify(settings),
+    matchId,
   });
 }
 
-// Returns first available server (not currently hosting a match, powered on)
-export async function findAvailableServer(): Promise<DathostGameServer | null> {
-  const servers = await listGameServers();
-  return (
-    servers.find(
-      (s) => s.game === "cs2" && s.on && !s.booting && !s.match
-    ) ?? null
-  );
+export async function findAvailableServer(matchId?: string | null): Promise<DathostGameServer | null> {
+  const servers = await listGameServers(matchId);
+  return servers.find((s) => s.game === "cs2" && s.on && !s.booting && !s.match) ?? null;
 }
