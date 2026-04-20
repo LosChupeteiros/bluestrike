@@ -2,6 +2,13 @@ import type { Tournament, TournamentRegistration } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getCurrentTeamForProfile, getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { randomUUID } from "crypto";
+import {
+  getEffectiveTournamentStatus,
+  isTournamentRegistrationOpen,
+} from "@/lib/tournament-status";
+
+export { getEffectiveTournamentStatus, isTournamentRegistrationOpen } from "@/lib/tournament-status";
 
 interface TournamentRow {
   id: string;
@@ -265,7 +272,8 @@ export async function listTournaments(options: TournamentListOptions = {}) {
     throw new Error(`Falha ao listar campeonatos: ${error.message}`);
   }
 
-  return attachRegistrations((data ?? []).map(mapTournamentRow));
+  const tournaments = await attachRegistrations((data ?? []).map(mapTournamentRow));
+  return Promise.all(tournaments.map(syncTournamentStatus));
 }
 
 export async function getTournamentById(tournamentId: string) {
@@ -283,8 +291,9 @@ export async function getTournamentById(tournamentId: string) {
     return null;
   }
 
-  const [tournament] = await attachRegistrations([mapTournamentRow(data)]);
-  return tournament ?? null;
+  const [withRegistrations] = await attachRegistrations([mapTournamentRow(data)]);
+  if (!withRegistrations) return null;
+  return syncTournamentStatus(withRegistrations);
 }
 
 export async function createTournament(adminProfile: UserProfile, input: CreateTournamentInput) {
@@ -336,22 +345,126 @@ export async function createTournament(adminProfile: UserProfile, input: CreateT
   return mapTournamentRow(data);
 }
 
+async function syncTournamentStatus(tournament: Tournament): Promise<Tournament> {
+  const effective = getEffectiveTournamentStatus(tournament);
+  if (effective === tournament.status) return tournament;
+
+  await createSupabaseAdminClient()
+    .from("tournaments")
+    .update({ status: effective })
+    .eq("id", tournament.id);
+
+  const updated = { ...tournament, status: effective };
+
+  if (effective === "ongoing" && (tournament.status === "open" || tournament.status === "upcoming")) {
+    await generateTournamentBracket(updated);
+  }
+
+  return updated;
+}
+
+async function generateTournamentBracket(tournament: Tournament): Promise<void> {
+  const registrations = tournament.registrations ?? [];
+  const confirmedTeamIds = registrations
+    .filter((r) => r.status === "confirmed")
+    .map((r) => r.teamId);
+
+  if (confirmedTeamIds.length < 2) return;
+
+  const supabase = createSupabaseAdminClient();
+
+  const { count } = await supabase
+    .from("matches")
+    .select("*", { count: "exact", head: true })
+    .eq("tournament_id", tournament.id);
+
+  if (count && count > 0) return;
+
+  // Shuffle teams
+  const shuffled = [...confirmedTeamIds].sort(() => Math.random() - 0.5);
+  const exp = Math.ceil(Math.log2(Math.max(shuffled.length, 2)));
+  const nextPow2 = Math.pow(2, exp);
+  const totalRounds = exp;
+
+  while (shuffled.length < nextPow2) shuffled.push("");
+
+  type MatchInsert = {
+    tournament_id: string;
+    team1_id: string | null;
+    team2_id: string | null;
+    round: number;
+    match_index: number;
+    status: string;
+    winner_id: string | null;
+    bo_type: number;
+    webhook_secret: string;
+  };
+
+  const toInsert: MatchInsert[] = [];
+
+  for (let round = 1; round <= totalRounds; round++) {
+    const matchCount = nextPow2 / Math.pow(2, round);
+    for (let idx = 0; idx < matchCount; idx++) {
+      if (round === 1) {
+        const t1 = shuffled[idx * 2] || null;
+        const t2 = shuffled[idx * 2 + 1] || null;
+        const isBye = (t1 && !t2) || (!t1 && t2);
+        toInsert.push({
+          tournament_id: tournament.id,
+          team1_id: t1,
+          team2_id: t2,
+          round,
+          match_index: idx,
+          status: isBye ? "walkover" : "pending",
+          winner_id: isBye ? (t1 ?? t2) : null,
+          bo_type: 1,
+          webhook_secret: randomUUID(),
+        });
+      } else {
+        toInsert.push({
+          tournament_id: tournament.id,
+          team1_id: null,
+          team2_id: null,
+          round,
+          match_index: idx,
+          status: "pending",
+          winner_id: null,
+          bo_type: 1,
+          webhook_secret: randomUUID(),
+        });
+      }
+    }
+  }
+
+  await supabase.from("matches").insert(toInsert);
+
+  // Advance byes into the next round
+  for (const m of toInsert) {
+    if (m.status === "walkover" && m.winner_id && m.round === 1) {
+      const nextRound = 2;
+      const nextIndex = Math.floor(m.match_index / 2);
+      const isEvenSlot = m.match_index % 2 === 0;
+
+      const { data: nextMatch } = await supabase
+        .from("matches")
+        .select("id")
+        .eq("tournament_id", tournament.id)
+        .eq("round", nextRound)
+        .eq("match_index", nextIndex)
+        .maybeSingle<{ id: string }>();
+
+      if (nextMatch) {
+        await supabase
+          .from("matches")
+          .update(isEvenSlot ? { team1_id: m.winner_id } : { team2_id: m.winner_id })
+          .eq("id", nextMatch.id);
+      }
+    }
+  }
+}
+
 function tournamentRegistrationOpen(tournament: Tournament) {
-  const now = Date.now();
-
-  if (tournament.status !== "open") {
-    return false;
-  }
-
-  if (tournament.registrationStarts && now < Date.parse(tournament.registrationStarts)) {
-    return false;
-  }
-
-  if (tournament.registrationEnds && now > Date.parse(tournament.registrationEnds)) {
-    return false;
-  }
-
-  return true;
+  return isTournamentRegistrationOpen(tournament);
 }
 
 export async function registerCurrentCaptainTeamForTournament(input: {

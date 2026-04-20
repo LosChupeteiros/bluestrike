@@ -6,15 +6,9 @@ import { Calendar, Users, Trophy, ArrowRight, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { formatDate, formatCurrency, getStatusLabel } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
+import { getTournamentBadgeProps } from "@/lib/tournament-status";
 import type { Tournament } from "@/types";
-
-const STATUS_VARIANT: Record<string, "open" | "ongoing" | "finished" | "upcoming" | "live"> = {
-  open: "open",
-  ongoing: "ongoing",
-  finished: "finished",
-  upcoming: "upcoming",
-};
 
 interface TournamentCardProps {
   tournament: Tournament;
@@ -22,16 +16,17 @@ interface TournamentCardProps {
 }
 
 export default function TournamentCard({ tournament, featured = false }: TournamentCardProps) {
+  const badge = getTournamentBadgeProps(tournament);
   const registered = tournament.registeredTeamsCount ?? 0;
   const spotsLeft = tournament.maxTeams - registered;
   const fillPercent = (registered / tournament.maxTeams) * 100;
   const isFull = spotsLeft === 0;
+  const canRegister = badge.variant === "open";
 
   if (featured) {
     return (
       <Link href={`/tournaments/${tournament.id}`} className="group block">
         <div className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden card-hover h-full">
-          {/* Banner */}
           <div className="relative h-44 overflow-hidden bg-gradient-to-br from-cyan-950 via-slate-900 to-black">
             {tournament.bannerUrl && (
               <Image
@@ -54,9 +49,11 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
                   <Zap className="w-3 h-3" /> DESTAQUE
                 </span>
               )}
-              <Badge variant={STATUS_VARIANT[tournament.status]}>
-                <span className={`w-1.5 h-1.5 rounded-full ${tournament.status === "ongoing" ? "bg-cyan-400 animate-pulse" : "bg-current"}`} />
-                {getStatusLabel(tournament.status)}
+              <Badge variant={badge.variant}>
+                {badge.variant === "ongoing" && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                )}
+                {badge.label}
               </Badge>
             </div>
           </div>
@@ -67,7 +64,6 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
             </h3>
             <p className="text-xs text-[var(--muted-foreground)] mb-4 line-clamp-2">{tournament.description}</p>
 
-            {/* Prize */}
             <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-[var(--secondary)] border border-[var(--border)]">
               <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
               <div>
@@ -76,7 +72,6 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               </div>
             </div>
 
-            {/* Meta */}
             <div className="flex items-center gap-4 text-xs text-[var(--muted-foreground)] mb-4">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
@@ -88,7 +83,6 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               </span>
             </div>
 
-            {/* Fill bar */}
             <div className="mb-4">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-[var(--muted-foreground)]">Vagas preenchidas</span>
@@ -99,12 +93,8 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               <Progress value={fillPercent} className={isFull ? "[&>div]:bg-red-500" : ""} />
             </div>
 
-            <Button
-              variant={tournament.status === "open" && !isFull ? "gradient" : "outline"}
-              size="sm"
-              className="w-full gap-2"
-            >
-              {tournament.status === "open" && !isFull ? "Inscrever-se" : "Ver Detalhes"}
+            <Button variant={canRegister ? "gradient" : "outline"} size="sm" className="w-full gap-2">
+              {canRegister ? "Inscrever-se" : "Ver Detalhes"}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
@@ -116,7 +106,6 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
   return (
     <Link href={`/tournaments/${tournament.id}`} className="group block">
       <div className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] card-hover">
-        {/* Thumbnail / icon */}
         <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-cyan-950 to-slate-900 border border-[var(--border)] shrink-0 flex items-center justify-center">
           {tournament.bannerUrl ? (
             <Image
@@ -132,14 +121,13 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
           )}
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <h3 className="font-semibold text-sm group-hover:text-[var(--primary)] transition-colors truncate">
               {tournament.name}
             </h3>
-            <Badge variant={STATUS_VARIANT[tournament.status]} className="shrink-0">
-              {getStatusLabel(tournament.status)}
+            <Badge variant={badge.variant} className="shrink-0">
+              {badge.label}
             </Badge>
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
@@ -152,7 +140,6 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
           </div>
         </div>
 
-        {/* Prize */}
         <div className="text-right shrink-0 hidden sm:block">
           <div className="text-sm font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
           <div className="text-xs text-[var(--muted-foreground)]">premiação</div>
