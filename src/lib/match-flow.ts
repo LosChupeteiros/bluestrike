@@ -64,13 +64,11 @@ export async function readyUpMatch(
 
   if (bothReady) {
     if (match.status === "pending") {
-      // Phase 1: both ready → start veto
       update.status = "veto";
     } else {
-      // Phase 2: post-veto both ready → go live, provision server
+      // pre_live → live; server provisioned below
       update.status = "live";
     }
-    // Reset ready flags for next potential use
     update.ready_team1 = false;
     update.ready_team2 = false;
   }
@@ -78,7 +76,7 @@ export async function readyUpMatch(
   await supabase.from("matches").update(update).eq("id", matchId);
 
   if (bothReady && match.status === "pre_live") {
-    // Fetch the decider map from vetoes
+    // Resolve map: pick[0] for BO3/BO5, or the remaining decider for BO1
     const { data: vetoRows } = await supabase
       .from("map_vetoes")
       .select("action, map_name")
@@ -87,10 +85,12 @@ export async function readyUpMatch(
 
     const picks = (vetoRows ?? []).filter((v) => v.action === "pick").map((v) => v.map_name);
     const bans = new Set((vetoRows ?? []).filter((v) => v.action === "ban").map((v) => v.map_name));
-    const decider = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name))?.name;
-    const mapToPlay = picks[0] ?? decider ?? "Mirage";
+    const deciderEntry = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name));
+    const mapName = picks[0] ?? deciderEntry?.name ?? "Mirage";
+    const mapEntry = CS2_MAP_POOL.find((m) => m.name === mapName);
+    const mapId = mapEntry?.mapId ?? "de_mirage";
 
-    provisionServerAsync(matchId, match.team1_id!, match.team2_id!, mapToPlay).catch(
+    provisionServerAsync(matchId, match.team1_id!, match.team2_id!, mapName, mapId).catch(
       (err: unknown) => console.error("[match-flow] provision error:", err)
     );
   }
@@ -197,7 +197,7 @@ export async function submitVetoAction(
   const decider = CS2_MAP_POOL.find((m) => !pickedMaps.includes(m.name) && !allBanned.has(m.name))?.name ?? null;
 
   if (isLastStep) {
-    // Veto complete → reset ready flags, move to pre_live (waiting for second ready)
+    // Veto complete → move to pre_live (waiting for second ready-up before server starts)
     await supabase
       .from("matches")
       .update({ status: "pre_live", ready_team1: false, ready_team2: false })
@@ -213,20 +213,33 @@ export async function provisionServerAsync(
   matchId: string,
   team1Id: string,
   team2Id: string,
-  mapName: string
+  mapName: string,
+  mapId: string
 ): Promise<void> {
   const supabase = createSupabaseAdminClient();
 
-  // Atomic lock — prevent double provisioning
-  const { data: existing } = await supabase
+  // Prevent double provisioning for this match
+  const { data: existingRow } = await supabase
     .from("dathost_servers")
     .select("id")
     .eq("match_id", matchId)
     .maybeSingle<{ id: string }>();
 
-  if (existing) return;
+  if (existingRow) return;
 
-  const server = await findAvailableServer(matchId);
+  // Find an available server, excluding those already reserved by other active matches
+  const { data: reservedRows } = await supabase
+    .from("dathost_servers")
+    .select("dathost_server_id")
+    .not("dathost_server_id", "is", null);
+
+  const reservedIds = new Set(
+    (reservedRows ?? [])
+      .map((r: { dathost_server_id: string | null }) => r.dathost_server_id)
+      .filter((id): id is string => id !== null)
+  );
+
+  const server = await findAvailableServer(matchId, reservedIds);
   if (!server) {
     console.error(`[provision/${matchId}] No available CS2 server`);
     await supabase.from("dathost_api_logs").insert({
@@ -238,17 +251,47 @@ export async function provisionServerAsync(
     return;
   }
 
-  // Team names
+  const port = server.ports.game ?? 27015;
+  const gotvPort = server.ports.gotv ?? null;
+  const password = randomUUID().replace(/-/g, "").slice(0, 12);
+
+  // Reserve the physical server in DB immediately — unique constraint on dathost_server_id
+  // prevents two matches from claiming the same server even under concurrent requests.
+  const { error: reserveError } = await supabase.from("dathost_servers").insert({
+    match_id: matchId,
+    dathost_server_id: server.id,
+    dathost_id: null,
+    ip: server.ip ?? server.raw_ip ?? "",
+    raw_ip: server.raw_ip ?? null,
+    port,
+    gotv_port: gotvPort,
+    connect_string: null,
+    rcon_password: "",
+    server_password: password,
+    status: "reserving",
+  });
+
+  if (reserveError) {
+    // Another process claimed this match or server simultaneously
+    console.error(`[provision/${matchId}] Reserve conflict:`, reserveError.message);
+    return;
+  }
+
+  // Team names and tags
   const { data: teamRows } = await supabase
     .from("teams")
-    .select("id, name")
+    .select("id, name, tag")
     .in("id", [team1Id, team2Id])
-    .returns<{ id: string; name: string }[]>();
+    .returns<{ id: string; name: string; tag: string }[]>();
 
-  const team1Name = teamRows?.find((t) => t.id === team1Id)?.name ?? "Time 1";
-  const team2Name = teamRows?.find((t) => t.id === team2Id)?.name ?? "Time 2";
+  const team1Row = teamRows?.find((t) => t.id === team1Id);
+  const team2Row = teamRows?.find((t) => t.id === team2Id);
+  const team1Name = team1Row?.name ?? "Time 1";
+  const team2Name = team2Row?.name ?? "Time 2";
+  const team1Flag = team1Row?.tag ?? "T1";
+  const team2Flag = team2Row?.tag ?? "T2";
 
-  // Player steam IDs
+  // Player steam IDs and nicknames
   const { data: members } = await supabase
     .from("team_members")
     .select("team_id, profile_id")
@@ -258,19 +301,26 @@ export async function provisionServerAsync(
   const profileIds = (members ?? []).map((m) => m.profile_id);
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, steam_id")
+    .select("id, steam_id, steam_persona_name")
     .in("id", profileIds)
-    .returns<{ id: string; steam_id: string }[]>();
+    .returns<{ id: string; steam_id: string | null; steam_persona_name: string | null }[]>();
 
-  const steamById = new Map((profiles ?? []).map((p) => [p.id, p.steam_id]));
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
   const players = (members ?? [])
-    .filter((m) => steamById.has(m.profile_id))
-    .map((m) => ({
-      steam_id_64: steamById.get(m.profile_id)!,
-      team: (m.team_id === team1Id ? "team1" : "team2") as "team1" | "team2",
-    }));
+    .filter((m) => {
+      const p = profileMap.get(m.profile_id);
+      return p?.steam_id;
+    })
+    .map((m) => {
+      const p = profileMap.get(m.profile_id)!;
+      return {
+        steam_id_64: p.steam_id!,
+        team: (m.team_id === team1Id ? "team1" : "team2") as "team1" | "team2",
+        ...(p.steam_persona_name ? { nickname_override: p.steam_persona_name } : {}),
+      };
+    });
 
-  // Webhook info
+  // Webhook config
   const { data: matchRow } = await supabase
     .from("matches")
     .select("webhook_secret")
@@ -281,56 +331,68 @@ export async function provisionServerAsync(
   const webhookUrl = `${base}/api/webhooks/cs2/${matchId}`;
   const authHeader = matchRow?.webhook_secret ? `Bearer ${matchRow.webhook_secret}` : undefined;
 
-  const password = randomUUID().replace(/-/g, "").slice(0, 12);
+  // Create Dathost CS2 match — this boots the server and starts the game
+  let dathostMatch;
+  try {
+    dathostMatch = await createCs2Match(
+      {
+        game_server_id: server.id,
+        team1: { name: team1Name, flag: team1Flag },
+        team2: { name: team2Name, flag: team2Flag },
+        players,
+        settings: {
+          map: mapId,
+          enable_plugin: true,
+          enable_tech_pause: true,
+          wait_for_gotv: false,
+          match_begin_countdown: 15,
+          connect_time: 300,
+          password,
+        },
+        webhooks: authHeader
+          ? {
+              event_url: webhookUrl,
+              authorization_header: authHeader,
+              enabled_events: [
+                "booting_server",
+                "server_ready_for_players",
+                "match_started",
+                "match_ended",
+                "match_canceled",
+              ],
+            }
+          : undefined,
+      },
+      matchId
+    );
+  } catch (err) {
+    await supabase
+      .from("dathost_servers")
+      .update({ status: "error" })
+      .eq("match_id", matchId);
+    throw err;
+  }
 
-  // Create Dathost match
-  const dathostMatch = await createCs2Match(
-    {
-      game_server_id: server.id,
-      team1_name: team1Name,
-      team2_name: team2Name,
-      map: mapName,
-      enable_knife_round: true,
-      enable_pause: true,
-      players,
-      game_server_settings: { password },
-      webhooks: authHeader
-        ? {
-            event_url: webhookUrl,
-            authorization_header: authHeader,
-            enabled_events: ["match_started", "match_ended", "match_canceled", "round_end"],
-          }
-        : undefined,
-    },
-    matchId
-  );
-
-  // Get final server info (raw_ip)
+  // Fetch server info after match creation to get the final IP
   const serverInfo = await getGameServer(server.id, matchId);
-  const rawIp = serverInfo.raw_ip ?? server.ip;
-  const port = server.ports.game;
-  const gotvPort = server.ports.gotv ?? null;
+  const rawIp = serverInfo.raw_ip ?? server.raw_ip ?? server.ip ?? "";
   const connectString = `steam://connect/${rawIp}:${port}/${password}`;
 
-  // Save server record
-  await supabase.from("dathost_servers").upsert(
-    {
-      match_id: matchId,
+  await supabase
+    .from("dathost_servers")
+    .update({
       dathost_id: dathostMatch.id,
       ip: rawIp,
-      port,
-      gotv_port: gotvPort,
-      connect_string: connectString,
-      rcon_password: "",
       raw_ip: rawIp,
-      server_password: password,
+      connect_string: connectString,
       status: "provisioning",
-    },
-    { onConflict: "match_id" }
-  );
+    })
+    .eq("match_id", matchId);
 
   await supabase
     .from("matches")
     .update({ dathost_match_id: dathostMatch.id })
     .eq("id", matchId);
+
+  console.log(`[provision/${matchId}] Server reserved: ${server.id}, map: ${mapName} (${mapId}), IP: ${rawIp}:${port}`);
 }

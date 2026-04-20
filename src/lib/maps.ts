@@ -1,16 +1,17 @@
 export interface MapPresentation {
   name: string;
+  mapId: string; // CS2 in-game map identifier (e.g. "de_mirage")
   localImage: string;
 }
 
 export const CS2_MAP_POOL: MapPresentation[] = [
-  { name: "Mirage",   localImage: "/assets/maps/mirage.jpg" },
-  { name: "Inferno",  localImage: "/assets/maps/inferno.jpg" },
-  { name: "Ancient",  localImage: "/assets/maps/ancient.jpg" },
-  { name: "Anubis",   localImage: "/assets/maps/anubis.jpg" },
-  { name: "Dust2",    localImage: "/assets/maps/dust2.jpg" },
-  { name: "Nuke",     localImage: "/assets/maps/nuke.jpg" },
-  { name: "Overpass", localImage: "/assets/maps/overpass.webp" },
+  { name: "Mirage",   mapId: "de_mirage",   localImage: "/assets/maps/mirage.jpg" },
+  { name: "Inferno",  mapId: "de_inferno",  localImage: "/assets/maps/inferno.jpg" },
+  { name: "Ancient",  mapId: "de_ancient",  localImage: "/assets/maps/ancient.jpg" },
+  { name: "Anubis",   mapId: "de_anubis",   localImage: "/assets/maps/anubis.jpg" },
+  { name: "Dust2",    mapId: "de_dust2",    localImage: "/assets/maps/dust2.jpg" },
+  { name: "Nuke",     mapId: "de_nuke",     localImage: "/assets/maps/nuke.jpg" },
+  { name: "Overpass", mapId: "de_overpass", localImage: "/assets/maps/overpass.webp" },
 ];
 
 export const CS2_MAP_NAMES = CS2_MAP_POOL.map((m) => m.name);

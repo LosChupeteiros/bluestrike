@@ -94,53 +94,53 @@ async function dathostFetch<T>(
 export interface DathostGameServer {
   id: string;
   name: string;
-  ip: string;
+  ip: string | null;
+  raw_ip: string | null;
   ports: {
-    game: number;
-    gotv?: number;
+    game: number | null;
+    gotv?: number | null;
   };
-  raw_ip: string;
   location: string;
   game: string;
   on: boolean;
   booting: boolean;
-  status_text: string;
+  match_id: string | null; // Dathost CS2-match ID currently on this server
   players_online: number;
-  match?: { id: string } | null;
 }
 
+// POST /cs2-matches — request body matching actual Dathost API
 export interface DathostCs2MatchSettings {
   game_server_id: string;
-  team1_name: string;
-  team2_name: string;
-  map: string;
-  enable_knife_round?: boolean;
-  enable_pause?: boolean;
-  message_prefix?: string;
-  webhooks?: {
-    event_url?: string;
-    authorization_header?: string;
-    enabled_events?: string[];
-  };
+  team1: { name: string; flag?: string };
+  team2: { name: string; flag?: string };
   players?: Array<{
     steam_id_64: string;
     team: "team1" | "team2";
     nickname_override?: string;
   }>;
-  game_server_settings?: {
+  settings: {
+    map: string;           // e.g. "de_mirage"
+    enable_plugin?: boolean;
+    enable_tech_pause?: boolean;
+    wait_for_gotv?: boolean;
+    match_begin_countdown?: number;
+    connect_time?: number;
     password?: string;
-    [key: string]: unknown;
+  };
+  webhooks?: {
+    event_url?: string;
+    authorization_header?: string;
+    enabled_events?: string[];
   };
 }
 
 export interface DathostCs2Match {
   id: string;
   game_server_id: string;
-  map: string;
   finished: boolean;
   cancel_reason: string | null;
-  team1: { name: string; stats: { score: number } };
-  team2: { name: string; stats: { score: number } };
+  team1: { name: string; stats?: { score: number } };
+  team2: { name: string; stats?: { score: number } };
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────
@@ -164,7 +164,19 @@ export async function createCs2Match(
   });
 }
 
-export async function findAvailableServer(matchId?: string | null): Promise<DathostGameServer | null> {
+// Returns first CS2 server with no active match, not booting, and not already reserved.
+export async function findAvailableServer(
+  matchId?: string | null,
+  excludeServerIds?: Set<string>
+): Promise<DathostGameServer | null> {
   const servers = await listGameServers(matchId);
-  return servers.find((s) => s.game === "cs2" && s.on && !s.booting && !s.match) ?? null;
+  return (
+    servers.find(
+      (s) =>
+        s.game === "cs2" &&
+        !s.booting &&
+        s.match_id === null &&
+        !(excludeServerIds?.has(s.id))
+    ) ?? null
+  );
 }
