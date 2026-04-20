@@ -70,7 +70,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
                 <div
                   className="absolute inset-0 bg-cover"
                   style={{
-                    backgroundImage: `url(${mapPresentation.splashArtUrl})`,
+                    backgroundImage: `url(${mapPresentation.localImage})`,
                     backgroundPosition: "center 75%",
                   }}
                 />

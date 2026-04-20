@@ -1,65 +1,32 @@
 export interface MapPresentation {
   name: string;
-  splashArtUrl: string;
-  sourceUrl: string;
+  localImage: string;
 }
 
 export const CS2_MAP_POOL: MapPresentation[] = [
-  {
-    name: "Mirage",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_mirage.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
-  {
-    name: "Inferno",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_inferno.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
-  {
-    name: "Ancient",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_ancient.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
-  {
-    name: "Anubis",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_anubis.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
-  {
-    name: "Dust2",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_dust2.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
-  {
-    name: "Nuke",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_nuke.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
-  {
-    name: "Vertigo",
-    splashArtUrl: "https://cdn.akamai.steamstatic.com/apps/csgo/images/csgo_react//maps/lg/de_vertigo.jpg",
-    sourceUrl: "https://www.counter-strike.net/news",
-  },
+  { name: "Mirage",   localImage: "/assets/maps/mirage.jpg" },
+  { name: "Inferno",  localImage: "/assets/maps/inferno.jpg" },
+  { name: "Ancient",  localImage: "/assets/maps/ancient.jpg" },
+  { name: "Anubis",   localImage: "/assets/maps/anubis.jpg" },
+  { name: "Dust2",    localImage: "/assets/maps/dust2.jpg" },
+  { name: "Nuke",     localImage: "/assets/maps/nuke.jpg" },
+  { name: "Overpass", localImage: "/assets/maps/overpass.webp" },
 ];
 
 export const CS2_MAP_NAMES = CS2_MAP_POOL.map((m) => m.name);
 
-const MAP_PRESENTATIONS: Record<string, MapPresentation> = Object.fromEntries(
-  CS2_MAP_POOL.map((m) => [m.name, m])
-);
+const MAP_BY_NAME = Object.fromEntries(CS2_MAP_POOL.map((m) => [m.name, m]));
 
 export function getMapPresentation(mapName: string): MapPresentation | null {
-  return MAP_PRESENTATIONS[mapName] ?? null;
+  return MAP_BY_NAME[mapName] ?? null;
 }
 
-// BO1: 6 alternating bans, 1 map remains → played
-// BO3: ban ban pick pick ban ban, 1 decider
-// Returns an array of action slots: { turn: 'team1'|'team2', action: 'ban'|'pick' }
+// Veto sequences — returns ordered slots with whose turn it is and the action type.
 export type VetoSlot = { turn: "team1" | "team2"; action: "ban" | "pick" };
 
 export function getVetoSequence(boType: 1 | 3 | 5): VetoSlot[] {
   if (boType === 1) {
-    // 6 bans (3+3 alternating), last map played automatically
+    // 6 alternating vetoes, last map remaining is played
     return [
       { turn: "team1", action: "ban" },
       { turn: "team2", action: "ban" },
@@ -70,7 +37,7 @@ export function getVetoSequence(boType: 1 | 3 | 5): VetoSlot[] {
     ];
   }
   if (boType === 3) {
-    // ban ban pick pick ban ban, decider is last remaining
+    // ban ban pick pick ban ban → decider is remaining
     return [
       { turn: "team1", action: "ban" },
       { turn: "team2", action: "ban" },
@@ -80,7 +47,7 @@ export function getVetoSequence(boType: 1 | 3 | 5): VetoSlot[] {
       { turn: "team2", action: "ban" },
     ];
   }
-  // BO5: all 7 maps with 1 remaining (pick pick pick pick ban ban 1 remaining)
+  // BO5: pick pick pick pick, ban ban → last is decider
   return [
     { turn: "team1", action: "ban" },
     { turn: "team2", action: "ban" },
