@@ -130,7 +130,8 @@ export interface MatchWebhookInfo {
   matchId: string;
   webhookUrl: string;
   authorizationHeader: string;
-  events: Record<string, string>;
+  // Events to enable in Dathost's webhooks.enabled_events field
+  enabledEvents: string[];
 }
 
 export async function getMatchWebhookInfo(matchId: string): Promise<MatchWebhookInfo | null> {
@@ -144,7 +145,6 @@ export async function getMatchWebhookInfo(matchId: string): Promise<MatchWebhook
 
   const secret = data.webhook_secret ?? randomUUID();
 
-  // Ensure secret is persisted if it was just generated
   if (!data.webhook_secret) {
     await createSupabaseAdminClient()
       .from("matches")
@@ -153,24 +153,17 @@ export async function getMatchWebhookInfo(matchId: string): Promise<MatchWebhook
   }
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.gg";
-  const webhookUrl = `${base}/api/webhooks/cs2/${matchId}`;
-  const authHeader = `Bearer ${secret}`;
-
-  const EVENTS = [
-    "booting_server",
-    "loading_map",
-    "server_ready_for_players",
-    "all_players_connected",
-    "match_started",
-    "match_canceled",
-    "match_ended",
-  ] as const;
 
   return {
     matchId,
-    webhookUrl,
-    authorizationHeader: authHeader,
-    events: Object.fromEntries(EVENTS.map((e) => [e, `${webhookUrl}?event=${e}`])),
+    webhookUrl: `${base}/api/webhooks/cs2/${matchId}`,
+    authorizationHeader: `Bearer ${secret}`,
+    enabledEvents: [
+      "match_started",
+      "match_ended",
+      "match_canceled",
+      "round_end",
+    ],
   };
 }
 
@@ -262,6 +255,17 @@ export async function submitMatchResult(
   await advanceWinner(supabase, match, winnerId);
 }
 
+// Public wrapper used by match-flow.ts to advance bracket after a walkover
+export async function advanceWinnerPublic(matchId: string, winnerId: string): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { data: match } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("id", matchId)
+    .maybeSingle<MatchRow>();
+  if (match) await advanceWinner(supabase, match, winnerId);
+}
+
 // Called by the CS2 server webhook — no admin check, auth is done via webhook_secret
 export async function processWebhookResult(
   match: MatchRow,
@@ -290,4 +294,152 @@ export async function getMatchRowByIdForWebhook(matchId: string): Promise<MatchR
     .maybeSingle<MatchRow>();
 
   return data ?? null;
+}
+
+// ── Full match detail (page) ───────────────────────────────────────────────────
+
+interface MapVetoRow {
+  id: string;
+  match_id: string;
+  team_id: string;
+  action: "ban" | "pick";
+  map_name: string;
+  veto_order: number;
+  picked_side: "ct" | "t" | null;
+  created_at: string;
+}
+
+interface DathostServerRow {
+  id: string;
+  match_id: string;
+  dathost_id: string;
+  ip: string;
+  port: number;
+  gotv_port: number | null;
+  connect_string: string | null;
+  raw_ip: string | null;
+  server_password: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FullMatchDetail {
+  match: Match & { readyTeam1: boolean; readyTeam2: boolean };
+  vetoes: import("@/types").MapVeto[];
+  server: {
+    dathostId: string;
+    ip: string;
+    port: number;
+    rawIp: string | null;
+    password: string | null;
+    connectString: string | null;
+    gotvPort: number | null;
+    status: string;
+  } | null;
+  team1Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
+  team2Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
+}
+
+function mapVetoRow(row: MapVetoRow): import("@/types").MapVeto {
+  return {
+    id: row.id,
+    matchId: row.match_id,
+    teamId: row.team_id,
+    action: row.action,
+    mapName: row.map_name,
+    vetoOrder: row.veto_order,
+    pickedSide: row.picked_side,
+    createdAt: row.created_at,
+  };
+}
+
+export async function getFullMatchDetail(matchId: string, includeServerPassword: boolean): Promise<FullMatchDetail | null> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: matchData, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("id", matchId)
+    .maybeSingle<MatchRow & { ready_team1: boolean; ready_team2: boolean }>();
+
+  if (error || !matchData) return null;
+
+  const teams = await fetchTeamsForMatches([matchData]);
+  const match = {
+    ...mapMatchRow(matchData, teams),
+    readyTeam1: matchData.ready_team1 ?? false,
+    readyTeam2: matchData.ready_team2 ?? false,
+  };
+
+  // Fetch vetoes
+  const { data: vetoRows } = await supabase
+    .from("map_vetoes")
+    .select("*")
+    .eq("match_id", matchId)
+    .order("veto_order", { ascending: true })
+    .returns<MapVetoRow[]>();
+
+  const vetoes = (vetoRows ?? []).map(mapVetoRow);
+
+  // Fetch server
+  const { data: serverRow } = await supabase
+    .from("dathost_servers")
+    .select("*")
+    .eq("match_id", matchId)
+    .maybeSingle<DathostServerRow>();
+
+  const server = serverRow
+    ? {
+        dathostId: serverRow.dathost_id,
+        ip: serverRow.ip,
+        port: serverRow.port,
+        rawIp: serverRow.raw_ip,
+        password: includeServerPassword ? serverRow.server_password : null,
+        connectString: includeServerPassword ? serverRow.connect_string : null,
+        gotvPort: serverRow.gotv_port,
+        status: serverRow.status,
+      }
+    : null;
+
+  // Fetch team members
+  async function fetchMembers(teamId: string | null) {
+    if (!teamId) return [];
+    const { data: memberRows } = await supabase
+      .from("team_members")
+      .select("profile_id, in_game_role, is_starter")
+      .eq("team_id", teamId)
+      .returns<{ profile_id: string; in_game_role: string | null; is_starter: boolean }[]>();
+
+    if (!memberRows || memberRows.length === 0) return [];
+
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, steam_id, steam_persona_name, steam_avatar_url")
+      .in("id", memberRows.map((m) => m.profile_id))
+      .returns<{ id: string; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+
+    const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
+
+    return memberRows
+      .filter((m) => profileMap.has(m.profile_id))
+      .map((m) => {
+        const p = profileMap.get(m.profile_id)!;
+        return {
+          profileId: m.profile_id,
+          steamId: p.steam_id,
+          nickname: p.steam_persona_name,
+          avatarUrl: p.steam_avatar_url,
+          role: m.in_game_role,
+          isStarter: m.is_starter,
+        };
+      });
+  }
+
+  const [team1Members, team2Members] = await Promise.all([
+    fetchMembers(matchData.team1_id),
+    fetchMembers(matchData.team2_id),
+  ]);
+
+  return { match, vetoes, server, team1Members, team2Members };
 }
