@@ -22,8 +22,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getCurrentTeamForProfile } from "@/lib/teams";
 import { getTournamentById } from "@/lib/tournaments";
-import { formatCurrency, formatDate, getStatusLabel } from "@/lib/utils";
+import { getEffectiveTournamentStatus, isTournamentRegistrationOpen, getTournamentBadgeProps } from "@/lib/tournament-status";
+import { getTournamentMatches } from "@/lib/matches";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import TournamentRegistrationCard from "./tournament-registration-card";
+import BlueStrikeBracketView from "./bluestrike-bracket-view";
 
 const FORMAT_LABELS: Record<string, string> = {
   single_elimination: "Eliminação Simples",
@@ -32,12 +35,6 @@ const FORMAT_LABELS: Record<string, string> = {
   swiss: "Swiss",
 };
 
-const STATUS_VARIANT: Record<string, "open" | "ongoing" | "finished" | "upcoming"> = {
-  open: "open",
-  ongoing: "ongoing",
-  finished: "finished",
-  upcoming: "upcoming",
-};
 
 interface TournamentDetailPageViewProps {
   params: Promise<{
@@ -53,7 +50,17 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     notFound();
   }
 
-  const currentTeam = currentProfile ? await getCurrentTeamForProfile(currentProfile.id) : null;
+  const effectiveStatus = getEffectiveTournamentStatus(tournament);
+  const registrationOpen = isTournamentRegistrationOpen(tournament);
+  const badge = getTournamentBadgeProps(tournament);
+
+  const [currentTeam, matches] = await Promise.all([
+    currentProfile ? getCurrentTeamForProfile(currentProfile.id) : Promise.resolve(null),
+    (effectiveStatus === "ongoing" || effectiveStatus === "finished")
+      ? getTournamentMatches(tournament.id)
+      : Promise.resolve([]),
+  ]);
+
   const registered = tournament.registeredTeamsCount ?? 0;
   const spotsLeft = Math.max(0, tournament.maxTeams - registered);
   const fillPercent = tournament.maxTeams > 0 ? (registered / tournament.maxTeams) * 100 : 0;
@@ -66,7 +73,20 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
 
   let registrationDisabledReason: string | null = null;
 
-  if (!currentProfile) {
+  if (!registrationOpen) {
+    const now = Date.now();
+    if (effectiveStatus === "finished") {
+      registrationDisabledReason = "Esse campeonato já foi encerrado.";
+    } else if (effectiveStatus === "ongoing") {
+      registrationDisabledReason = "As inscrições para esse campeonato foram encerradas.";
+    } else if (effectiveStatus === "upcoming") {
+      registrationDisabledReason = "As inscrições ainda não foram abertas.";
+    } else if (tournament.registrationEnds && now > Date.parse(tournament.registrationEnds)) {
+      registrationDisabledReason = "O prazo de inscrições encerrou.";
+    } else {
+      registrationDisabledReason = "As inscrições não estão abertas no momento.";
+    }
+  } else if (!currentProfile) {
     registrationDisabledReason = "Entre com sua Steam para inscrever um time.";
   } else if (!currentTeam) {
     registrationDisabledReason = "Crie um time antes de tentar se inscrever.";
@@ -76,8 +96,6 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     registrationDisabledReason = "Seu time já está inscrito nesse campeonato.";
   } else if (isFull) {
     registrationDisabledReason = "Esse campeonato já lotou.";
-  } else if (tournament.status !== "open") {
-    registrationDisabledReason = "As inscrições ainda não estão abertas para esse campeonato.";
   } else if ((currentTeam.members?.filter((member) => member.isStarter).length ?? 0) < 5) {
     registrationDisabledReason = "Seu time precisa de 5 titulares para se inscrever.";
   } else if (tournament.minElo !== null && currentTeam.elo < tournament.minElo) {
@@ -120,8 +138,8 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <Badge variant={STATUS_VARIANT[tournament.status]} className="mb-3">
-                {getStatusLabel(tournament.status)}
+              <Badge variant={badge.variant} className="mb-3">
+                {badge.label}
               </Badge>
               <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{tournament.name}</h1>
               <p className="mt-2 text-sm text-[var(--muted-foreground)]">Por {tournament.organizerName}</p>
@@ -293,21 +311,25 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
               </TabsContent>
 
               <TabsContent value="bracket">
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
-                  {tournament.status === "open" || tournament.status === "upcoming" ? (
-                    <>
-                      <Swords className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
-                      <h3 className="mb-2 font-semibold">Chaveamento ainda não gerado</h3>
-                      <p className="text-sm text-[var(--muted-foreground)]">
-                        O bracket aparece quando as inscrições forem encerradas e os confrontos forem sorteados.
-                      </p>
-                    </>
-                  ) : (
-                    <div className="text-sm text-[var(--muted-foreground)]">
-                      A estrutura do chaveamento será ligada na próxima etapa, em cima das inscrições já persistidas no Supabase.
-                    </div>
-                  )}
-                </div>
+                {effectiveStatus === "open" || effectiveStatus === "upcoming" ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
+                    <Swords className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
+                    <h3 className="mb-2 font-semibold">Chaveamento ainda não gerado</h3>
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      O bracket é gerado automaticamente quando as inscrições encerram e o campeonato começa.
+                    </p>
+                  </div>
+                ) : matches.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
+                    <Swords className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
+                    <h3 className="mb-2 font-semibold">Aguardando sorteio</h3>
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      O chaveamento será gerado em instantes.
+                    </p>
+                  </div>
+                ) : (
+                  <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} />
+                )}
               </TabsContent>
             </Tabs>
           </div>

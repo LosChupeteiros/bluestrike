@@ -119,6 +119,7 @@ export interface Match {
   team1Id: string | null;
   team2Id: string | null;
   round: number;
+  matchIndex: number;
   boType: 1 | 3 | 5;
   status: MatchStatus;
   winnerId: string | null;
