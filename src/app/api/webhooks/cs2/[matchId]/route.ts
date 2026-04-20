@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchRowByIdForWebhook, processWebhookResult } from "@/lib/matches";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { writeDathostLog } from "@/lib/dathost";
 
 interface RouteContext {
   params: Promise<{ matchId: string }>;
@@ -176,6 +177,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   // The last entry in the events array is the event that triggered this call
   const lastEvent = payload.events?.at(-1)?.event ?? "unknown";
+
+  // Log every incoming webhook to the admin console
+  await writeDathostLog({
+    matchId,
+    method: "WEBHOOK",
+    url: `webhook::${lastEvent}`,
+    requestBody: {
+      event: lastEvent,
+      finished: payload.finished,
+      team1_score: payload.team1?.stats?.score,
+      team2_score: payload.team2?.stats?.score,
+      map: payload.settings?.map,
+      players_count: payload.players?.length ?? 0,
+      cancel_reason: payload.cancel_reason,
+    },
+    responseStatus: 200,
+  });
 
   const supabase = createSupabaseAdminClient();
 

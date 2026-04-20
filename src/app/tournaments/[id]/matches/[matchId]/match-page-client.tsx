@@ -729,13 +729,26 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useEffect(() => { const id = setInterval(fetchLogs, 5000); return () => clearInterval(id); }, [fetchLogs]);
 
+  const webhookCount = logs.filter((l) => l.method === "WEBHOOK").length;
+  const apiCount = logs.filter((l) => l.method !== "WEBHOOK").length;
+
   function statusColor(code: number | null) {
     if (!code) return "text-red-400";
     if (code >= 200 && code < 300) return "text-green-400";
     if (code >= 400) return "text-red-400";
     return "text-yellow-400";
   }
-  function pathOf(url: string) { try { return new URL(url).pathname; } catch { return url; } }
+  function methodColor(method: string) {
+    if (method === "WEBHOOK") return "text-purple-400";
+    if (method === "GET") return "text-blue-400";
+    if (method === "POST") return "text-green-400";
+    return "text-yellow-400";
+  }
+  function pathOf(url: string) {
+    if (url.startsWith("webhook::")) return url.replace("webhook::", "");
+    if (url.startsWith("internal://")) return url.replace("internal://", "⚠ ");
+    try { return new URL(url).pathname; } catch { return url; }
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[#0a0a0a]">
@@ -743,28 +756,37 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
         className="flex w-full items-center justify-between border-b border-[var(--border)] px-5 py-3">
         <div className="flex items-center gap-2">
           <Terminal className="h-3.5 w-3.5 text-[var(--primary)]" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Dathost API Console</span>
-          {logs.length > 0 && (
-            <span className="rounded-full bg-[var(--primary)]/10 px-1.5 py-0.5 text-[9px] font-mono text-[var(--primary)]">{logs.length}</span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Console</span>
+          {apiCount > 0 && (
+            <span className="rounded-full bg-[var(--primary)]/10 px-1.5 py-0.5 text-[9px] font-mono text-[var(--primary)]">{apiCount} API</span>
+          )}
+          {webhookCount > 0 && (
+            <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-mono text-purple-400">{webhookCount} WH</span>
           )}
         </div>
         {open ? <ChevronUp className="h-3.5 w-3.5 text-[var(--muted-foreground)]" /> : <ChevronDown className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />}
       </button>
 
       {open && (
-        <div className="max-h-[360px] overflow-y-auto font-mono text-xs">
+        <div className="max-h-[400px] overflow-y-auto font-mono text-xs">
           {loading && <div className="px-5 py-3 text-[var(--muted-foreground)]">Carregando…</div>}
           {!loading && logs.length === 0 && <div className="px-5 py-3 text-[var(--muted-foreground)]">Nenhuma requisição registrada.</div>}
           {logs.map((log, i) => {
             const isExp = expanded[log.id];
+            const isWebhook = log.method === "WEBHOOK";
+            const isInternalErr = log.url.startsWith("internal://");
             return (
-              <div key={log.id} className="border-b border-[#1a1a1a]">
+              <div key={log.id} className={`border-b ${isWebhook ? "border-purple-900/30 bg-purple-950/10" : "border-[#1a1a1a]"}`}>
                 <button type="button" onClick={() => setExpanded((e) => ({ ...e, [log.id]: !e[log.id] }))}
                   className="flex w-full items-center gap-2.5 px-5 py-2.5 text-left hover:bg-white/[0.02] transition-colors">
                   <span className="w-6 text-[9px] text-[#555]">{logs.length - i}</span>
-                  <span className={`w-9 font-bold ${log.method === "GET" ? "text-blue-400" : log.method === "POST" ? "text-green-400" : "text-yellow-400"}`}>{log.method}</span>
-                  <span className="flex-1 truncate text-[#ccc]">{pathOf(log.url)}</span>
-                  {log.response_status && <span className={`w-9 text-right font-bold ${statusColor(log.response_status)}`}>{log.response_status}</span>}
+                  <span className={`w-14 font-bold ${methodColor(log.method)}`}>{log.method}</span>
+                  <span className={`flex-1 truncate ${isInternalErr ? "text-red-300" : isWebhook ? "text-purple-300" : "text-[#ccc]"}`}>
+                    {pathOf(log.url)}
+                  </span>
+                  {!isWebhook && log.response_status && (
+                    <span className={`w-9 text-right font-bold ${statusColor(log.response_status)}`}>{log.response_status}</span>
+                  )}
                   {log.error_message && <span className="text-red-400">✗</span>}
                   <span className="w-16 text-right text-[9px] text-[#555]">
                     {new Date(log.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
