@@ -898,24 +898,24 @@ export default function MatchPageClient({
               <Badge variant="secondary">{match.boType === 1 ? "BO1" : match.boType === 3 ? "BO3" : "BO5"}</Badge>
             </div>
 
-            {/* 4-col layout: [players1] [team1] [team2] [players2] */}
-            <div className="grid grid-cols-[1fr_auto_auto_1fr] items-center gap-x-3 gap-y-0">
+            {/* 5-col: [25% players] [35% team1] [VS] [35% team2] [25% players] */}
+            <div className="grid grid-cols-[5fr_7fr_32px_7fr_5fr] items-center gap-x-2">
 
-              {/* Col 1 — Team 1 players (left edge, avatar→nick) */}
-              <div className="flex flex-col gap-1.5 pr-2">
+              {/* Col 1 — Team 1 players: avatar → nick, left-aligned */}
+              <div className="flex flex-col gap-1.5 min-w-0">
                 {team1Members.map((m) => (
-                  <div key={m.profileId} className="flex items-center gap-1.5">
+                  <div key={m.profileId} className="flex min-w-0 items-center gap-1.5">
                     <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
-                    <span className="truncate text-xs font-bold text-white leading-none">{m.nickname}</span>
+                    <span className="truncate text-[11px] font-bold text-white">{m.nickname}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Col 2 — Team 1 */}
-              <div className="flex flex-col items-center gap-1.5">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-xl font-black transition-all ${
+              {/* Col 2 — Team 1 info, centered */}
+              <div className="flex flex-col items-center gap-2">
+                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
                   isFinished && winner?.id === match.team1Id
-                    ? "border-green-500 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                    ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t1Tag}</div>
                 <div className="text-center">
@@ -929,14 +929,16 @@ export default function MatchPageClient({
                 </div>
               </div>
 
-              {/* VS swords — spans both team cols' boundary */}
-              {/* (invisible spacer row for VS icon — handled below) */}
+              {/* Col 3 — VS swords, fixed 32 px column */}
+              <div className="flex flex-col items-center justify-center gap-1">
+                <Swords className={`h-5 w-5 transition-colors ${isFinished ? "text-[var(--muted-foreground)]/30" : "text-[var(--primary)] opacity-70 drop-shadow-[0_0_6px_var(--primary)]"}`} />
+              </div>
 
-              {/* Col 3 — Team 2 */}
-              <div className="flex flex-col items-center gap-1.5">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-xl font-black transition-all ${
+              {/* Col 4 — Team 2 info, centered */}
+              <div className="flex flex-col items-center gap-2">
+                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
                   isFinished && winner?.id === match.team2Id
-                    ? "border-green-500 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                    ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t2Tag}</div>
                 <div className="text-center">
@@ -950,20 +952,15 @@ export default function MatchPageClient({
                 </div>
               </div>
 
-              {/* Col 4 — Team 2 players (right edge, nick→avatar) */}
-              <div className="flex flex-col gap-1.5 pl-2">
+              {/* Col 5 — Team 2 players: nick → avatar, right-aligned */}
+              <div className="flex flex-col gap-1.5 min-w-0">
                 {team2Members.map((m) => (
-                  <div key={m.profileId} className="flex items-center justify-end gap-1.5">
-                    <span className="truncate text-xs font-bold text-white leading-none">{m.nickname}</span>
+                  <div key={m.profileId} className="flex min-w-0 items-center justify-end gap-1.5">
+                    <span className="truncate text-[11px] font-bold text-white">{m.nickname}</span>
                     <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* VS icon centered between team cols */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <Swords className="h-5 w-5 text-[var(--primary)] opacity-40" />
             </div>
           </div>
         </div>
