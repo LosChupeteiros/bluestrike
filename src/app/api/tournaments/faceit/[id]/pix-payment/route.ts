@@ -50,7 +50,7 @@ export async function POST(
       registrationId,
       championshipName: championship.name,
       amount,
-      payerEmail: profile.email ?? `${profile.steamId}@bluestrike.gg`,
+      payerEmail: profile.email ?? `${profile.steamId}@bluestrike.com.br`,
     });
 
     await saveMpPaymentId(registrationId, result.paymentId);

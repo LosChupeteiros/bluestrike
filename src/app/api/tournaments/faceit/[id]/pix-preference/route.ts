@@ -54,7 +54,7 @@ export async function POST(
       championshipName: championship.name,
       amount,
       // MP exige e-mail válido; usamos um fallback genérico se o perfil não tiver
-      payerEmail: profile.email ?? `${profile.steamId}@bluestrike.gg`,
+      payerEmail: profile.email ?? `${profile.steamId}@bluestrike.com.br`,
       payerName: profile.fullName ?? profile.steamPersonaName ?? "Jogador BlueStrike",
     });
 

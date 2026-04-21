@@ -361,7 +361,7 @@ export async function provisionServerAsync(
       .eq("id", matchId);
   }
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.gg";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
   const webhookUrl = `${base}/api/webhooks/cs2/${matchId}`;
 
   // Create Dathost CS2 match — this boots the server

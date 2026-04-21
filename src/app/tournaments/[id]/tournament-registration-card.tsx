@@ -165,7 +165,7 @@ export default function TournamentRegistrationCard({
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                     Chave PIX
                   </div>
-                  <div className="mt-2 break-all font-mono text-sm text-[var(--foreground)]">pix@bluestrike.gg</div>
+                  <div className="mt-2 break-all font-mono text-sm text-[var(--foreground)]">pix@bluestrike.com.br</div>
                 </div>
 
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--secondary)] p-4">
@@ -178,7 +178,7 @@ export default function TournamentRegistrationCard({
             </div>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button type="button" variant="outline" className="flex-1 gap-2" onClick={() => navigator.clipboard.writeText("pix@bluestrike.gg")}>
+              <Button type="button" variant="outline" className="flex-1 gap-2" onClick={() => navigator.clipboard.writeText("pix@bluestrike.com.br")}>
                 <Copy className="h-4 w-4" />
                 Copiar chave
               </Button>

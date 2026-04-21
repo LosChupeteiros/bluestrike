@@ -155,7 +155,7 @@ export async function getMatchWebhookInfo(matchId: string): Promise<MatchWebhook
       .eq("id", matchId);
   }
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.gg";
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
 
   return {
     matchId,
