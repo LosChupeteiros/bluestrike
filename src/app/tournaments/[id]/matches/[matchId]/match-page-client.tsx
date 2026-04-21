@@ -5,7 +5,7 @@ import Image from "next/image";
 import {
   Trophy, Crown, Swords, Clock, Check, Copy, Wifi,
   Loader2, AlertTriangle, Server, X, Star, Eye, EyeOff,
-  ChevronDown, ChevronUp, Terminal, Lock,
+  ChevronDown, ChevronUp, Terminal, Lock, Ban, Flag, PowerOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail } from "@/lib/matches";
@@ -46,23 +46,25 @@ interface ServerInfo {
 type VetoEntry = FullMatchDetail["vetoes"][0];
 
 const STATUS_LABEL: Record<string, string> = {
-  pending:   "Aguardando",
-  veto:      "Veto de mapa",
-  pre_live:  "Confirmando início",
-  live:      "Iniciando",
-  finished:  "Finalizado",
-  walkover:  "W.O.",
-  cancelled: "Cancelado",
+  pending:    "Aguardando",
+  veto:       "Veto de mapa",
+  pre_live:   "Confirmando início",
+  live:       "Iniciando",
+  finished:   "Finalizado",
+  walkover:   "W.O.",
+  cancelled:  "Cancelado",
+  terminated: "Servidor encerrado",
 };
 
 const STATUS_VARIANT: Record<string, "open" | "ongoing" | "finished" | "upcoming" | "live"> = {
-  pending:   "upcoming",
-  veto:      "upcoming",
-  pre_live:  "ongoing",
-  live:      "live",
-  finished:  "finished",
-  walkover:  "finished",
-  cancelled: "finished",
+  pending:    "upcoming",
+  veto:       "upcoming",
+  pre_live:   "ongoing",
+  live:       "live",
+  finished:   "finished",
+  walkover:   "finished",
+  cancelled:  "finished",
+  terminated: "finished",
 };
 
 // ── Small utilities ────────────────────────────────────────────────────────────
@@ -411,13 +413,16 @@ function PostVetoPanel({
   team1Tag, team2Tag, team1Name, team2Name,
   isCaptain, isPlayer, isAdmin,
   readyTeam1, readyTeam2, userIsTeam1,
-  server, chosenMap, isPreLive,
+  server, chosenMap, isPreLive, matchStatus,
+  team1Score, team2Score,
 }: {
   matchId: string; tournamentId: string;
   team1Tag: string; team2Tag: string; team1Name: string; team2Name: string;
   isCaptain: boolean; isPlayer: boolean; isAdmin: boolean;
   readyTeam1: boolean; readyTeam2: boolean; userIsTeam1: boolean | null;
   server: ServerInfo | null; chosenMap: MapPresentation | null; isPreLive: boolean;
+  matchStatus: string;
+  team1Score: number | null; team2Score: number | null;
 }) {
   const [readyLoading, setReadyLoading] = useState(false);
   const [readyError, setReadyError] = useState<string | null>(null);
@@ -428,6 +433,11 @@ function PostVetoPanel({
   const prevR1 = useRef(readyTeam1);
   const prevR2 = useRef(readyTeam2);
   const prevHasConn = useRef(false);
+
+  const isTerminated = matchStatus === "terminated";
+  const isFinishedMatch = matchStatus === "finished" || matchStatus === "walkover";
+  const isCancelledMatch = matchStatus === "cancelled";
+  const isTerminalStatus = isTerminated || isFinishedMatch || isCancelledMatch;
 
   const isError = server?.status === "error";
   const ip = server?.rawIp ?? server?.ip ?? null;
@@ -498,10 +508,66 @@ function PostVetoPanel({
         {/* ── LEFT: Confirm ready ── */}
         <div className="flex flex-col gap-4 p-5">
           <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">
-            Confirmar início
+            {isFinishedMatch ? "Placar" : isTerminated ? "Status" : isCancelledMatch ? "Status" : "Confirmar início"}
           </div>
 
-          {isPreLive ? (
+          {isTerminalStatus ? (
+            /* ── Terminal state: score or status message ── */
+            isFinishedMatch && team1Score !== null && team2Score !== null ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
+                <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-3 w-full">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`text-4xl font-black tabular-nums leading-none ${team1Score > team2Score ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                      {team1Score}
+                    </div>
+                    <div className="text-[10px] font-bold text-[var(--muted-foreground)] truncate max-w-[72px] text-center">{team1Tag}</div>
+                    {team1Score > team2Score && (
+                      <div className="flex items-center gap-0.5 text-[9px] font-bold text-green-400">
+                        <Crown className="h-2.5 w-2.5" /> Vencedor
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <span className="text-lg font-black text-[var(--border)]">×</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`text-4xl font-black tabular-nums leading-none ${team2Score > team1Score ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                      {team2Score}
+                    </div>
+                    <div className="text-[10px] font-bold text-[var(--muted-foreground)] truncate max-w-[72px] text-center">{team2Tag}</div>
+                    {team2Score > team1Score && (
+                      <div className="flex items-center gap-0.5 text-[9px] font-bold text-green-400">
+                        <Crown className="h-2.5 w-2.5" /> Vencedor
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
+                  <Flag className="h-3 w-3" /> Partida encerrada
+                </div>
+              </div>
+            ) : isTerminated ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/10">
+                  <PowerOff className="h-6 w-6 text-orange-400" />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-orange-400">Servidor encerrado</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">O servidor CS2 foi finalizado.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]/60">
+                  <Ban className="h-6 w-6 text-[var(--muted-foreground)]" />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-[var(--muted-foreground)]">Partida cancelada</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]/60">Esta partida foi cancelada.</div>
+                </div>
+              </div>
+            )
+          ) : isPreLive ? (
             <>
               {/* Team ready indicators — uses optimistic displayReady values */}
               <div className="grid grid-cols-[1fr_28px_1fr] items-center gap-2">
@@ -623,28 +689,60 @@ function PostVetoPanel({
             </div>
 
           ) : !hasConnection ? (
-            /* ── Loading / provisioning ── */
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-              <div className="relative flex h-16 w-16 items-center justify-center">
-                <div className="absolute inset-0 animate-ping rounded-full bg-[var(--primary)]/8" />
-                <div className="absolute inset-0 animate-ping rounded-full bg-[var(--primary)]/5 [animation-delay:0.4s]" />
-                <div className="relative flex h-16 w-16 items-center justify-center rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/5">
-                  <Server className="h-7 w-7 text-[var(--primary)]/50" />
+            /* ── Loading / provisioning OR terminal no-server ── */
+            isTerminated ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/10">
+                  <PowerOff className="h-6 w-6 text-orange-400" />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-orange-400">Servidor encerrado</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">O servidor CS2 foi finalizado.</div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-sm font-bold text-[var(--foreground)]">Servidor iniciando…</div>
-                <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
-                  O CS2 está sendo configurado. Aguarde.
+            ) : isCancelledMatch ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]/60">
+                  <Ban className="h-6 w-6 text-[var(--muted-foreground)]" />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-[var(--muted-foreground)]">Partida cancelada</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]/60">Servidor não foi alocado.</div>
                 </div>
               </div>
-              <div className="flex gap-1.5">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--primary)]/40"
-                    style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
+            ) : isFinishedMatch ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]/60">
+                  <Flag className="h-6 w-6 text-[var(--muted-foreground)]" />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-[var(--muted-foreground)]">Partida encerrada</div>
+                  <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]/60">Servidor offline.</div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
+                <div className="relative flex h-16 w-16 items-center justify-center">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-[var(--primary)]/8" />
+                  <div className="absolute inset-0 animate-ping rounded-full bg-[var(--primary)]/5 [animation-delay:0.4s]" />
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/5">
+                    <Server className="h-7 w-7 text-[var(--primary)]/50" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-[var(--foreground)]">Servidor iniciando…</div>
+                  <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                    O CS2 está sendo configurado. Aguarde.
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--primary)]/40"
+                      style={{ animationDelay: `${i * 0.15}s` }} />
+                  ))}
+                </div>
+              </div>
+            )
 
           ) : (
             /* ── Connect unlocked ── */
@@ -876,7 +974,7 @@ export default function MatchPageClient({
   const effectiveVetoes = polledVetoes ?? detail.vetoes;
   const effectiveServer: ServerInfo | null = poll?.server ?? (detail.server as ServerInfo | null);
 
-  const isFinished = effectiveStatus === "finished" || effectiveStatus === "walkover";
+  const isFinished = effectiveStatus === "finished" || effectiveStatus === "walkover" || effectiveStatus === "terminated";
   const isVetoActive = effectiveStatus === "veto";
   const isPreLive = effectiveStatus === "pre_live";
   const sequence = getVetoSequence(match.boType);
@@ -1059,6 +1157,9 @@ export default function MatchPageClient({
           readyTeam1={effectiveReadyTeam1} readyTeam2={effectiveReadyTeam2}
           userIsTeam1={userIsTeam1}
           server={effectiveServer} chosenMap={chosenMap} isPreLive={isPreLive}
+          matchStatus={effectiveStatus}
+          team1Score={detail.matchMaps[0]?.team1Score ?? null}
+          team2Score={detail.matchMaps[0]?.team2Score ?? null}
         />
       )}
 

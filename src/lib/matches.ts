@@ -347,6 +347,7 @@ export interface FullMatchDetail {
   } | null;
   team1Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
   team2Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
+  matchMaps: Array<{ mapOrder: number; team1Score: number | null; team2Score: number | null; winnerId: string | null; status: string }>;
 }
 
 function mapVetoRow(row: MapVetoRow): import("@/types").MapVeto {
@@ -445,10 +446,24 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
       });
   }
 
-  const [team1Members, team2Members] = await Promise.all([
+  const [team1Members, team2Members, mapsResult] = await Promise.all([
     fetchMembers(matchData.team1_id),
     fetchMembers(matchData.team2_id),
+    supabase
+      .from("match_maps")
+      .select("map_order, team1_score, team2_score, winner_id, status")
+      .eq("match_id", matchId)
+      .order("map_order", { ascending: true })
+      .returns<{ map_order: number; team1_score: number | null; team2_score: number | null; winner_id: string | null; status: string }[]>(),
   ]);
 
-  return { match, vetoes, server, team1Members, team2Members };
+  const matchMaps = (mapsResult.data ?? []).map((r) => ({
+    mapOrder: r.map_order,
+    team1Score: r.team1_score,
+    team2Score: r.team2_score,
+    winnerId: r.winner_id,
+    status: r.status,
+  }));
+
+  return { match, vetoes, server, team1Members, team2Members, matchMaps };
 }
