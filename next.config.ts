@@ -40,6 +40,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "distribution.faceit-cdn.net",
       },
+      // WeaponPaints — imagens de skins do CS2
+      {
+        protocol: "https",
+        hostname: "raw.githubusercontent.com",
+      },
     ],
   },
 };

@@ -15,6 +15,7 @@ const navLinks = [
   { href: "/teams", label: "Times", badge: null, live: false },
   { href: "/players", label: "Players", badge: null, live: false },
   { href: "/ranking", label: "Ranking", badge: null, live: false },
+  { href: "/skins", label: "Skins", badge: null, live: false },
 ];
 
 interface HeaderUser {
