@@ -1,5 +1,8 @@
-import type { SkinCatalog, SkinEntry } from "./types";
+import type { SkinCatalog, SkinEntry, GloveCatalog, MusicEntry, AgentEntry } from "./types";
 import skinsRaw from "@/data/weaponpaints/skins_pt-BR.json";
+import glovesRaw from "@/data/weaponpaints/gloves_pt-BR.json";
+import musicRaw from "@/data/weaponpaints/music_pt-BR.json";
+import agentsRaw from "@/data/weaponpaints/agents_pt-BR.json";
 
 interface RawSkinEntry {
   weapon_defindex: number;
@@ -10,12 +13,35 @@ interface RawSkinEntry {
   legacy_model?: boolean;
 }
 
+interface RawGloveEntry {
+  weapon_defindex: number;
+  paint: number | string;
+  image: string;
+  paint_name: string;
+}
+
+interface RawMusicEntry {
+  id: string;
+  name: string;
+  image: string;
+}
+
+interface RawAgentEntry {
+  model: string;
+  name: string;
+  team: "ct" | "t";
+  image: string;
+}
+
 const KNIFE_DEFINDEXES = new Set([
   0, 500, 503, 505, 506, 507, 508, 509, 512, 514, 515, 516, 517, 518, 519,
   520, 521, 522, 523, 525, 526,
 ]);
 
 let _catalog: SkinCatalog | null = null;
+let _gloveCatalog: GloveCatalog | null = null;
+let _musicList: MusicEntry[] | null = null;
+let _agentList: AgentEntry[] | null = null;
 
 function buildCatalog(): SkinCatalog {
   if (_catalog) return _catalog;
@@ -94,4 +120,82 @@ export function isValidSkin(defindex: number, paintId: number): boolean {
 
 export function isValidKnife(defindex: number): boolean {
   return KNIFE_DEFINDEXES.has(defindex);
+}
+
+function buildGloveCatalog(): GloveCatalog {
+  if (_gloveCatalog) return _gloveCatalog;
+
+  const catalog: GloveCatalog = {};
+
+  for (const raw of glovesRaw as RawGloveEntry[]) {
+    const defindex = raw.weapon_defindex;
+    const paintId = Number(raw.paint);
+
+    if (defindex === 0) continue;
+
+    if (!catalog[defindex]) {
+      const typeName = raw.paint_name.split(" | ")[0]?.replace("★", "").trim() ?? raw.paint_name;
+      catalog[defindex] = { typeName, paints: {} };
+    }
+
+    const paintDisplayName = raw.paint_name.split(" | ")[1]?.trim() ?? raw.paint_name;
+    catalog[defindex].paints[paintId] = {
+      paintName: paintDisplayName,
+      imageUrl: raw.image,
+    };
+  }
+
+  _gloveCatalog = catalog;
+  return catalog;
+}
+
+export function getGloveCatalog(): GloveCatalog {
+  return buildGloveCatalog();
+}
+
+export function isValidGlove(defindex: number, paintId: number): boolean {
+  if (defindex === 0) return true;
+  const catalog = buildGloveCatalog();
+  return Boolean(catalog[defindex]?.paints[paintId]);
+}
+
+function buildMusicList(): MusicEntry[] {
+  if (_musicList) return _musicList;
+  _musicList = (musicRaw as RawMusicEntry[]).map((raw) => ({
+    id: parseInt(raw.id, 10),
+    name: raw.name,
+    imageUrl: raw.image,
+  }));
+  return _musicList;
+}
+
+export function getMusicList(): MusicEntry[] {
+  return buildMusicList();
+}
+
+export function isValidMusic(id: number): boolean {
+  return buildMusicList().some((m) => m.id === id);
+}
+
+function buildAgentList(): AgentEntry[] {
+  if (_agentList) return _agentList;
+  _agentList = (agentsRaw as RawAgentEntry[]).map((raw) => ({
+    model: raw.model,
+    name: raw.name,
+    team: raw.team,
+    imageUrl: raw.image,
+  }));
+  return _agentList;
+}
+
+export function getAgentList(): { ct: AgentEntry[]; t: AgentEntry[] } {
+  const all = buildAgentList();
+  return {
+    ct: all.filter((a) => a.team === "ct"),
+    t: all.filter((a) => a.team === "t"),
+  };
+}
+
+export function isValidAgent(model: string): boolean {
+  return buildAgentList().some((a) => a.model === model);
 }

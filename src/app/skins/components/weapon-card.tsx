@@ -11,9 +11,10 @@ interface WeaponCardProps {
   defaultSkin: SkinEntry;
   availableSkins: Record<number, SkinEntry>;
   currentSkin: LoadoutSkin | null;
+  team: number;
 }
 
-export function WeaponCard({ defindex, defaultSkin, availableSkins, currentSkin }: WeaponCardProps) {
+export function WeaponCard({ defindex, defaultSkin, availableSkins, currentSkin, team }: WeaponCardProps) {
   const [isPending, startTransition] = useTransition();
 
   const activePaintId = currentSkin?.paintId ?? 0;
@@ -26,6 +27,7 @@ export function WeaponCard({ defindex, defaultSkin, availableSkins, currentSkin 
     fd.set("paintId", String(paintId));
     fd.set("wear", String(currentSkin?.wear ?? 0.0));
     fd.set("seed", String(currentSkin?.seed ?? 0));
+    fd.set("team", String(team));
 
     startTransition(() => saveSkin(fd));
   }
@@ -73,6 +75,7 @@ export function WeaponCard({ defindex, defaultSkin, availableSkins, currentSkin 
             paintName={activeSkin.paintName}
             currentWear={currentSkin.wear}
             currentSeed={currentSkin.seed}
+            team={team}
           />
         )}
       </div>

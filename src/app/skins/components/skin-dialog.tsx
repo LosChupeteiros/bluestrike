@@ -30,9 +30,10 @@ interface SkinDialogProps {
   paintName: string;
   currentWear: number;
   currentSeed: number;
+  team: number;
 }
 
-export function SkinDialog({ defindex, paintId, paintName, currentWear, currentSeed }: SkinDialogProps) {
+export function SkinDialog({ defindex, paintId, paintName, currentWear, currentSeed, team }: SkinDialogProps) {
   const [open, setOpen] = useState(false);
   const [wear, setWear] = useState(currentWear.toFixed(2));
   const [seed, setSeed] = useState(String(currentSeed));
@@ -53,6 +54,7 @@ export function SkinDialog({ defindex, paintId, paintName, currentWear, currentS
     fd.set("paintId", String(paintId));
     fd.set("wear", wear);
     fd.set("seed", seed);
+    fd.set("team", String(team));
 
     startTransition(async () => {
       await saveSkin(fd);

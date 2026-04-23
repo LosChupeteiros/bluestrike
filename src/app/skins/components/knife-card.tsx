@@ -1,37 +1,69 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Image from "next/image";
-import type { SkinEntry } from "@/lib/weaponpaints/types";
-import { saveKnife } from "../actions";
+import type { SkinEntry, SkinCatalog, CurrentSkins } from "@/lib/weaponpaints/types";
+import { saveKnife, saveSkin } from "../actions";
 
 interface KnifeCardProps {
   knifeList: Record<number, SkinEntry>;
   currentKnifeWeaponName: string | null;
+  skinCatalog: SkinCatalog;
+  currentSkins: CurrentSkins;
+  team: number;
 }
 
 const DEFAULT_KNIFE_NAME = "weapon_knife";
 
-export function KnifeCard({ knifeList, currentKnifeWeaponName }: KnifeCardProps) {
+export function KnifeCard({ knifeList, currentKnifeWeaponName, skinCatalog, currentSkins, team }: KnifeCardProps) {
   const [isPending, startTransition] = useTransition();
 
-  const activeEntry = Object.values(knifeList).find(
-    (k) => k.weaponName === (currentKnifeWeaponName ?? DEFAULT_KNIFE_NAME)
-  ) ?? knifeList[0];
+  const currentDefindex = currentKnifeWeaponName
+    ? (Number(Object.entries(knifeList).find(([, v]) => v.weaponName === currentKnifeWeaponName)?.[0] ?? 0))
+    : 0;
 
-  const activeDefindex = currentKnifeWeaponName
-    ? (Object.entries(knifeList).find(([, v]) => v.weaponName === currentKnifeWeaponName)?.[0] ?? "0")
-    : "0";
+  const [selectedDefindex, setSelectedDefindex] = useState(currentDefindex);
 
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const defindex = parseInt(e.target.value, 10);
+  const availablePaints = skinCatalog[selectedDefindex] ?? {};
+  const currentPaintId = selectedDefindex !== 0 ? (currentSkins[selectedDefindex]?.paintId ?? 0) : 0;
+  const [paintId, setPaintId] = useState(currentPaintId);
+
+  const activeSkin = availablePaints[paintId] ?? knifeList[selectedDefindex];
+
+  function doSaveKnife(defindex: number) {
     const skin = knifeList[defindex];
     if (!skin) return;
-
     const fd = new FormData();
     fd.set("defindex", String(defindex));
     fd.set("weaponName", skin.weaponName);
+    fd.set("team", String(team));
     startTransition(() => saveKnife(fd));
+  }
+
+  function doSaveSkin(defindex: number, paint: number) {
+    if (defindex === 0) return;
+    const fd = new FormData();
+    fd.set("defindex", String(defindex));
+    fd.set("paintId", String(paint));
+    fd.set("wear", String(currentSkins[defindex]?.wear ?? 0.0));
+    fd.set("seed", String(currentSkins[defindex]?.seed ?? 0));
+    fd.set("team", String(team));
+    startTransition(() => saveSkin(fd));
+  }
+
+  function handleTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const defindex = parseInt(e.target.value, 10);
+    const firstPaint = Number(Object.keys(skinCatalog[defindex] ?? {})[0] ?? 0);
+    setSelectedDefindex(defindex);
+    setPaintId(firstPaint);
+    doSaveKnife(defindex);
+    if (defindex !== 0) doSaveSkin(defindex, firstPaint);
+  }
+
+  function handlePaintChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const paint = parseInt(e.target.value, 10);
+    setPaintId(paint);
+    doSaveSkin(selectedDefindex, paint);
   }
 
   return (
@@ -42,10 +74,10 @@ export function KnifeCard({ knifeList, currentKnifeWeaponName }: KnifeCardProps)
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
           </div>
         )}
-        {activeEntry && (
+        {activeSkin && (
           <Image
-            src={activeEntry.imageUrl}
-            alt={activeEntry.paintName}
+            src={activeSkin.imageUrl}
+            alt={activeSkin.paintName}
             width={160}
             height={120}
             className="object-contain w-full h-full"
@@ -56,14 +88,11 @@ export function KnifeCard({ knifeList, currentKnifeWeaponName }: KnifeCardProps)
 
       <div className="p-2 flex flex-col gap-1.5">
         <p className="text-[10px] font-bold text-[var(--primary)]">Faca</p>
-        <p className="text-[10px] truncate text-[var(--foreground)]">
-          {activeEntry?.paintName ?? "Faca padrão"}
-        </p>
 
         <select
           className="w-full rounded border border-[var(--border)] bg-[var(--secondary)] px-2 py-1 text-[10px] text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
-          value={activeDefindex}
-          onChange={handleChange}
+          value={selectedDefindex}
+          onChange={handleTypeChange}
           disabled={isPending}
         >
           {Object.entries(knifeList).map(([defindexStr, skin]) => (
@@ -72,6 +101,21 @@ export function KnifeCard({ knifeList, currentKnifeWeaponName }: KnifeCardProps)
             </option>
           ))}
         </select>
+
+        {selectedDefindex !== 0 && Object.keys(availablePaints).length > 0 && (
+          <select
+            className="w-full rounded border border-[var(--border)] bg-[var(--secondary)] px-2 py-1 text-[10px] text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
+            value={paintId}
+            onChange={handlePaintChange}
+            disabled={isPending}
+          >
+            {Object.entries(availablePaints).map(([paintIdStr, skin]) => (
+              <option key={paintIdStr} value={paintIdStr}>
+                {skin.paintName}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
     </div>
   );
