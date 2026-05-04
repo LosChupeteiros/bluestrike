@@ -164,6 +164,32 @@ export async function createCs2Match(
   });
 }
 
+// Sends a console command to a game server (multipart/form-data, not JSON).
+export async function sendConsoleCommand(
+  serverId: string,
+  command: string,
+  matchId?: string | null
+): Promise<void> {
+  const url = `${DATHOST_BASE}/game-servers/${serverId}/console`;
+  const body = new FormData();
+  body.append("line", command);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: dathostAuth() },
+    body,
+  });
+
+  await writeDathostLog({
+    matchId,
+    method: "POST",
+    url,
+    requestBody: { line: command },
+    responseStatus: res.status,
+    responseBody: res.status !== 200 ? await res.text().catch(() => null) : undefined,
+  });
+}
+
 // Returns first CS2 server with no active match, not booting, and not already reserved.
 export async function findAvailableServer(
   matchId?: string | null,

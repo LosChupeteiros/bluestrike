@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchRowByIdForWebhook, processWebhookResult } from "@/lib/matches";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { writeDathostLog } from "@/lib/dathost";
+import { writeDathostLog, sendConsoleCommand } from "@/lib/dathost";
 
 interface RouteContext {
   params: Promise<{ matchId: string }>;
@@ -197,9 +197,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   switch (lastEvent) {
-    case "all_players_connected":
-    case "match_started": {
-      // Server status "live" drives the "Ao vivo" badge in the UI
+    case "all_players_connected": {
       await supabase
         .from("dathost_servers")
         .update({ status: "live" })
@@ -209,6 +207,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
           .from("matches")
           .update({ status: "live", started_at: new Date().toISOString() })
           .eq("id", matchId);
+      }
+      break;
+    }
+
+    case "match_started": {
+      await supabase
+        .from("dathost_servers")
+        .update({ status: "live" })
+        .eq("match_id", matchId);
+      if (match.status !== "live" && match.status !== "finished") {
+        await supabase
+          .from("matches")
+          .update({ status: "live", started_at: new Date().toISOString() })
+          .eq("id", matchId);
+      }
+      if (payload.game_server_id) {
+        sendConsoleCommand(payload.game_server_id, "mp_warmup_start", matchId).catch(
+          (err: unknown) => console.error("[webhook/cs2] sendConsoleCommand error:", err)
+        );
       }
       break;
     }
@@ -255,12 +272,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return NextResponse.json({ ok: true, event: lastEvent, note: "ignored_new_match_started" });
       }
       await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
-      if (match.status !== "finished" && match.status !== "cancelled") {
-        await supabase
-          .from("matches")
-          .update({ status: "cancelled", finished_at: new Date().toISOString() })
-          .eq("id", matchId);
-      }
+      // Use DB-level filter so a concurrent match_ended that finishes first is never overwritten.
+      await supabase
+        .from("matches")
+        .update({ status: "cancelled", finished_at: new Date().toISOString() })
+        .eq("id", matchId)
+        .neq("status", "finished")
+        .neq("status", "cancelled");
       break;
     }
 
