@@ -114,7 +114,10 @@ export default async function SkinsPage() {
     getCurrentKnife(pool, profile.steamId, 2),
     getCurrentGlove(pool, profile.steamId, 2),
     getCurrentMusic(pool, profile.steamId, 2),
-  ]).catch(() => null);
+  ]).catch((err: unknown) => {
+    console.error("[skins] MySQL query failed:", err instanceof Error ? err.message : err);
+    return null;
+  });
 
   if (!dbData) {
     return (
