@@ -378,7 +378,7 @@ export async function provisionServerAsync(
           enable_plugin: true,
           enable_tech_pause: true,
           wait_for_gotv: false,
-          match_begin_countdown: 900,
+          match_begin_countdown: 0,
           connect_time: 300,
           password,
         },
