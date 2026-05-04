@@ -57,10 +57,7 @@ interface DathostWebhookPayload {
     map?: string;
     [key: string]: unknown;
   };
-  webhooks?: {
-    authorization_header?: string;
-    [key: string]: unknown;
-  };
+
   rounds_played: number;
   finished: boolean;
   cancel_reason: string | null;
@@ -160,12 +157,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   if (!match) {
     return NextResponse.json({ error: "Match not found." }, { status: 404 });
-  }
-
-  // Verify authorization header only when a secret is configured
-  const authHeader = request.headers.get("authorization");
-  if (match.webhook_secret && authHeader !== `Bearer ${match.webhook_secret}`) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
   let payload: DathostWebhookPayload;
