@@ -370,8 +370,8 @@ export async function provisionServerAsync(
     const dathostMatch = await createCs2Match(
       {
         game_server_id: server.id,
-        team1: { name: team1Row?.name ?? "Time 1", flag: team1Row?.tag ?? "T1" },
-        team2: { name: team2Row?.name ?? "Time 2", flag: team2Row?.tag ?? "T2" },
+        team1: { name: team1Row?.name ?? "Time 1" },
+        team2: { name: team2Row?.name ?? "Time 2" },
         players,
         settings: {
           map: mapId,

@@ -251,6 +251,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     case "match_canceled": {
+      if (payload.cancel_reason === "NEW_MATCH_STARTED_ON_SERVER") {
+        return NextResponse.json({ ok: true, event: lastEvent, note: "ignored_new_match_started" });
+      }
       await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
       if (match.status !== "finished" && match.status !== "cancelled") {
         await supabase
