@@ -223,7 +223,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           .eq("id", matchId);
       }
       if (payload.game_server_id) {
-        sendConsoleCommand(payload.game_server_id, "mp_warmup_start", matchId).catch(
+        sendConsoleCommand(payload.game_server_id, "mp_warmuptime 900;mp_warmup_start", matchId).catch(
           (err: unknown) => console.error("[webhook/cs2] sendConsoleCommand error:", err)
         );
       }
