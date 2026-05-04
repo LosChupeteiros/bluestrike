@@ -105,10 +105,7 @@ export default async function SkinsPage() {
     );
   }
 
-  const [
-    skinsCT, knifeCT, gloveCT, musicCT,
-    skinsT, knifeT, gloveT, musicT,
-  ] = await Promise.all([
+  const dbData = await Promise.all([
     getCurrentSkins(pool, profile.steamId, 3),
     getCurrentKnife(pool, profile.steamId, 3),
     getCurrentGlove(pool, profile.steamId, 3),
@@ -117,7 +114,30 @@ export default async function SkinsPage() {
     getCurrentKnife(pool, profile.steamId, 2),
     getCurrentGlove(pool, profile.steamId, 2),
     getCurrentMusic(pool, profile.steamId, 2),
-  ]);
+  ]).catch(() => null);
+
+  if (!dbData) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex flex-col">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 flex-1">
+          <div className="mb-8">
+            <h1 className="text-3xl font-black tracking-tight">Skins</h1>
+          </div>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-10 text-center">
+            <p className="text-sm font-medium text-[var(--foreground)]">Skins indisponíveis no momento</p>
+            <p className="text-xs text-[var(--muted-foreground)] mt-1">
+              O servidor de personalização está em manutenção. Tente novamente em breve.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const [
+    skinsCT, knifeCT, gloveCT, musicCT,
+    skinsT, knifeT, gloveT, musicT,
+  ] = dbData;
 
   const catalog = getSkinsByWeapon();
   const weaponList = getWeaponList();
