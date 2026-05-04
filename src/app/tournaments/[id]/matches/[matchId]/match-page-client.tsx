@@ -7,8 +7,9 @@ import {
   Loader2, AlertTriangle, Server, X, Star, Eye, EyeOff,
   ChevronDown, ChevronUp, Terminal, Lock, Ban, Flag, PowerOff,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import type { FullMatchDetail } from "@/lib/matches";
+import type { FullMatchDetail, PlayerStat } from "@/lib/matches";
 import { CS2_MAP_POOL, getVetoSequence, type MapPresentation } from "@/lib/maps";
 import { playReadyOne, playReadyBoth, playVeto, playVetoDone, playServerReady } from "@/lib/sounds";
 
@@ -957,6 +958,82 @@ function DeadlinePanel({ teamsAssignedAt }: { teamsAssignedAt: string | null }) 
   );
 }
 
+// ── Scoreboard ────────────────────────────────────────────────────────────────
+
+function kd(k: number, d: number) { return (k / Math.max(d, 1)).toFixed(2); }
+function hsPercent(hs: number, kills: number) {
+  return kills === 0 ? "0" : Math.round((hs / kills) * 100).toString();
+}
+
+function ScoreboardTeam({
+  players, teamTag, teamName, isWinner,
+}: { players: PlayerStat[]; teamTag: string; teamName: string; isWinner: boolean }) {
+  const sorted = [...players].sort((a, b) => b.score - a.score || b.kills - a.kills);
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+      <div className={`flex items-center justify-between border-b px-5 py-3 ${isWinner ? "border-green-500/20 bg-green-500/5" : "border-[var(--border)]"}`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg border font-black text-sm ${isWinner ? "border-green-500/40 bg-green-500/10 text-green-400" : "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"}`}>
+            {teamTag}
+          </div>
+          <span className="font-bold text-sm">{teamName}</span>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isWinner ? "bg-green-500/15 text-green-400" : "bg-[var(--secondary)] text-[var(--muted-foreground)]"}`}>
+          {isWinner ? "Vitória" : "Derrota"}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full">
+          <thead>
+            <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-[0.15em] text-[var(--muted-foreground)]">
+              <th className="px-4 py-2.5 text-left font-semibold">Jogador</th>
+              <th className="px-2 py-2.5 font-semibold">K</th>
+              <th className="px-2 py-2.5 font-semibold">D</th>
+              <th className="px-2 py-2.5 font-semibold">A</th>
+              <th className="px-2 py-2.5 font-semibold">K/D</th>
+              <th className="px-2 py-2.5 font-semibold">HS%</th>
+              <th className="px-2 py-2.5 font-semibold">ADR</th>
+              <th className="px-2 py-2.5 font-semibold">MVP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((p, i) => (
+              <tr key={p.profileId} className={`border-b border-[var(--border)]/50 last:border-b-0 ${i === 0 && isWinner ? "bg-[var(--primary)]/3" : ""}`}>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
+                      <AvatarFallback className="text-[10px]">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs font-semibold">{p.nickname}</span>
+                    {i === 0 && isWinner && (
+                      <span className="rounded bg-[var(--primary)]/15 px-1 py-px text-[9px] font-bold text-[var(--primary)]">MVP</span>
+                    )}
+                  </div>
+                </td>
+                <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.kills >= 20 ? "font-bold text-[var(--primary)]" : ""}`}>{p.kills}</td>
+                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.deaths}</td>
+                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.assists}</td>
+                <td className={`px-2 py-2.5 text-center text-xs tabular-nums font-semibold ${Number(kd(p.kills, p.deaths)) >= 1.5 ? "text-green-400" : ""}`}>{kd(p.kills, p.deaths)}</td>
+                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{hsPercent(p.hsCount, p.kills)}%</td>
+                <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.adr >= 90 ? "font-bold text-[var(--primary)]" : ""}`}>{p.adr.toFixed(1)}</td>
+                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.mvps}</td>
+              </tr>
+            ))}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
+                  Stats não disponíveis
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function MatchPageClient({
@@ -1181,6 +1258,26 @@ export default function MatchPageClient({
             team2={{ id: match.team2Id, name: t2Name }} />
         </div>
       )}
+
+      {/* ── Scoreboard (after match finishes) ── */}
+      {isFinished && (detail.playerStats?.length ?? 0) > 0 && (() => {
+        const t1Stats = (detail.playerStats ?? []).filter((p) => p.teamId === match.team1Id);
+        const t2Stats = (detail.playerStats ?? []).filter((p) => p.teamId === match.team2Id);
+        const t1Won = match.winnerId === match.team1Id;
+        const t2Won = match.winnerId === match.team2Id;
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <Trophy className="h-4 w-4 text-yellow-400" />
+              <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Scoreboard</span>
+            </div>
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} />
+              <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Admin Dathost console ── */}
       {isAdmin && <DathostLogsPanel matchId={match.id} />}

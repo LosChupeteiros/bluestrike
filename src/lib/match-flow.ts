@@ -2,7 +2,10 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
-import { findAvailableServer, createCs2Match, getGameServer, writeDathostLog } from "@/lib/dathost";
+import { duplicateServer, createCs2Match, getGameServer, stopGameServer, deleteGameServer, writeDathostLog } from "@/lib/dathost";
+
+// Mirror server cloned for each match. Override via DATHOST_MIRROR_SERVER_ID env var.
+const MIRROR_SERVER_ID = process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -223,29 +226,13 @@ export async function provisionServerAsync(
   const retryableStatuses = new Set(["error", "reserving"]);
   if (existingRow && !retryableStatuses.has(existingRow.status)) return;
 
-  // Find available server, excluding those reserved by other active matches
-  const { data: reservedRows } = await supabase
-    .from("dathost_servers")
-    .select("dathost_server_id")
-    .neq("match_id", matchId)
-    .not("dathost_server_id", "is", null);
-
-  const reservedIds = new Set(
-    (reservedRows ?? [])
-      .map((r: { dathost_server_id: string | null }) => r.dathost_server_id)
-      .filter((id): id is string => id !== null)
-  );
-
-  const server = await findAvailableServer(matchId, reservedIds);
-  if (!server) {
-    const msg = "Nenhum servidor CS2 disponível no momento.";
-    console.error(`[provision/${matchId}] ${msg}`);
-    await writeDathostLog({
-      matchId,
-      method: "GET",
-      url: "https://dathost.net/api/0.1/game-servers",
-      errorMessage: msg,
-    });
+  // Duplicate the mirror server — each match gets its own fresh CS2 server.
+  let server: Awaited<ReturnType<typeof duplicateServer>>;
+  try {
+    server = await duplicateServer(MIRROR_SERVER_ID, matchId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[provision/${matchId}] duplicateServer failed:`, msg);
     if (existingRow) {
       await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
     } else {
@@ -264,14 +251,10 @@ export async function provisionServerAsync(
   const port = server.ports.game ?? 27015;
   const gotvPort = server.ports.gotv ?? null;
   const password = randomUUID().replace(/-/g, "").slice(0, 12);
-
   const ipStr = server.ip ?? server.raw_ip ?? "";
 
-  // Step 1 — reservation INSERT/UPDATE with only guaranteed-present columns.
-  // dathost_id uses "" as placeholder (avoids NOT NULL failure before migration is applied).
-  // Newer columns (dathost_server_id, raw_ip, server_password) are added via a follow-up UPDATE.
   const baseRow = {
-    dathost_id: "",   // placeholder; replaced after Dathost match is created
+    dathost_id: "",
     ip: ipStr,
     port,
     gotv_port: gotvPort,
@@ -294,12 +277,12 @@ export async function provisionServerAsync(
         url: "internal://dathost_servers",
         errorMessage: `Falha ao reservar servidor no banco: ${insertErr.message}`,
       });
+      // Cleanup orphaned duplicated server
+      deleteGameServer(server.id, matchId).catch(() => {});
       return;
     }
   }
 
-  // Step 2 — try to persist newer columns (added by migration 20260425).
-  // Safe to fail silently if migration hasn't been applied yet.
   await supabase.from("dathost_servers").update({
     dathost_server_id: server.id,
     raw_ip: server.raw_ip ?? null,
@@ -454,12 +437,27 @@ export async function retryProvision(matchId: string): Promise<void> {
     throw new Error(`Partida no status "${match.status}" não pode ser reiniciada.`);
   }
 
-  // Delete broken server row so provisionServerAsync starts fresh
+  // Fetch the duplicated server ID so we can clean it up on Dathost
+  const { data: brokenRow } = await supabase
+    .from("dathost_servers")
+    .select("dathost_server_id")
+    .eq("match_id", matchId)
+    .in("status", ["error", "reserving"])
+    .maybeSingle<{ dathost_server_id: string | null }>();
+
+  // Delete broken DB row so provisionServerAsync starts fresh
   await supabase
     .from("dathost_servers")
     .delete()
     .eq("match_id", matchId)
     .in("status", ["error", "reserving"]);
+
+  // Stop + delete the orphaned duplicated server from Dathost (best-effort)
+  if (brokenRow?.dathost_server_id) {
+    const sid = brokenRow.dathost_server_id;
+    await stopGameServer(sid, matchId).catch(() => {});
+    await deleteGameServer(sid, matchId).catch(() => {});
+  }
 
   const { mapName, mapId } = await resolveMatchMap(matchId);
   await provisionServerAsync(matchId, match.team1_id, match.team2_id, mapName, mapId);

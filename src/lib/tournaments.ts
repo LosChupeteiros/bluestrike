@@ -439,7 +439,8 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
     }
   }
 
-  await supabase.from("matches").insert(toInsert);
+  const { error: insertError } = await supabase.from("matches").insert(toInsert);
+  if (insertError) throw new Error(`Failed to create tournament bracket: ${insertError.message}`);
 
   // Advance byes into the next round
   for (const m of toInsert) {
@@ -450,17 +451,18 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
 
       const { data: nextMatch } = await supabase
         .from("matches")
-        .select("id")
+        .select("id, team1_id, team2_id")
         .eq("tournament_id", tournament.id)
         .eq("round", nextRound)
         .eq("match_index", nextIndex)
-        .maybeSingle<{ id: string }>();
+        .maybeSingle<{ id: string; team1_id: string | null; team2_id: string | null }>();
 
       if (nextMatch) {
-        await supabase
-          .from("matches")
-          .update(isEvenSlot ? { team1_id: m.winner_id } : { team2_id: m.winner_id })
-          .eq("id", nextMatch.id);
+        const otherTeamAlreadySet = isEvenSlot ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
+        const update = isEvenSlot
+          ? { team1_id: m.winner_id, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
+          : { team2_id: m.winner_id, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+        await supabase.from("matches").update(update).eq("id", nextMatch.id);
       }
     }
   }

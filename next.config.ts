@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["bluestrike.vercel.app", "bluestrike.com.br", "bluestrike-git-dev-isacvietros-projects.vercel.app"],
+  allowedDevOrigins: ["bluestrike.vercel.app", "bluestrike.com.br", "bluestrike-git-dev-isacvietros-projects.vercel.app", "26.81.84.77"],
   output: "standalone",
   experimental: {
     workerThreads: true,

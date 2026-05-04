@@ -205,27 +205,42 @@ async function advanceWinner(
       .from("matches")
       .update(update)
       .eq("id", nextMatch.id);
-  } else {
-    // This was the final
-    await supabase
-      .from("tournaments")
-      .update({ status: "finished" })
-      .eq("id", match.tournament_id);
-
-    await supabase
-      .from("tournament_registrations")
-      .update({ status: "champion" })
-      .eq("tournament_id", match.tournament_id)
-      .eq("team_id", winnerId);
-
-    await supabase
-      .from("tournament_registrations")
-      .update({ status: "eliminated" })
-      .eq("tournament_id", match.tournament_id)
-      .neq("team_id", winnerId)
-      .neq("status", "withdrawn")
-      .neq("status", "champion");
+    return;
   }
+
+  // No next match found — verify this is actually the final round before closing the tournament
+  const { count: higherRoundCount } = await supabase
+    .from("matches")
+    .select("*", { count: "exact", head: true })
+    .eq("tournament_id", match.tournament_id)
+    .gt("round", match.round);
+
+  if ((higherRoundCount ?? 0) > 0) {
+    console.error(
+      `[advanceWinner] Missing bracket row: expected round=${match.round + 1} match_index=${Math.floor(match.match_index / 2)} for tournament ${match.tournament_id}. Winner ${winnerId} was not advanced.`
+    );
+    return;
+  }
+
+  // This is the final — close the tournament
+  await supabase
+    .from("tournaments")
+    .update({ status: "finished" })
+    .eq("id", match.tournament_id);
+
+  await supabase
+    .from("tournament_registrations")
+    .update({ status: "champion" })
+    .eq("tournament_id", match.tournament_id)
+    .eq("team_id", winnerId);
+
+  await supabase
+    .from("tournament_registrations")
+    .update({ status: "eliminated" })
+    .eq("tournament_id", match.tournament_id)
+    .neq("team_id", winnerId)
+    .neq("status", "withdrawn")
+    .neq("status", "champion");
 }
 
 export async function submitMatchResult(
@@ -332,6 +347,25 @@ interface DathostServerRow {
   updated_at: string;
 }
 
+export interface PlayerStat {
+  profileId: string;
+  teamId: string;
+  nickname: string;
+  avatarUrl: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  hsCount: number;
+  adr: number;
+  mvps: number;
+  score: number;
+  k2: number;
+  k3: number;
+  k4: number;
+  k5: number;
+  damageDealt: number;
+}
+
 export interface FullMatchDetail {
   match: Match & { readyTeam1: boolean; readyTeam2: boolean; teamsAssignedAt: string | null };
   vetoes: import("@/types").MapVeto[];
@@ -347,7 +381,8 @@ export interface FullMatchDetail {
   } | null;
   team1Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
   team2Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
-  matchMaps: Array<{ mapOrder: number; team1Score: number | null; team2Score: number | null; winnerId: string | null; status: string }>;
+  matchMaps: Array<{ mapOrder: number; mapName: string | null; team1Score: number | null; team2Score: number | null; winnerId: string | null; status: string }>;
+  playerStats: PlayerStat[];
 }
 
 function mapVetoRow(row: MapVetoRow): import("@/types").MapVeto {
@@ -451,19 +486,187 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
     fetchMembers(matchData.team2_id),
     supabase
       .from("match_maps")
-      .select("map_order, team1_score, team2_score, winner_id, status")
+      .select("id, map_order, map_name, team1_score, team2_score, winner_id, status")
       .eq("match_id", matchId)
       .order("map_order", { ascending: true })
-      .returns<{ map_order: number; team1_score: number | null; team2_score: number | null; winner_id: string | null; status: string }[]>(),
+      .returns<{ id: string; map_order: number; map_name: string | null; team1_score: number | null; team2_score: number | null; winner_id: string | null; status: string }[]>(),
   ]);
 
-  const matchMaps = (mapsResult.data ?? []).map((r) => ({
+  const mapRows = mapsResult.data ?? [];
+  const matchMaps = mapRows.map((r) => ({
     mapOrder: r.map_order,
+    mapName: r.map_name,
     team1Score: r.team1_score,
     team2Score: r.team2_score,
     winnerId: r.winner_id,
     status: r.status,
   }));
 
-  return { match, vetoes, server, team1Members, team2Members, matchMaps };
+  // Fetch player stats for all maps in this match
+  let playerStats: PlayerStat[] = [];
+  const mapIds = mapRows.map((r) => r.id);
+  if (mapIds.length > 0) {
+    const { data: statRows } = await supabase
+      .from("match_player_stats")
+      .select("profile_id, team_id, kills, deaths, assists, hs_count, adr, mvps, score, k2, k3, k4, k5, damage_dealt")
+      .in("match_map_id", mapIds)
+      .returns<{
+        profile_id: string;
+        team_id: string | null;
+        kills: number;
+        deaths: number;
+        assists: number;
+        hs_count: number;
+        adr: number;
+        mvps: number;
+        score: number;
+        k2: number;
+        k3: number;
+        k4: number;
+        k5: number;
+        damage_dealt: number;
+      }[]>();
+
+    if (statRows && statRows.length > 0) {
+      const profileIds = [...new Set(statRows.map((s) => s.profile_id))];
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("id, steam_persona_name, steam_avatar_url")
+        .in("id", profileIds)
+        .returns<{ id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+
+      const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
+
+      playerStats = statRows.map((s) => ({
+        profileId: s.profile_id,
+        teamId: s.team_id ?? "",
+        nickname: profileMap.get(s.profile_id)?.steam_persona_name ?? s.profile_id,
+        avatarUrl: profileMap.get(s.profile_id)?.steam_avatar_url ?? null,
+        kills: s.kills,
+        deaths: s.deaths,
+        assists: s.assists,
+        hsCount: s.hs_count,
+        adr: s.adr,
+        mvps: s.mvps,
+        score: s.score,
+        k2: s.k2,
+        k3: s.k3,
+        k4: s.k4,
+        k5: s.k5,
+        damageDealt: s.damage_dealt,
+      }));
+    }
+  }
+
+  return { match, vetoes, server, team1Members, team2Members, matchMaps, playerStats };
+}
+
+// ── Recent matches for profile ─────────────────────────────────────────────────
+
+export interface RecentMatchSummary {
+  matchId: string;
+  tournamentId: string | null;
+  tournamentName: string;
+  team1Tag: string;
+  team2Tag: string;
+  team1Score: number;
+  team2Score: number;
+  mapName: string | null;
+  playedAt: string | null;
+  status: string;
+  isWinner: boolean;
+}
+
+export async function getRecentMatchesForProfile(profileId: string, limit = 10): Promise<RecentMatchSummary[]> {
+  const supabase = createSupabaseAdminClient();
+
+  // 1. Get match_map_ids + team this player was on
+  const { data: statRows } = await supabase
+    .from("match_player_stats")
+    .select("match_map_id, team_id")
+    .eq("profile_id", profileId)
+    .returns<{ match_map_id: string; team_id: string | null }[]>();
+
+  if (!statRows || statRows.length === 0) return [];
+
+  const mapIdToTeamId = new Map(statRows.map((r) => [r.match_map_id, r.team_id]));
+  const matchMapIds = [...mapIdToTeamId.keys()];
+
+  // 2. Get match_maps (map name + scores)
+  const { data: mapRows } = await supabase
+    .from("match_maps")
+    .select("id, match_id, map_name, team1_score, team2_score")
+    .in("id", matchMapIds)
+    .returns<{ id: string; match_id: string; map_name: string | null; team1_score: number | null; team2_score: number | null }[]>();
+
+  if (!mapRows || mapRows.length === 0) return [];
+
+  // Deduplicate by match_id — keep first map entry per match
+  const matchIdToMap = new Map<string, { id: string; map_name: string | null; team1_score: number | null; team2_score: number | null; teamId: string | null }>();
+  for (const row of mapRows) {
+    if (!matchIdToMap.has(row.match_id)) {
+      matchIdToMap.set(row.match_id, {
+        id: row.id,
+        map_name: row.map_name,
+        team1_score: row.team1_score,
+        team2_score: row.team2_score,
+        teamId: mapIdToTeamId.get(row.id) ?? null,
+      });
+    }
+  }
+
+  const matchIds = [...matchIdToMap.keys()];
+
+  // 3. Get match rows ordered by finish time descending
+  const { data: matchRows } = await supabase
+    .from("matches")
+    .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at")
+    .in("id", matchIds)
+    .order("finished_at", { ascending: false })
+    .limit(limit)
+    .returns<{ id: string; tournament_id: string | null; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string; finished_at: string | null; started_at: string | null }[]>();
+
+  if (!matchRows || matchRows.length === 0) return [];
+
+  // 4. Fetch tournaments
+  const tournamentIds = [...new Set(matchRows.map((m) => m.tournament_id).filter(Boolean) as string[])];
+  const tournamentMap = new Map<string, string>();
+  if (tournamentIds.length > 0) {
+    const { data: tournRows } = await supabase
+      .from("tournaments")
+      .select("id, name")
+      .in("id", tournamentIds)
+      .returns<{ id: string; name: string }[]>();
+    for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
+  }
+
+  // 5. Fetch team tags
+  const teamIds = [...new Set(matchRows.flatMap((m) => [m.team1_id, m.team2_id]).filter(Boolean) as string[])];
+  const teamTagMap = new Map<string, string>();
+  if (teamIds.length > 0) {
+    const { data: teamRows } = await supabase
+      .from("teams")
+      .select("id, tag")
+      .in("id", teamIds)
+      .returns<{ id: string; tag: string }[]>();
+    for (const t of teamRows ?? []) teamTagMap.set(t.id, t.tag);
+  }
+
+  return matchRows.map((m) => {
+    const mapData = matchIdToMap.get(m.id);
+    const myTeamId = mapData?.teamId ?? null;
+    return {
+      matchId: m.id,
+      tournamentId: m.tournament_id,
+      tournamentName: m.tournament_id ? (tournamentMap.get(m.tournament_id) ?? "BlueStrike") : "BlueStrike",
+      team1Tag: m.team1_id ? (teamTagMap.get(m.team1_id) ?? "???") : "???",
+      team2Tag: m.team2_id ? (teamTagMap.get(m.team2_id) ?? "???") : "???",
+      team1Score: mapData?.team1_score ?? 0,
+      team2Score: mapData?.team2_score ?? 0,
+      mapName: mapData?.map_name ?? null,
+      playedAt: m.finished_at ?? m.started_at,
+      status: m.status,
+      isWinner: Boolean(myTeamId && m.winner_id === myTeamId),
+    };
+  });
 }

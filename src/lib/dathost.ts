@@ -190,6 +190,95 @@ export async function sendConsoleCommand(
   });
 }
 
+// ── Full match stats (GET /cs2-matches/{id}) ─────────────────────────────────
+
+export interface DathostFullPlayerStats {
+  kills: number;
+  assists: number;
+  deaths: number;
+  mvps: number;
+  score: number;
+  "2ks": number;
+  "3ks": number;
+  "4ks": number;
+  "5ks": number;
+  kills_with_headshot: number;
+  damage_dealt: number;
+}
+
+export interface DathostFullPlayer {
+  steam_id_64: string;
+  team: "team1" | "team2";
+  nickname_override: string;
+  connected: boolean;
+  kicked: boolean;
+  stats: DathostFullPlayerStats;
+}
+
+export interface DathostCs2MatchFull {
+  id: string;
+  game_server_id: string;
+  team1: { name: string; stats: { score: number } };
+  team2: { name: string; stats: { score: number } };
+  players: DathostFullPlayer[];
+  settings: { map: string };
+  rounds_played: number;
+  finished: boolean;
+}
+
+// ── Server duplication ────────────────────────────────────────────────────────
+
+// Duplicates a mirror CS2 server and returns the new server info.
+// Uses multipart/form-data (same pattern as sendConsoleCommand).
+export async function duplicateServer(
+  mirrorServerId: string,
+  matchId?: string | null
+): Promise<DathostGameServer> {
+  const url = `${DATHOST_BASE}/game-servers/${mirrorServerId}/duplicate`;
+  const body = new FormData();
+  body.append("location", "sao_paulo");
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: dathostAuth(), accept: "application/json" },
+    body,
+  });
+
+  const rawText = await res.text();
+  let responseBody: unknown;
+  try { responseBody = JSON.parse(rawText); } catch { responseBody = rawText; }
+
+  await writeDathostLog({
+    matchId,
+    method: "POST",
+    url,
+    requestBody: { mirror_server_id: mirrorServerId, location: "sao_paulo" },
+    responseStatus: res.status,
+    responseBody,
+  });
+
+  if (!res.ok) throw new Error(`Dathost duplicate → ${res.status}: ${rawText}`);
+  return responseBody as DathostGameServer;
+}
+
+// Fetches full match data including all player stats.
+export async function getCs2Match(
+  dathostMatchId: string,
+  matchId?: string | null
+): Promise<DathostCs2MatchFull> {
+  return dathostFetch<DathostCs2MatchFull>(`/cs2-matches/${dathostMatchId}`, { matchId });
+}
+
+// Stops a running game server.
+export async function stopGameServer(serverId: string, matchId?: string | null): Promise<void> {
+  await dathostFetch<unknown>(`/game-servers/${serverId}/stop`, { method: "POST", matchId });
+}
+
+// Permanently deletes a game server from Dathost.
+export async function deleteGameServer(serverId: string, matchId?: string | null): Promise<void> {
+  await dathostFetch<unknown>(`/game-servers/${serverId}`, { method: "DELETE", matchId });
+}
+
 // Returns first CS2 server with no active match, not booting, and not already reserved.
 export async function findAvailableServer(
   matchId?: string | null,

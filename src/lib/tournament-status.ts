@@ -5,14 +5,11 @@ export function getEffectiveTournamentStatus(tournament: Tournament): Tournament
   const s = tournament.status;
 
   if (s === "finished") return "finished";
-
   if (tournament.endsAt && now > Date.parse(tournament.endsAt)) return "finished";
-
   if (tournament.startsAt && now >= Date.parse(tournament.startsAt)) return "ongoing";
 
-  if (s === "open" && tournament.registrationEnds && now > Date.parse(tournament.registrationEnds)) {
-    return "ongoing";
-  }
+  // Registration end date closes inscriptions regardless of stored status
+  if (tournament.registrationEnds && now > Date.parse(tournament.registrationEnds)) return "ongoing";
 
   if (s === "upcoming") {
     if (!tournament.registrationStarts || now >= Date.parse(tournament.registrationStarts)) {

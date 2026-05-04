@@ -17,9 +17,10 @@ export const CS2_MAP_POOL: MapPresentation[] = [
 export const CS2_MAP_NAMES = CS2_MAP_POOL.map((m) => m.name);
 
 const MAP_BY_NAME = Object.fromEntries(CS2_MAP_POOL.map((m) => [m.name, m]));
+const MAP_BY_ID = Object.fromEntries(CS2_MAP_POOL.map((m) => [m.mapId, m]));
 
 export function getMapPresentation(mapName: string): MapPresentation | null {
-  return MAP_BY_NAME[mapName] ?? null;
+  return MAP_BY_NAME[mapName] ?? MAP_BY_ID[mapName] ?? null;
 }
 
 // Veto sequences — returns ordered slots with whose turn it is and the action type.

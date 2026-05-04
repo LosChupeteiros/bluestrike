@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchRowByIdForWebhook, processWebhookResult } from "@/lib/matches";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { writeDathostLog, sendConsoleCommand } from "@/lib/dathost";
+import { writeDathostLog, sendConsoleCommand, getCs2Match, stopGameServer, deleteGameServer } from "@/lib/dathost";
+import type { DathostFullPlayer } from "@/lib/dathost";
 
 interface RouteContext {
   params: Promise<{ matchId: string }>;
@@ -64,20 +65,21 @@ interface DathostWebhookPayload {
   events: DathostEvent[];
 }
 
-// ── Save player stats for a completed map ────────────────────────────────────
+// ── Save rich player stats after match_ended ──────────────────────────────────
 
-async function savePlayerStats(
+async function saveRichPlayerStats(
   matchId: string,
   team1Id: string | null,
   team2Id: string | null,
   mapName: string,
-  players: DathostPlayer[]
+  players: DathostFullPlayer[],
+  roundsPlayed: number
 ): Promise<void> {
   if (players.length === 0) return;
 
   const supabase = createSupabaseAdminClient();
 
-  // Create or find the match_map row
+  // Upsert match_maps row with map_name
   const { data: existingMap } = await supabase
     .from("match_maps")
     .select("id")
@@ -86,22 +88,15 @@ async function savePlayerStats(
     .maybeSingle<{ id: string }>();
 
   let mapId: string;
-
   if (existingMap) {
     mapId = existingMap.id;
+    await supabase.from("match_maps").update({ map_name: mapName }).eq("id", mapId);
   } else {
     const { data: newMap, error } = await supabase
       .from("match_maps")
-      .insert({
-        match_id: matchId,
-        map_name: mapName,
-        map_order: 1,
-        status: "finished",
-        played_at: new Date().toISOString(),
-      })
+      .insert({ match_id: matchId, map_name: mapName, map_order: 1, status: "finished", played_at: new Date().toISOString() })
       .select("id")
       .single<{ id: string }>();
-
     if (error || !newMap) return;
     mapId = newMap.id;
   }
@@ -110,42 +105,64 @@ async function savePlayerStats(
   const steamIds = players.map((p) => p.steam_id_64).filter(Boolean);
   if (steamIds.length === 0) return;
 
-  const { data: profiles } = await supabase
+  const { data: profileRows } = await supabase
     .from("profiles")
     .select("id, steam_id")
     .in("steam_id", steamIds)
     .returns<{ id: string; steam_id: string }[]>();
 
-  const profileBySteamId = new Map((profiles ?? []).map((p) => [p.steam_id, p.id]));
+  const profileBySteamId = new Map((profileRows ?? []).map((p) => [p.steam_id, p.id]));
+  const rounds = Math.max(roundsPlayed, 1);
 
-  const statsToInsert = players
+  const statsToUpsert = players
     .filter((p) => profileBySteamId.has(p.steam_id_64))
     .map((p) => {
       const profileId = profileBySteamId.get(p.steam_id_64)!;
       const teamId = p.team === "team1" ? team1Id : team2Id;
       const kills = p.stats.kills ?? 0;
       const deaths = p.stats.deaths ?? 0;
-      const hsCount = p.stats.kills_with_headshot ?? 0;
-      const adr = deaths > 0 ? Number(((p.stats.damage_dealt ?? 0) / Math.max(p.stats.deaths, 1)).toFixed(2)) : 0;
-
+      const dmg = p.stats.damage_dealt ?? 0;
       return {
         match_map_id: mapId,
         profile_id: profileId,
         team_id: teamId,
         kills,
         deaths,
-        assists: p.stats.assists ?? 0,
-        hs_count: hsCount,
-        adr,
+        assists:      p.stats.assists ?? 0,
+        hs_count:     p.stats.kills_with_headshot ?? 0,
+        adr:          Number((dmg / rounds).toFixed(2)),
+        mvps:         p.stats.mvps ?? 0,
+        score:        p.stats.score ?? 0,
+        k2:           p.stats["2ks"] ?? 0,
+        k3:           p.stats["3ks"] ?? 0,
+        k4:           p.stats["4ks"] ?? 0,
+        k5:           p.stats["5ks"] ?? 0,
+        damage_dealt: dmg,
       };
     })
     .filter((s) => Boolean(s.team_id));
 
-  if (statsToInsert.length > 0) {
+  if (statsToUpsert.length > 0) {
     await supabase
       .from("match_player_stats")
-      .upsert(statsToInsert, { onConflict: "match_map_id,profile_id" });
+      .upsert(statsToUpsert, { onConflict: "match_map_id,profile_id" });
   }
+}
+
+// Helper: stop + delete a duplicated Dathost game server (best-effort, fire-and-forget).
+async function cleanupDathostServer(serverId: string, matchId: string): Promise<void> {
+  await stopGameServer(serverId, matchId).catch(() => {});
+  await deleteGameServer(serverId, matchId).catch(() => {});
+}
+
+async function getDathostServerId(matchId: string): Promise<string | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data } = await supabase
+    .from("dathost_servers")
+    .select("dathost_server_id")
+    .eq("match_id", matchId)
+    .maybeSingle<{ dathost_server_id: string | null }>();
+  return data?.dathost_server_id ?? null;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -240,9 +257,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const t2Score = payload.team2?.stats?.score ?? 0;
       const mapName = payload.settings?.map ?? "unknown";
 
-      // Save player stats before processing result (best-effort)
-      if (payload.players && payload.players.length > 0) {
-        await savePlayerStats(matchId, match.team1_id, match.team2_id, mapName, payload.players);
+      // Fetch authoritative stats from Dathost (has rounds_played for ADR)
+      let richPlayers: DathostFullPlayer[] = (payload.players ?? []) as unknown as DathostFullPlayer[];
+      let roundsPlayed = payload.rounds_played ?? 0;
+      if (match.dathost_match_id) {
+        try {
+          const fullMatch = await getCs2Match(match.dathost_match_id, matchId);
+          richPlayers = fullMatch.players ?? richPlayers;
+          roundsPlayed = fullMatch.rounds_played ?? roundsPlayed;
+        } catch (err) {
+          console.error("[webhook/cs2] getCs2Match failed, falling back to payload stats:", err);
+        }
+      }
+
+      if (richPlayers.length > 0) {
+        await saveRichPlayerStats(matchId, match.team1_id, match.team2_id, mapName, richPlayers, roundsPlayed);
       }
 
       // Update map scores on the match_maps row
@@ -264,6 +293,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       await processWebhookResult(match, t1Score, t2Score);
+
+      // Stop and delete the duplicated server (fire-and-forget)
+      const serverId = await getDathostServerId(matchId);
+      if (serverId) {
+        cleanupDathostServer(serverId, matchId).catch(
+          (err: unknown) => console.error("[webhook/cs2] cleanupDathostServer error:", err)
+        );
+      }
       break;
     }
 
@@ -279,6 +316,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         .eq("id", matchId)
         .neq("status", "finished")
         .neq("status", "cancelled");
+
+      // Stop and delete the duplicated server (fire-and-forget)
+      const canceledServerId = await getDathostServerId(matchId);
+      if (canceledServerId) {
+        cleanupDathostServer(canceledServerId, matchId).catch(
+          (err: unknown) => console.error("[webhook/cs2] cleanupDathostServer (canceled) error:", err)
+        );
+      }
       break;
     }
 

@@ -5,12 +5,12 @@ import {
   getFallbackProfileStats,
   getMockProfileByPublicId,
   getMockProfileStats,
-  getMockRecentMatchesForProfile,
   getMockTeamsForProfile,
 } from "@/data/competitive-mock";
 import { getPublicDisplayName, isProfileComplete, type UserProfile } from "@/lib/profile";
 import { getCurrentProfile, getFaceitRankingPosition, getProfileByPublicId, refreshFaceitStats, syncFaceitTeams } from "@/lib/profiles";
 import { getTeamsForProfile } from "@/lib/teams";
+import { getRecentMatchesForProfile } from "@/lib/matches";
 import type { FaceitTeam } from "@/lib/faceit";
 
 interface ProfilePageProps {
@@ -60,7 +60,7 @@ async function getProfilePresentation(profile: UserProfile, useRealTeams: boolea
   return {
     stats: faceitStats ?? getMockProfileStats(profile.publicId) ?? getFallbackProfileStats(profile),
     teams: useRealTeams ? await getTeamsForProfile(profile.id) : getMockTeamsForProfile(profile.publicId),
-    recentMatches: getMockRecentMatchesForProfile(profile.publicId),
+    recentMatches: useRealTeams ? await getRecentMatchesForProfile(profile.id) : [],
   };
 }
 

@@ -37,7 +37,7 @@ import {
 } from "@/lib/profile";
 import { getPlayerRank } from "@/lib/ranks";
 import { cn, formatDate } from "@/lib/utils";
-import type { MockRecentMatchSummary } from "@/data/competitive-mock";
+import type { RecentMatchSummary } from "@/lib/matches";
 import type { Team } from "@/types";
 import type { FaceitTeam } from "@/lib/faceit";
 
@@ -50,7 +50,7 @@ interface ProfileShellViewProps {
   };
   teams: Team[];
   faceitTeams: FaceitTeam[];
-  recentMatches: MockRecentMatchSummary[];
+  recentMatches: RecentMatchSummary[];
   isOwner: boolean;
   defaultEditOpen: boolean;
   showWelcome: boolean;
@@ -358,34 +358,49 @@ export default function ProfileShellView({
 
                 <TabsContent value="matches" className="space-y-3">
                   {recentMatches.length > 0 ? (
-                    recentMatches.map((match) => (
-                      <Link key={match.id} href={`/matches/${match.id}`} className="group block">
-                        <div className="flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 card-hover">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900">
-                            <Trophy className="h-5 w-5 text-[var(--primary)]" />
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold transition-colors group-hover:text-[var(--primary)]">
-                              {match.team1.tag} {match.team1.score} x {match.team2.score} {match.team2.tag}
+                    recentMatches.map((match) => {
+                      const href = match.tournamentId
+                        ? `/tournaments/${match.tournamentId}/matches/${match.matchId}`
+                        : `/matches/${match.matchId}`;
+                      const isFinished = match.status === "finished";
+                      return (
+                        <Link key={match.matchId} href={href} className="group block">
+                          <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 card-hover">
+                            {/* Result indicator */}
+                            <div className={cn(
+                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-xs font-black",
+                              !isFinished
+                                ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                                : match.isWinner
+                                  ? "border-green-500/30 bg-green-500/10 text-green-400"
+                                  : "border-red-500/30 bg-red-500/10 text-red-400"
+                            )}>
+                              {!isFinished ? "AO" : match.isWinner ? "V" : "D"}
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted-foreground)]">
-                              <span>{match.map}</span>
-                              <span>|</span>
-                              <span>{match.tournamentName}</span>
-                              <span>|</span>
-                              <span>{formatDate(match.playedAt)}</span>
+
+                            <div className="min-w-0 flex-1">
+                              {/* Score line */}
+                              <div className="flex items-center gap-1.5 font-mono text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
+                                <span>{match.team1Tag}</span>
+                                <span className="text-[var(--muted-foreground)]">{match.team1Score}</span>
+                                <span className="text-[var(--muted-foreground)]">×</span>
+                                <span className="text-[var(--muted-foreground)]">{match.team2Score}</span>
+                                <span>{match.team2Tag}</span>
+                              </div>
+                              {/* Meta */}
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted-foreground)]">
+                                {match.mapName && <span className="font-medium text-[var(--foreground)]/70">{match.mapName.replace("de_", "")}</span>}
+                                {match.mapName && <span>·</span>}
+                                <span>{match.tournamentName}</span>
+                                {match.playedAt && <><span>·</span><span>{formatDate(match.playedAt)}</span></>}
+                              </div>
                             </div>
+
+                            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--primary)]" />
                           </div>
-
-                          <Badge variant={match.status === "finished" ? "finished" : "live"}>
-                            {match.status === "finished" ? "Finalizada" : "Ao vivo"}
-                          </Badge>
-
-                          <ChevronRight className="h-4 w-4 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--primary)]" />
-                        </div>
-                      </Link>
-                    ))
+                        </Link>
+                      );
+                    })
                   ) : (
                     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-12 text-center">
                       <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />

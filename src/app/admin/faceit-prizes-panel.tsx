@@ -88,10 +88,12 @@ function ChampionshipRow({ championship: c }: ChampionshipRowProps) {
 
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]">
-      {/* Header row */}
-      <button
-        type="button"
+      {/* Header row — div not button to avoid nested-button hydration error */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen((v) => !v); }}
         className="flex w-full cursor-pointer items-center gap-3 p-4 text-left"
       >
         {/* Cover thumbnail */}
@@ -117,24 +119,19 @@ function ChampionshipRow({ championship: c }: ChampionshipRowProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "gap-1.5 text-xs",
-              hasPrize
-                ? "border-yellow-500/30 text-yellow-400 hover:border-yellow-500/60"
-                : "border-[#FF5500]/30 hover:border-[#FF5500]/60"
-            )}
-            style={hasPrize ? undefined : { color: "#FF5500" }}
-            onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-          >
+          <div className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors",
+            hasPrize
+              ? "border-yellow-500/30 text-yellow-400 hover:border-yellow-500/60"
+              : "border-[#FF5500]/30 hover:border-[#FF5500]/60"
+          )}
+            style={hasPrize ? undefined : { color: "#FF5500" }}>
             <Trophy className="h-3.5 w-3.5" />
             {hasPrize ? "Editar premiação" : "Cadastrar premiação"}
-          </Button>
+          </div>
           {open ? <ChevronUp className="h-4 w-4 text-[var(--muted-foreground)]" /> : <ChevronDown className="h-4 w-4 text-[var(--muted-foreground)]" />}
         </div>
-      </button>
+      </div>
 
       {/* Expandable form */}
       {open && (
