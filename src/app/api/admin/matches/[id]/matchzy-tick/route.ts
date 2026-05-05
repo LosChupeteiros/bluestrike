@@ -41,8 +41,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   ]);
 
   if (!stats) {
+    writeDathostLog({
+      matchId,
+      method: "POLL",
+      url: "matchzy_tick::no_data",
+      responseStatus: 200,
+      responseBody: { matchzyMatchId, reason: "MySQL sem dados ainda" },
+    }).catch(() => {});
     return Response.json({ done: false, reason: "no_data_yet" });
   }
+
+  const mapsPayload = stats.maps.map((m) => ({
+    mapname: m.mapname ?? "?",
+    t1: m.team1_score ?? 0,
+    t2: m.team2_score ?? 0,
+    winner: m.winner ?? null,
+    finished: m.end_time != null,
+  }));
 
   const finishedMaps = stats.maps.filter((m) => m.end_time != null);
   const wins: Record<string, number> = {};
@@ -60,13 +75,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       method: "POLL",
       url: "matchzy_tick::series_end",
       responseStatus: 200,
-      responseBody: {
-        matchzyMatchId,
-        wins,
-        finishedMaps: finishedMaps.length,
-        team1_maps: stats.match.team1_score ?? 0,
-        team2_maps: stats.match.team2_score ?? 0,
-      },
+      responseBody: { matchzyMatchId, wins, maps: mapsPayload },
     }).catch(() => {});
 
     processSeriesEnd(matchId)
@@ -80,18 +89,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         }).catch(() => {});
       })
       .finally(() => processing.delete(matchId));
+  } else if (!seriesDone) {
+    // Loga placar ao vivo a cada tick para visibilidade no console admin
+    writeDathostLog({
+      matchId,
+      method: "POLL",
+      url: "matchzy_tick::live",
+      responseStatus: 200,
+      responseBody: { matchzyMatchId, maps: mapsPayload },
+    }).catch(() => {});
   }
 
   return Response.json({
     done: seriesDone,
     team1_maps: stats.match.team1_score ?? 0,
     team2_maps: stats.match.team2_score ?? 0,
-    maps: stats.maps.map((m) => ({
-      mapname: m.mapname ?? "?",
-      t1: m.team1_score ?? 0,
-      t2: m.team2_score ?? 0,
-      winner: m.winner ?? null,
-      finished: m.end_time != null,
-    })),
+    maps: mapsPayload,
   });
 }

@@ -1213,8 +1213,9 @@ export default function MatchPageClient({
                 // Após finish: usa dados server-rendered; durante live: usa tick
                 const finalT1 = detail.matchMaps[0]?.team1Score ?? null;
                 const finalT2 = detail.matchMaps[0]?.team2Score ?? null;
-                const dispT1 = isFinished ? (finalT1 ?? tickData?.maps?.[0]?.t1 ?? null) : isMatchLive ? liveT1 : null;
-                const dispT2 = isFinished ? (finalT2 ?? tickData?.maps?.[0]?.t2 ?? null) : isMatchLive ? liveT2 : null;
+                const isLiveStatus = effectiveStatus === "live";
+                const dispT1 = isFinished ? (finalT1 ?? tickData?.maps?.[0]?.t1 ?? null) : isLiveStatus ? liveT1 : null;
+                const dispT2 = isFinished ? (finalT2 ?? tickData?.maps?.[0]?.t2 ?? null) : isLiveStatus ? liveT2 : null;
                 const showScore = dispT1 !== null && dispT2 !== null;
                 return (
                   <div className="flex flex-col items-center justify-center gap-1">
@@ -1229,10 +1230,10 @@ export default function MatchPageClient({
                             {dispT2}
                           </span>
                         </div>
-                        {isMatchLive && liveMap && (
+                        {isLiveStatus && liveMap && (
                           <span className="text-[8px] font-mono text-[var(--muted-foreground)]/60 truncate max-w-[88px] text-center">{liveMap}</span>
                         )}
-                        {isMatchLive && (
+                        {isLiveStatus && (
                           <div className="flex items-center gap-1">
                             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.9)]" />
                             <span className="text-[8px] font-bold text-green-400">AO VIVO</span>
