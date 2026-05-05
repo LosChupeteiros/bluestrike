@@ -406,6 +406,7 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
   for (let round = 1; round <= totalRounds; round++) {
     const matchCount = nextPow2 / Math.pow(2, round);
     for (let idx = 0; idx < matchCount; idx++) {
+      const isFinalRound = round === totalRounds;
       if (round === 1) {
         const t1 = shuffled[idx * 2] || null;
         const t2 = shuffled[idx * 2 + 1] || null;
@@ -419,7 +420,7 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
           match_index: idx,
           status: isBye ? "walkover" : "pending",
           winner_id: isBye ? (t1 ?? t2) : null,
-          bo_type: 1,
+          bo_type: isFinalRound ? 3 : 1,
           webhook_secret: randomUUID(),
           ...(bothTeams ? { teams_assigned_at: new Date().toISOString() } : {}),
         });
@@ -432,11 +433,26 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
           match_index: idx,
           status: "pending",
           winner_id: null,
-          bo_type: 1,
+          bo_type: isFinalRound ? 3 : 1,
           webhook_secret: randomUUID(),
         });
       }
     }
+  }
+
+  // Extra match: third-place decider. Convention: final round, match_index 1.
+  if (confirmedTeamIds.length >= 4) {
+    toInsert.push({
+      tournament_id: tournament.id,
+      team1_id: null,
+      team2_id: null,
+      round: totalRounds,
+      match_index: 1,
+      status: "pending",
+      winner_id: null,
+      bo_type: 1,
+      webhook_secret: randomUUID(),
+    });
   }
 
   const { error: insertError } = await supabase.from("matches").insert(toInsert);

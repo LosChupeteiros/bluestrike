@@ -1082,6 +1082,7 @@ export default function MatchPageClient({
   const [reloadingStats, setReloadingStats] = useState(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [showReloadButton, setShowReloadButton] = useState(false);
+  const [selectedMapNumber, setSelectedMapNumber] = useState<number | null>(null);
 
   const effectiveStatus = poll?.status ?? match.status;
   const effectiveReadyTeam1 = poll?.readyTeam1 ?? match.readyTeam1;
@@ -1192,6 +1193,11 @@ export default function MatchPageClient({
     return () => clearTimeout(id);
   }, [statsEmpty]);
 
+  useEffect(() => {
+    if (!isFinished || selectedMapNumber !== null || detail.matchMaps.length === 0) return;
+    setSelectedMapNumber(detail.matchMaps[0].mapOrder);
+  }, [detail.matchMaps, isFinished, selectedMapNumber]);
+
   return (
     <div className="space-y-3">
 
@@ -1253,8 +1259,14 @@ export default function MatchPageClient({
                 const liveT2 = currentMap?.t2 ?? 0;
                 const liveMap = currentMap?.mapname ?? null;
                 // Após finish: usa dados server-rendered; durante live: usa tick
-                const finalT1 = detail.matchMaps[0]?.team1Score ?? null;
-                const finalT2 = detail.matchMaps[0]?.team2Score ?? null;
+                const finalMapWinsT1 = detail.matchMaps.filter((m) => m.winnerId === match.team1Id).length;
+                const finalMapWinsT2 = detail.matchMaps.filter((m) => m.winnerId === match.team2Id).length;
+                const finalT1 = match.boType > 1 && detail.matchMaps.length > 1
+                  ? finalMapWinsT1
+                  : detail.matchMaps[0]?.team1Score ?? null;
+                const finalT2 = match.boType > 1 && detail.matchMaps.length > 1
+                  ? finalMapWinsT2
+                  : detail.matchMaps[0]?.team2Score ?? null;
                 const isLiveStatus = effectiveStatus === "live";
                 const dispT1 = isFinished ? (finalT1 ?? tickData?.maps?.[0]?.t1 ?? null) : isLiveStatus ? liveT1 : null;
                 const dispT2 = isFinished ? (finalT2 ?? tickData?.maps?.[0]?.t2 ?? null) : isLiveStatus ? liveT2 : null;
@@ -1372,20 +1384,33 @@ export default function MatchPageClient({
       {/* ── Scoreboard ── */}
       {isFinished && (() => {
         const stats = detail.playerStats ?? [];
+        const mapOptions = detail.matchMaps.length > 0
+          ? detail.matchMaps
+          : [...new Map(stats.map((s) => [s.mapNumber, {
+              mapOrder: s.mapNumber,
+              mapName: s.mapName,
+              team1Score: null,
+              team2Score: null,
+              winnerId: null,
+              status: "finished",
+            }])).values()];
+        const selectedMap = mapOptions.find((m) => m.mapOrder === selectedMapNumber) ?? mapOptions[0] ?? null;
+        const visibleStats = selectedMap ? stats.filter((p) => p.mapNumber === selectedMap.mapOrder) : stats;
+        const statsForBoard = visibleStats.length > 0 ? visibleStats : stats;
         const t1NameForCompare = match.team1?.name?.toLowerCase() ?? "";
         const t2NameForCompare = match.team2?.name?.toLowerCase() ?? "";
-        const t1Stats = stats.filter((p) =>
+        const t1Stats = statsForBoard.filter((p) =>
           (p.teamId && p.teamId === match.team1Id) ||
           (!p.teamId && p.teamName && t1NameForCompare && p.teamName.toLowerCase() === t1NameForCompare)
         );
-        const t2Stats = stats.filter((p) =>
+        const t2Stats = statsForBoard.filter((p) =>
           (p.teamId && p.teamId === match.team2Id) ||
           (!p.teamId && p.teamName && t2NameForCompare && p.teamName.toLowerCase() === t2NameForCompare)
         );
-        const mvpSteamId = getMvp(stats)?.steamid64 ?? null;
+        const mvpSteamId = getMvp(statsForBoard)?.steamid64 ?? null;
         const t1Won = match.winnerId === match.team1Id;
         const t2Won = match.winnerId === match.team2Id;
-        const mapScore = detail.matchMaps[0];
+        const mapScore = selectedMap;
         return (
           <div className="space-y-3">
             {/* Header com mapa e placar de rounds */}
@@ -1401,13 +1426,35 @@ export default function MatchPageClient({
               </div>
               {mapScore && mapScore.team1Score !== null && mapScore.team2Score !== null && (
                 <span className="text-xs font-black tabular-nums text-[var(--muted-foreground)]">
-                  <span className={t1Won ? "text-green-400" : ""}>{mapScore.team1Score}</span>
+                  <span className={mapScore.winnerId === match.team1Id ? "text-green-400" : ""}>{mapScore.team1Score}</span>
                   {" : "}
-                  <span className={t2Won ? "text-green-400" : ""}>{mapScore.team2Score}</span>
+                  <span className={mapScore.winnerId === match.team2Id ? "text-green-400" : ""}>{mapScore.team2Score}</span>
                 </span>
               )}
             </div>
-            {stats.length > 0 ? (
+            {mapOptions.length > 1 && (
+              <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1">
+                {mapOptions.map((m, index) => {
+                  const active = m.mapOrder === mapScore?.mapOrder;
+                  return (
+                    <button
+                      key={m.mapOrder}
+                      type="button"
+                      onClick={() => setSelectedMapNumber(m.mapOrder)}
+                      className={`rounded-lg px-3 py-1.5 text-[10px] font-black transition-colors ${
+                        active
+                          ? "bg-[var(--primary)] text-black"
+                          : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                      }`}
+                    >
+                      Mapa {index + 1}
+                      {m.mapName ? ` · ${m.mapName}` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {statsForBoard.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} mvpSteamId={mvpSteamId} onOpenProfile={(href) => router.push(href)} />
                 <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} mvpSteamId={mvpSteamId} onOpenProfile={(href) => router.push(href)} />

@@ -14,6 +14,35 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id: tournamentId } = await params;
   const supabase = createSupabaseAdminClient();
 
+  const { data: allMatches } = await supabase
+    .from("matches")
+    .select("id, round, match_index, bo_type")
+    .eq("tournament_id", tournamentId)
+    .returns<{ id: string; round: number; match_index: number; bo_type: 1 | 3 | 5 }[]>();
+
+  const maxRound = Math.max(0, ...(allMatches ?? []).map((m) => m.round));
+  const finalMatch = allMatches?.find((m) => m.round === maxRound && m.match_index === 0);
+  const thirdPlaceMatch = allMatches?.find((m) => m.round === maxRound && m.match_index === 1);
+  if (finalMatch && finalMatch.bo_type !== 3) {
+    await supabase.from("matches").update({ bo_type: 3 }).eq("id", finalMatch.id);
+  }
+  const { count: confirmedTeamCount } = await supabase
+    .from("tournament_registrations")
+    .select("*", { count: "exact", head: true })
+    .eq("tournament_id", tournamentId)
+    .neq("status", "withdrawn");
+  if ((confirmedTeamCount ?? 0) >= 4 && maxRound >= 2 && !thirdPlaceMatch) {
+    await supabase.from("matches").insert({
+      id: randomUUID(),
+      tournament_id: tournamentId,
+      round: maxRound,
+      match_index: 1,
+      bo_type: 1,
+      status: "pending",
+      webhook_secret: randomUUID(),
+    });
+  }
+
   const { data: finishedMatches } = await supabase
     .from("matches")
     .select("id, winner_id, round, match_index, bo_type")

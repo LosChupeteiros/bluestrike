@@ -24,25 +24,24 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   // Get all finished matches for this tournament
   const { data: matches } = await supabase
     .from("matches")
-    .select("id, round, team1_id, team2_id, winner_id, status")
+    .select("id, round, match_index, team1_id, team2_id, winner_id, status")
     .eq("tournament_id", tournamentId)
     .eq("status", "finished")
-    .returns<{ id: string; round: number; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string }[]>();
+    .returns<{ id: string; round: number; match_index: number; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string }[]>();
 
   if (!matches || matches.length === 0) {
     return NextResponse.json({ first: null, second: null, third: null });
   }
 
   const maxRound = Math.max(...matches.map((m) => m.round));
-  const finalMatch = matches.find((m) => m.round === maxRound);
+  const finalMatch = matches.find((m) => m.round === maxRound && m.match_index === 0);
+  const thirdPlaceMatch = matches.find((m) => m.round === maxRound && m.match_index === 1);
 
   const firstId = finalMatch?.winner_id ?? null;
   const secondId = firstId
     ? (finalMatch?.team1_id === firstId ? finalMatch?.team2_id : finalMatch?.team1_id) ?? null
     : null;
-
-  // Collect unique team IDs for batch fetch
-  const teamIds = [firstId, secondId].filter(Boolean) as string[];
+  const thirdId = thirdPlaceMatch?.winner_id ?? null;
 
   async function buildEntry(teamId: string | null): Promise<PodiumEntry> {
     if (!teamId) return { team: null, captain: null };
@@ -74,7 +73,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     };
   }
 
-  const [first, second] = await Promise.all([buildEntry(firstId), buildEntry(secondId)]);
+  const [first, second, third] = await Promise.all([buildEntry(firstId), buildEntry(secondId), buildEntry(thirdId)]);
 
-  return NextResponse.json({ first, second, third: null });
+  return NextResponse.json({ first, second, third });
 }

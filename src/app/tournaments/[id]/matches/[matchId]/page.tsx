@@ -84,7 +84,9 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
 
   const maxRound = allMatches.reduce((acc: number, m) => Math.max(acc, m.round), 0);
   const roundLabel =
-    detail.match.round === maxRound
+    detail.match.round === maxRound && detail.match.matchIndex === 1
+      ? "Disputa de 3º lugar"
+      : detail.match.round === maxRound
       ? "Final"
       : detail.match.round === maxRound - 1 && maxRound > 2
       ? "Semifinal"
@@ -112,7 +114,7 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
           detail={detail}
           tournamentId={tournamentId}
           roundLabel={roundLabel}
-          isFinal={detail.match.round === maxRound}
+          isFinal={detail.match.round === maxRound && detail.match.matchIndex === 0}
           currentProfileId={currentProfile?.id ?? null}
           userTeamId={userTeamId}
           isCaptain={isCaptain}

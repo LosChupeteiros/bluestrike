@@ -55,6 +55,8 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   const effectiveStatus = getEffectiveTournamentStatus(tournament);
   const registrationOpen = isTournamentRegistrationOpen(tournament);
   const badge = getTournamentBadgeProps(tournament);
+  // eslint-disable-next-line react-hooks/purity -- Server-rendered timestamp for tournament status copy.
+  const nowMs = Date.now();
 
   const [currentTeam, matches] = await Promise.all([
     currentProfile ? getCurrentTeamForProfile(currentProfile.id) : Promise.resolve(null),
@@ -77,27 +79,31 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   // Derive podium from match results (no DB registration status required)
   let podiumFirst: Team | null = null;
   let podiumSecond: Team | null = null;
+  let podiumThird: Team | null = null;
   if (isFinishedTournament && matches.length > 0) {
     const maxRound = matches.reduce((acc, m) => Math.max(acc, m.round), 0);
-    const finalMatch = matches.find((m) => m.round === maxRound && m.status === "finished");
+    const finalMatch = matches.find((m) => m.round === maxRound && m.matchIndex === 0 && m.status === "finished");
+    const thirdPlaceMatch = matches.find((m) => m.round === maxRound && m.matchIndex === 1 && m.status === "finished");
     if (finalMatch?.winnerId) {
       podiumFirst = teams.find((t) => t.id === finalMatch.winnerId) ?? null;
       const runnerUpId = finalMatch.team1Id === finalMatch.winnerId ? finalMatch.team2Id : finalMatch.team1Id;
       podiumSecond = teams.find((t) => t.id === runnerUpId) ?? null;
+    }
+    if (thirdPlaceMatch?.winnerId) {
+      podiumThird = teams.find((t) => t.id === thirdPlaceMatch.winnerId) ?? null;
     }
   }
 
   let registrationDisabledReason: string | null = null;
 
   if (!registrationOpen) {
-    const now = Date.now();
     if (effectiveStatus === "finished") {
       registrationDisabledReason = "Esse campeonato já foi encerrado.";
     } else if (effectiveStatus === "ongoing") {
       registrationDisabledReason = "As inscrições para esse campeonato foram encerradas.";
     } else if (effectiveStatus === "upcoming") {
       registrationDisabledReason = "As inscrições ainda não foram abertas.";
-    } else if (tournament.registrationEnds && now > Date.parse(tournament.registrationEnds)) {
+    } else if (tournament.registrationEnds && nowMs > Date.parse(tournament.registrationEnds)) {
       registrationDisabledReason = "O prazo de inscrições encerrou.";
     } else {
       registrationDisabledReason = "As inscrições não estão abertas no momento.";
@@ -283,7 +289,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                         <div className="absolute left-[11px] top-2 h-[calc(100%-1rem)] w-px bg-[var(--border)]" />
                         <div className="space-y-5 pl-9">
                           {keyDates.map((d) => {
-                            const isPast = d.value ? Date.now() > Date.parse(d.value) : false;
+                            const isPast = d.value ? nowMs > Date.parse(d.value) : false;
                             return (
                               <div key={d.label} className="relative flex items-center justify-between gap-4">
                                 <div
@@ -439,10 +445,15 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       {/* 3rd */}
                       <div className="flex flex-col items-center gap-3">
                         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-orange-600/30 bg-orange-600/10 text-lg font-black text-orange-300">
-                          ?
+                          {podiumThird ? podiumThird.tag : "?"}
                         </div>
                         <div className="text-center">
-                          <div className="text-sm font-black text-orange-300">—</div>
+                          <div className="text-sm font-black text-orange-300">
+                            {podiumThird ? podiumThird.name : "-"}
+                          </div>
+                          {podiumThird && (
+                            <div className="text-xs text-[var(--muted-foreground)]">{podiumThird.elo} ELO</div>
+                          )}
                         </div>
                         <div className="flex h-12 w-full items-center justify-center rounded-xl bg-orange-600/10">
                           <span className="text-2xl">🥉</span>

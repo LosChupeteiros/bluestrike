@@ -176,14 +176,48 @@ async function advanceWinner(
   winnerId: string
 ): Promise<void> {
   const loserId = winnerId === match.team1_id ? match.team2_id : match.team1_id;
+  if (!match.tournament_id) return;
 
-  if (loserId) {
+  const { data: finalRoundRows } = await supabase
+    .from("matches")
+    .select("id, round, match_index, team1_id, team2_id, winner_id, status")
+    .eq("tournament_id", match.tournament_id)
+    .order("round", { ascending: false })
+    .order("match_index", { ascending: true })
+    .limit(4)
+    .returns<Array<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status">>>();
+
+  const finalRound = finalRoundRows?.[0]?.round ?? match.round;
+  const isFinalMatch = match.round === finalRound && match.match_index === 0;
+  const isThirdPlaceMatch = match.round === finalRound && match.match_index === 1;
+  const thirdPlaceMatch = finalRoundRows?.find((m) => m.round === finalRound && m.match_index === 1) ?? null;
+  const shouldSendLoserToThird = Boolean(
+    loserId &&
+    thirdPlaceMatch &&
+    match.round === finalRound - 1 &&
+    (match.match_index === 0 || match.match_index === 1)
+  );
+
+  if (loserId && !shouldSendLoserToThird) {
     await supabase
       .from("tournament_registrations")
       .update({ status: "eliminated" })
       .eq("tournament_id", match.tournament_id)
       .eq("team_id", loserId)
       .neq("status", "withdrawn");
+  }
+
+  if (loserId && shouldSendLoserToThird && thirdPlaceMatch) {
+    const isEvenSlot = match.match_index % 2 === 0;
+    const otherTeamAlreadySet = isEvenSlot ? Boolean(thirdPlaceMatch.team2_id) : Boolean(thirdPlaceMatch.team1_id);
+    const update = isEvenSlot
+      ? { team1_id: loserId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
+      : { team2_id: loserId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+
+    await supabase
+      .from("matches")
+      .update(update)
+      .eq("id", thirdPlaceMatch.id);
   }
 
   const { data: nextMatch } = await supabase
@@ -215,6 +249,28 @@ async function advanceWinner(
     .eq("tournament_id", match.tournament_id)
     .gt("round", match.round);
 
+  if ((higherRoundCount ?? 0) === 0) {
+    if (isThirdPlaceMatch) {
+      if (loserId) {
+        await supabase
+          .from("tournament_registrations")
+          .update({ status: "eliminated" })
+          .eq("tournament_id", match.tournament_id)
+          .eq("team_id", loserId)
+          .neq("status", "withdrawn");
+      }
+
+      const finalDone = finalRoundRows?.some((m) =>
+        m.round === finalRound && m.match_index === 0 && m.status === "finished" && m.winner_id
+      );
+      if (!finalDone) return;
+    } else if (!isFinalMatch) {
+      return;
+    } else if (thirdPlaceMatch && !(thirdPlaceMatch.status === "finished" && thirdPlaceMatch.winner_id)) {
+      return;
+    }
+  }
+
   if ((higherRoundCount ?? 0) > 0) {
     console.error(
       `[advanceWinner] Missing bracket row: expected round=${match.round + 1} match_index=${Math.floor(match.match_index / 2)} for tournament ${match.tournament_id}. Winner ${winnerId} was not advanced.`
@@ -223,24 +279,28 @@ async function advanceWinner(
   }
 
   // This is the final — close the tournament
-  await supabase
-    .from("tournaments")
-    .update({ status: "finished" })
-    .eq("id", match.tournament_id);
+  const finalWinnerId = finalRoundRows?.find((m) => m.round === finalRound && m.match_index === 0)?.winner_id ?? null;
+  const championId = isThirdPlaceMatch ? finalWinnerId : winnerId;
+  if (!championId) return;
 
   await supabase
     .from("tournament_registrations")
     .update({ status: "champion" })
     .eq("tournament_id", match.tournament_id)
-    .eq("team_id", winnerId);
+    .eq("team_id", championId);
 
   await supabase
     .from("tournament_registrations")
     .update({ status: "eliminated" })
     .eq("tournament_id", match.tournament_id)
-    .neq("team_id", winnerId)
+    .neq("team_id", championId)
     .neq("status", "withdrawn")
     .neq("status", "champion");
+
+  await supabase
+    .from("tournaments")
+    .update({ status: "finished" })
+    .eq("id", match.tournament_id);
 }
 
 export async function submitMatchResult(
@@ -352,6 +412,8 @@ export interface PlayerStat {
   profilePublicId: number | null;
   teamId: string | null;
   teamName: string | null;
+  mapNumber: number;
+  mapName: string | null;
   steamid64: string;
   nickname: string;
   avatarUrl: string | null;
@@ -519,9 +581,11 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
 
   const { data: rawStatRows } = await supabase
     .from("matchzy_player_stats")
-    .select("steamid64, player_name, team_name, kills, deaths, assists, damage, head_shot_kills, map_team1_score, map_team2_score")
+    .select("mapnumber, mapname, steamid64, player_name, team_name, kills, deaths, assists, damage, head_shot_kills, map_team1_score, map_team2_score")
     .eq("match_id", matchId)
     .returns<{
+      mapnumber: number;
+      mapname: string | null;
       steamid64: string;
       player_name: string | null;
       team_name: string | null;
@@ -555,6 +619,8 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
         profilePublicId: profile?.public_id ?? null,
         teamId: null,
         teamName: s.team_name,
+        mapNumber: s.mapnumber,
+        mapName: s.mapname,
         steamid64,
         nickname: profile?.steam_persona_name ?? s.player_name ?? s.steamid64,
         avatarUrl: profile?.steam_avatar_url ?? null,
@@ -609,6 +675,8 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
           profilePublicId: profileMap.get(s.profile_id)?.public_id ?? null,
           teamId: s.team_id ?? null,
           teamName: null,
+          mapNumber: 0,
+          mapName: null,
           steamid64: profileMap.get(s.profile_id)?.steam_id ?? "",
           nickname: profileMap.get(s.profile_id)?.steam_persona_name ?? s.profile_id,
           avatarUrl: profileMap.get(s.profile_id)?.steam_avatar_url ?? null,

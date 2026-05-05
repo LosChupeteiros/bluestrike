@@ -356,13 +356,29 @@ export async function saveMysqlStats(
 
   // Also upsert match_maps so the scoreboard header can show map name + round scores
   if (stats.maps.length > 0) {
+    const { data: matchRow } = await supabase
+      .from("matches")
+      .select("team1_id, team2_id")
+      .eq("id", matchId)
+      .maybeSingle<{ team1_id: string | null; team2_id: string | null }>();
+    const teamIds = [matchRow?.team1_id, matchRow?.team2_id].filter(Boolean) as string[];
+    const { data: teamRows } = teamIds.length
+      ? await supabase.from("teams").select("id, name").in("id", teamIds).returns<{ id: string; name: string }[]>()
+      : { data: [] as { id: string; name: string }[] };
+    const team1Name = teamRows?.find((t) => t.id === matchRow?.team1_id)?.name ?? "";
+    const team2Name = teamRows?.find((t) => t.id === matchRow?.team2_id)?.name ?? "";
+
     const mapRows = stats.maps.map((m) => ({
       match_id: matchId,
       map_order: Number(m.mapnumber ?? 0),
       map_name: (m.mapname as string | undefined) ?? null,
       team1_score: (m.team1_score as number | undefined) ?? 0,
       team2_score: (m.team2_score as number | undefined) ?? 0,
-      winner_id: null,
+      winner_id: normalize(String(m.winner ?? "")) === normalize(team1Name)
+        ? matchRow?.team1_id
+        : normalize(String(m.winner ?? "")) === normalize(team2Name)
+        ? matchRow?.team2_id
+        : null,
       status: "finished",
       played_at: new Date().toISOString(),
     }));

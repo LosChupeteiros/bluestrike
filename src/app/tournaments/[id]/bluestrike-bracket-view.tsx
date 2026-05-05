@@ -24,9 +24,11 @@ function roundLabel(r: number, maxR: number): string {
 
 function buildRounds(matches: Match[]): (Match | null)[][] {
   if (matches.length === 0) return [];
+  const maxRound = Math.max(...matches.map((m) => m.round));
+  const bracketMatches = matches.filter((m) => !(m.round === maxRound && m.matchIndex === 1));
 
   const byRound = new Map<number, Match[]>();
-  for (const m of matches) {
+  for (const m of bracketMatches) {
     const arr = byRound.get(m.round) ?? [];
     arr.push(m);
     byRound.set(m.round, arr);
@@ -179,6 +181,8 @@ export default function BlueStrikeBracketView({
     );
   }
 
+  const maxRound = Math.max(...matches.map((m) => m.round));
+  const thirdPlaceMatch = matches.find((m) => m.round === maxRound && m.matchIndex === 1) ?? null;
   const rounds    = buildRounds(matches);
   const numRounds = rounds.length;
   const bracketH  = (rounds[0]?.length ?? 1) * U;
@@ -285,6 +289,18 @@ export default function BlueStrikeBracketView({
           })}
         </div>
       </div>
+
+      {thirdPlaceMatch && (
+        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="text-[11px] font-black uppercase tracking-widest text-orange-300">
+              Disputa de 3º lugar
+            </span>
+            <div className="h-px flex-1 rounded bg-gradient-to-r from-orange-500/30 to-transparent" />
+          </div>
+          <BracketMatchCard match={thirdPlaceMatch} tournamentId={tournamentId} />
+        </div>
+      )}
 
       {isAdmin && (
         <div className="flex items-center gap-3 pt-2">
