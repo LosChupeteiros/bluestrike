@@ -382,14 +382,18 @@ export interface FullMatchDetail {
     gotvPort: number | null;
     status: string;
   } | null;
-  team1Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
-  team2Members: Array<{ profileId: string; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
+  team1Members: Array<{ profileId: string; publicId: number; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
+  team2Members: Array<{ profileId: string; publicId: number; steamId: string; nickname: string; avatarUrl: string | null; role: string | null; isStarter: boolean }>;
   matchMaps: Array<{ mapOrder: number; mapName: string | null; team1Score: number | null; team2Score: number | null; winnerId: string | null; status: string }>;
   playerStats: PlayerStat[];
 }
 
 function normalizeSteamId(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+function normalizeName(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 function mapVetoRow(row: MapVetoRow): import("@/types").MapVeto {
@@ -467,9 +471,9 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
 
     const { data: profileRows } = await supabase
       .from("profiles")
-      .select("id, steam_id, steam_persona_name, steam_avatar_url")
+      .select("id, public_id, steam_id, steam_persona_name, steam_avatar_url")
       .in("id", memberRows.map((m) => m.profile_id))
-      .returns<{ id: string; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+      .returns<{ id: string; public_id: number; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
 
     const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
 
@@ -479,6 +483,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
         const p = profileMap.get(m.profile_id)!;
         return {
           profileId: m.profile_id,
+          publicId: p.public_id,
           steamId: p.steam_id,
           nickname: p.steam_persona_name,
           avatarUrl: p.steam_avatar_url,
@@ -623,6 +628,36 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
       }
     }
   }
+
+  const memberProfiles = [
+    ...team1Members.map((m) => ({ ...m, teamId: matchData.team1_id, teamName: match.team1?.name ?? null })),
+    ...team2Members.map((m) => ({ ...m, teamId: matchData.team2_id, teamName: match.team2?.name ?? null })),
+  ];
+  const memberBySteamId = new Map(memberProfiles.map((m) => [normalizeSteamId(m.steamId), m]));
+
+  playerStats = playerStats.map((stat) => {
+    if (stat.profilePublicId && stat.avatarUrl) return stat;
+
+    const statTeamName = normalizeName(stat.teamName);
+    const bySteam = memberBySteamId.get(normalizeSteamId(stat.steamid64));
+    const byNickAndTeam = memberProfiles.find((m) =>
+      normalizeName(m.nickname) === normalizeName(stat.nickname) &&
+      (!statTeamName || statTeamName === normalizeName(m.teamName))
+    );
+    const byNick = memberProfiles.find((m) => normalizeName(m.nickname) === normalizeName(stat.nickname));
+    const member = bySteam ?? byNickAndTeam ?? byNick;
+    if (!member) return stat;
+
+    return {
+      ...stat,
+      profileId: stat.profileId ?? member.profileId,
+      profilePublicId: stat.profilePublicId ?? member.publicId,
+      teamId: stat.teamId ?? member.teamId,
+      steamid64: normalizeSteamId(member.steamId) || stat.steamid64,
+      nickname: stat.nickname || member.nickname,
+      avatarUrl: stat.avatarUrl ?? member.avatarUrl,
+    };
+  });
 
   return { match, vetoes, server, team1Members, team2Members, matchMaps, playerStats };
 }

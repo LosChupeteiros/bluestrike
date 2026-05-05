@@ -9,7 +9,6 @@ import {
   Loader2, AlertTriangle, Server, X, Star, Eye, EyeOff,
   ChevronDown, ChevronUp, Terminal, Lock, Ban, Flag, PowerOff, RefreshCw,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail, PlayerStat } from "@/lib/matches";
 import { CS2_MAP_POOL, getVetoSequence, type MapPresentation } from "@/lib/maps";
@@ -1032,10 +1031,7 @@ function ScoreboardTeam({
                 >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
-                        <AvatarFallback className="text-[10px]">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
-                      </Avatar>
+                      <SmallAvatar nickname={p.nickname} avatarUrl={p.avatarUrl} />
                       {p.profilePublicId ? (
                         <Link href={`/profile/${p.profilePublicId}`} className={`text-xs font-semibold transition-colors group-hover:text-[var(--primary)] hover:text-[var(--primary)] hover:underline hover:underline-offset-4 ${isMvp ? "text-blue-200" : ""}`}>
                           {p.nickname}
