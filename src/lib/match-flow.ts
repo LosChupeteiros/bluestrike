@@ -315,8 +315,8 @@ export async function provisionServerAsync(
 
   // Polling até o servidor estar online (max ~60 s)
   let serverOnline = false;
-  for (let i = 0; i < 12; i++) {
-    await sleep(5000);
+  for (let i = 0; i < 20; i++) {
+    await sleep(3000);
     const info = await getGameServer(server.id, matchId).catch(() => null);
     if (info?.on && !info.booting) { serverOnline = true; break; }
   }

@@ -1141,15 +1141,34 @@ export default function MatchPageClient({
   const doMatchzyTick = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/matches/${match.id}/matchzy-tick`, { method: "POST", cache: "no-store" });
-      if (res.ok) setTickData(await res.json());
-    } catch { /* ignore */ }
+      if (!res.ok) return null;
+      const data = await res.json() as TickData;
+      setTickData(data);
+      return data;
+    } catch {
+      return null;
+    }
   }, [match.id]);
 
   useEffect(() => {
     if (effectiveStatus !== "live") return;
-    doMatchzyTick(); // checagem imediata ao entrar em live
-    const id = setInterval(doMatchzyTick, 10_000);
-    return () => clearInterval(id);
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = (delay: number) => {
+      timeoutId = setTimeout(async () => {
+        const data = await doMatchzyTick();
+        if (cancelled || data?.done) return;
+        const urgent = Boolean(data?.maps?.some((m) => Math.max(m.t1, m.t2) >= 11));
+        schedule(urgent ? 10_000 : 60_000);
+      }, delay);
+    };
+
+    schedule(30_000);
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [effectiveStatus, doMatchzyTick]);
 
   // Quando a partida finaliza, recarrega dados do servidor (scoreboard, winner)

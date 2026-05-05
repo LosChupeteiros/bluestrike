@@ -97,15 +97,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         }).catch(() => {});
       })
       .finally(() => processing.delete(matchId));
-  } else if (!seriesDone) {
-    // Loga placar ao vivo a cada tick para visibilidade no console admin
-    writeDathostLog({
-      matchId,
-      method: "POLL",
-      url: "matchzy_tick::live",
-      responseStatus: 200,
-      responseBody: { matchzyMatchId, maps: mapsPayload },
-    }).catch(() => {});
   }
 
   return Response.json({

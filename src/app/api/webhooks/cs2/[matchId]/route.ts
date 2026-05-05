@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchRowByIdForWebhook, processWebhookResult } from "@/lib/matches";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { writeDathostLog, getCs2Match, stopGameServer, deleteGameServer } from "@/lib/dathost";
+import { writeDathostLog, getCs2Match, stopGameServer, deleteGameServer, clearDathostLogsForMatch } from "@/lib/dathost";
 import type { DathostFullPlayer } from "@/lib/dathost";
 
 interface RouteContext {
@@ -149,10 +149,11 @@ async function saveRichPlayerStats(
   }
 }
 
-// Helper: stop + delete a duplicated Dathost game server (best-effort, fire-and-forget).
+// Helper: stop + delete a duplicated Dathost game server, then clear logs for the match.
 async function cleanupDathostServer(serverId: string, matchId: string): Promise<void> {
   await stopGameServer(serverId, matchId).catch(() => {});
   await deleteGameServer(serverId, matchId).catch(() => {});
+  await clearDathostLogsForMatch(matchId);
 }
 
 async function getDathostServerId(matchId: string): Promise<string | null> {

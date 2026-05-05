@@ -41,6 +41,18 @@ export async function writeDathostLog(entry: LogEntry): Promise<void> {
   }
 }
 
+export async function clearDathostLogsForMatch(matchId: string): Promise<void> {
+  try {
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+    await createSupabaseAdminClient()
+      .from("dathost_api_logs")
+      .delete()
+      .eq("match_id", matchId);
+  } catch {
+    // Log cleanup is best-effort and must not break match finalization.
+  }
+}
+
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 
 async function dathostFetch<T>(

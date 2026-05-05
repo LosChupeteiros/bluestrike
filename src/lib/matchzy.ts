@@ -5,7 +5,7 @@ import type mysql from "mysql2/promise";
 import crypto from "crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { processWebhookResult, getMatchRowByIdForWebhook } from "@/lib/matches";
-import { stopGameServer, deleteGameServer } from "@/lib/dathost";
+import { stopGameServer, deleteGameServer, clearDathostLogsForMatch } from "@/lib/dathost";
 import { getWeaponPaintsPool } from "@/lib/weaponpaints/mysql";
 
 // ── MySQL pool ────────────────────────────────────────────────────────────────
@@ -472,7 +472,7 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   );
   await processWebhookResult(match, bracketScores.team1Score, bracketScores.team2Score);
 
-  // Cleanup do servidor (fire-and-forget)
+  // Cleanup do servidor: stop -> delete -> limpa logs dessa partida.
   const { data: serverRow } = await supabase
     .from("dathost_servers")
     .select("dathost_server_id")
@@ -481,8 +481,9 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
 
   if (serverRow?.dathost_server_id) {
     const sid = serverRow.dathost_server_id;
-    stopGameServer(sid, matchId).catch(() => {});
-    deleteGameServer(sid, matchId).catch(() => {});
+    await stopGameServer(sid, matchId).catch(() => {});
+    await deleteGameServer(sid, matchId).catch(() => {});
     await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
+    await clearDathostLogsForMatch(matchId);
   }
 }
