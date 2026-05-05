@@ -321,6 +321,61 @@ export async function saveMatchStats(
   return result;
 }
 
+// ── Save raw MySQL stats to Supabase ────────────────────────────────────────
+
+export async function saveMysqlStats(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  matchId: string,
+  stats: MatchzyStats
+): Promise<{ saved: number; errors: string[] }> {
+  if (!stats.players.length) return { saved: 0, errors: [] };
+
+  // One row per player per map — no profile or team lookup required
+  const playerRows = stats.players.map((player) => {
+    const mapRow = stats.maps.find((m) => m.mapnumber === player.mapnumber) ?? stats.maps[0] ?? null;
+    return {
+      match_id: matchId,
+      matchzy_match_id: Number(player.matchid),
+      mapnumber: Number(player.mapnumber ?? 0),
+      mapname: (mapRow?.mapname as string | undefined) ?? null,
+      map_team1_score: (mapRow?.team1_score as number | undefined) ?? null,
+      map_team2_score: (mapRow?.team2_score as number | undefined) ?? null,
+      map_winner: (mapRow?.winner as string | undefined) ?? null,
+      steamid64: String(player.steamid64),
+      player_name: (player.name as string | undefined) ?? null,
+      team_name: (player.team as string | undefined) ?? null,
+      kills: Number(player.kills ?? 0),
+      deaths: Number(player.deaths ?? 0),
+      assists: Number(player.assists ?? 0),
+      damage: Number(player.damage ?? 0),
+      head_shot_kills: Number(player.head_shot_kills ?? 0),
+    };
+  });
+
+  const { error } = await supabase
+    .from("matchzy_player_stats")
+    .upsert(playerRows, { onConflict: "match_id,mapnumber,steamid64" });
+
+  if (error) return { saved: 0, errors: [error.message] };
+
+  // Also upsert match_maps so the scoreboard header can show map name + round scores
+  if (stats.maps.length > 0) {
+    const mapRows = stats.maps.map((m) => ({
+      match_id: matchId,
+      map_order: Number(m.mapnumber ?? 0),
+      map_name: (m.mapname as string | undefined) ?? null,
+      team1_score: (m.team1_score as number | undefined) ?? 0,
+      team2_score: (m.team2_score as number | undefined) ?? 0,
+      winner_id: null,
+      status: "finished",
+      played_at: new Date().toISOString(),
+    }));
+    await supabase.from("match_maps").upsert(mapRows, { onConflict: "match_id,map_order" });
+  }
+
+  return { saved: playerRows.length, errors: [] };
+}
+
 // ── Main handler: called on series_end ───────────────────────────────────────
 
 export async function processSeriesEnd(matchId: string): Promise<void> {
@@ -353,10 +408,12 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
     throw new Error(`Stats MySQL não disponíveis após retries para matchzy_match_id ${matchzyMatchId}`);
   }
 
-  // Sempre salvar stats — upserts são idempotentes, corrige casos onde salvou parcialmente
-  const saveResult = await saveMatchStats(supabase, matchId, match.team1_id, match.team2_id, stats);
-  if (saveResult.errors.length || saveResult.skippedNoProfile.length || saveResult.skippedNoTeam.length) {
-    console.warn(`[matchzy/processSeriesEnd] saveMatchStats result for ${matchId}:`, JSON.stringify(saveResult));
+  // Salvar stats diretamente do MySQL — sem lookup de profile ou team_id
+  const saveResult = await saveMysqlStats(supabase, matchId, stats);
+  if (saveResult.errors.length) {
+    console.error(`[matchzy/processSeriesEnd] saveMysqlStats errors for ${matchId}:`, saveResult.errors);
+  } else {
+    console.log(`[matchzy/processSeriesEnd] saved ${saveResult.saved} player rows for ${matchId}`);
   }
 
   // Bracket já avançado anteriormente — não repetir

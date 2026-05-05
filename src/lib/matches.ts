@@ -348,8 +348,10 @@ interface DathostServerRow {
 }
 
 export interface PlayerStat {
-  profileId: string;
-  teamId: string;
+  profileId: string | null;
+  teamId: string | null;
+  teamName: string | null;
+  steamid64: string;
   nickname: string;
   avatarUrl: string | null;
   kills: number;
@@ -502,59 +504,115 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
     status: r.status,
   }));
 
-  // Fetch player stats for all maps in this match
+  // Fetch player stats — prefer matchzy_player_stats (raw MySQL dump, no FK deps)
   let playerStats: PlayerStat[] = [];
-  const mapIds = mapRows.map((r) => r.id);
-  if (mapIds.length > 0) {
-    const { data: statRows } = await supabase
-      .from("match_player_stats")
-      .select("profile_id, team_id, kills, deaths, assists, hs_count, adr, mvps, score, k2, k3, k4, k5, damage_dealt")
-      .in("match_map_id", mapIds)
-      .returns<{
-        profile_id: string;
-        team_id: string | null;
-        kills: number;
-        deaths: number;
-        assists: number;
-        hs_count: number;
-        adr: number;
-        mvps: number;
-        score: number;
-        k2: number;
-        k3: number;
-        k4: number;
-        k5: number;
-        damage_dealt: number;
-      }[]>();
 
-    if (statRows && statRows.length > 0) {
-      const profileIds = [...new Set(statRows.map((s) => s.profile_id))];
-      const { data: profileRows } = await supabase
-        .from("profiles")
-        .select("id, steam_persona_name, steam_avatar_url")
-        .in("id", profileIds)
-        .returns<{ id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+  const { data: rawStatRows } = await supabase
+    .from("matchzy_player_stats")
+    .select("steamid64, player_name, team_name, kills, deaths, assists, damage, head_shot_kills, map_team1_score, map_team2_score")
+    .eq("match_id", matchId)
+    .returns<{
+      steamid64: string;
+      player_name: string | null;
+      team_name: string | null;
+      kills: number;
+      deaths: number;
+      assists: number;
+      damage: number;
+      head_shot_kills: number;
+      map_team1_score: number | null;
+      map_team2_score: number | null;
+    }[]>();
 
-      const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
+  if (rawStatRows && rawStatRows.length > 0) {
+    // Enrich with Supabase profile data (avatar, username) by steam_id — best-effort
+    const steamIds = [...new Set(rawStatRows.map((s) => s.steamid64))];
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, steam_id, steam_persona_name, steam_avatar_url")
+      .in("steam_id", steamIds)
+      .returns<{ id: string; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
 
-      playerStats = statRows.map((s) => ({
-        profileId: s.profile_id,
-        teamId: s.team_id ?? "",
-        nickname: profileMap.get(s.profile_id)?.steam_persona_name ?? s.profile_id,
-        avatarUrl: profileMap.get(s.profile_id)?.steam_avatar_url ?? null,
+    const profileBySteamId = new Map((profileRows ?? []).map((p) => [p.steam_id, p]));
+
+    playerStats = rawStatRows.map((s) => {
+      const profile = profileBySteamId.get(s.steamid64);
+      const rounds = (s.map_team1_score ?? 0) + (s.map_team2_score ?? 0);
+      const adr = rounds > 0 ? Math.round((s.damage / rounds) * 100) / 100 : 0;
+      return {
+        profileId: profile?.id ?? null,
+        teamId: null,
+        teamName: s.team_name,
+        steamid64: s.steamid64,
+        nickname: profile?.steam_persona_name ?? s.player_name ?? s.steamid64,
+        avatarUrl: profile?.steam_avatar_url ?? null,
         kills: s.kills,
         deaths: s.deaths,
         assists: s.assists,
-        hsCount: s.hs_count,
-        adr: s.adr,
-        mvps: s.mvps,
-        score: s.score,
-        k2: s.k2,
-        k3: s.k3,
-        k4: s.k4,
-        k5: s.k5,
-        damageDealt: s.damage_dealt,
-      }));
+        hsCount: s.head_shot_kills,
+        adr,
+        mvps: 0,
+        score: s.kills + s.assists,
+        k2: 0, k3: 0, k4: 0, k5: 0,
+        damageDealt: s.damage,
+      };
+    });
+  } else {
+    // Fallback: old match_player_stats path (for matches before this deploy)
+    const mapIds = mapRows.map((r) => r.id);
+    if (mapIds.length > 0) {
+      const { data: statRows } = await supabase
+        .from("match_player_stats")
+        .select("profile_id, team_id, kills, deaths, assists, hs_count, adr, mvps, score, k2, k3, k4, k5, damage_dealt")
+        .in("match_map_id", mapIds)
+        .returns<{
+          profile_id: string;
+          team_id: string | null;
+          kills: number;
+          deaths: number;
+          assists: number;
+          hs_count: number;
+          adr: number;
+          mvps: number;
+          score: number;
+          k2: number;
+          k3: number;
+          k4: number;
+          k5: number;
+          damage_dealt: number;
+        }[]>();
+
+      if (statRows && statRows.length > 0) {
+        const profileIds = [...new Set(statRows.map((s) => s.profile_id))];
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("id, steam_id, steam_persona_name, steam_avatar_url")
+          .in("id", profileIds)
+          .returns<{ id: string; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+
+        const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
+
+        playerStats = statRows.map((s) => ({
+          profileId: s.profile_id,
+          teamId: s.team_id ?? null,
+          teamName: null,
+          steamid64: profileMap.get(s.profile_id)?.steam_id ?? "",
+          nickname: profileMap.get(s.profile_id)?.steam_persona_name ?? s.profile_id,
+          avatarUrl: profileMap.get(s.profile_id)?.steam_avatar_url ?? null,
+          kills: s.kills,
+          deaths: s.deaths,
+          assists: s.assists,
+          hsCount: s.hs_count,
+          adr: s.adr,
+          mvps: s.mvps,
+          score: s.score,
+          k2: s.k2,
+          k3: s.k3,
+          k4: s.k4,
+          k5: s.k5,
+          damageDealt: s.damage_dealt,
+        }));
+      }
     }
   }
 
@@ -580,7 +638,82 @@ export interface RecentMatchSummary {
 export async function getRecentMatchesForProfile(profileId: string, limit = 10): Promise<RecentMatchSummary[]> {
   const supabase = createSupabaseAdminClient();
 
-  // 1. Get match_map_ids + team this player was on
+  // Get this profile's steam_id to query matchzy_player_stats
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("steam_id")
+    .eq("id", profileId)
+    .maybeSingle<{ steam_id: string | null }>();
+
+  if (profileData?.steam_id) {
+    const { data: rawRows } = await supabase
+      .from("matchzy_player_stats")
+      .select("match_id, team_name, map_team1_score, map_team2_score, mapname")
+      .eq("steamid64", profileData.steam_id)
+      .returns<{ match_id: string; team_name: string | null; map_team1_score: number | null; map_team2_score: number | null; mapname: string | null }[]>();
+
+    if (rawRows && rawRows.length > 0) {
+      // Deduplicate by match_id
+      const matchIdToData = new Map<string, { teamName: string | null; team1Score: number; team2Score: number; mapname: string | null }>();
+      for (const row of rawRows) {
+        if (!matchIdToData.has(row.match_id)) {
+          matchIdToData.set(row.match_id, {
+            teamName: row.team_name,
+            team1Score: row.map_team1_score ?? 0,
+            team2Score: row.map_team2_score ?? 0,
+            mapname: row.mapname,
+          });
+        }
+      }
+
+      const matchIds = [...matchIdToData.keys()];
+      const { data: matchRows } = await supabase
+        .from("matches")
+        .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at")
+        .in("id", matchIds)
+        .order("finished_at", { ascending: false })
+        .limit(limit)
+        .returns<{ id: string; tournament_id: string | null; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string; finished_at: string | null; started_at: string | null }[]>();
+
+      if (matchRows && matchRows.length > 0) {
+        const teamIds = [...new Set(matchRows.flatMap((m) => [m.team1_id, m.team2_id]).filter(Boolean) as string[])];
+        const teamMap = new Map<string, { tag: string; name: string }>();
+        if (teamIds.length > 0) {
+          const { data: teamRows } = await supabase.from("teams").select("id, tag, name").in("id", teamIds).returns<{ id: string; tag: string; name: string }[]>();
+          for (const t of teamRows ?? []) teamMap.set(t.id, { tag: t.tag, name: t.name });
+        }
+
+        const tournamentIds = [...new Set(matchRows.map((m) => m.tournament_id).filter(Boolean) as string[])];
+        const tournamentMap = new Map<string, string>();
+        if (tournamentIds.length > 0) {
+          const { data: tournRows } = await supabase.from("tournaments").select("id, name").in("id", tournamentIds).returns<{ id: string; name: string }[]>();
+          for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
+        }
+
+        return matchRows.map((m) => {
+          const data = matchIdToData.get(m.id);
+          const myTeamName = data?.teamName ?? null;
+          const winnerTeam = m.winner_id ? teamMap.get(m.winner_id) : null;
+          const isWinner = Boolean(myTeamName && winnerTeam && myTeamName.toLowerCase() === winnerTeam.name.toLowerCase());
+          return {
+            matchId: m.id,
+            tournamentId: m.tournament_id,
+            tournamentName: m.tournament_id ? (tournamentMap.get(m.tournament_id) ?? "BlueStrike") : "BlueStrike",
+            team1Tag: m.team1_id ? (teamMap.get(m.team1_id)?.tag ?? "???") : "???",
+            team2Tag: m.team2_id ? (teamMap.get(m.team2_id)?.tag ?? "???") : "???",
+            team1Score: data?.team1Score ?? 0,
+            team2Score: data?.team2Score ?? 0,
+            mapName: data?.mapname ?? null,
+            playedAt: m.finished_at ?? m.started_at,
+            status: m.status,
+            isWinner,
+          };
+        });
+      }
+    }
+  }
+
+  // Fallback: old match_player_stats path
   const { data: statRows } = await supabase
     .from("match_player_stats")
     .select("match_map_id, team_id")
@@ -592,7 +725,6 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
   const mapIdToTeamId = new Map(statRows.map((r) => [r.match_map_id, r.team_id]));
   const matchMapIds = [...mapIdToTeamId.keys()];
 
-  // 2. Get match_maps (map name + scores)
   const { data: mapRows } = await supabase
     .from("match_maps")
     .select("id, match_id, map_name, team1_score, team2_score")
@@ -601,12 +733,10 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
 
   if (!mapRows || mapRows.length === 0) return [];
 
-  // Deduplicate by match_id — keep first map entry per match
-  const matchIdToMap = new Map<string, { id: string; map_name: string | null; team1_score: number | null; team2_score: number | null; teamId: string | null }>();
+  const matchIdToMap = new Map<string, { map_name: string | null; team1_score: number | null; team2_score: number | null; teamId: string | null }>();
   for (const row of mapRows) {
     if (!matchIdToMap.has(row.match_id)) {
       matchIdToMap.set(row.match_id, {
-        id: row.id,
         map_name: row.map_name,
         team1_score: row.team1_score,
         team2_score: row.team2_score,
@@ -616,8 +746,6 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
   }
 
   const matchIds = [...matchIdToMap.keys()];
-
-  // 3. Get match rows ordered by finish time descending
   const { data: matchRows } = await supabase
     .from("matches")
     .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at")
@@ -628,27 +756,17 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
 
   if (!matchRows || matchRows.length === 0) return [];
 
-  // 4. Fetch tournaments
   const tournamentIds = [...new Set(matchRows.map((m) => m.tournament_id).filter(Boolean) as string[])];
   const tournamentMap = new Map<string, string>();
   if (tournamentIds.length > 0) {
-    const { data: tournRows } = await supabase
-      .from("tournaments")
-      .select("id, name")
-      .in("id", tournamentIds)
-      .returns<{ id: string; name: string }[]>();
+    const { data: tournRows } = await supabase.from("tournaments").select("id, name").in("id", tournamentIds).returns<{ id: string; name: string }[]>();
     for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
   }
 
-  // 5. Fetch team tags
   const teamIds = [...new Set(matchRows.flatMap((m) => [m.team1_id, m.team2_id]).filter(Boolean) as string[])];
   const teamTagMap = new Map<string, string>();
   if (teamIds.length > 0) {
-    const { data: teamRows } = await supabase
-      .from("teams")
-      .select("id, tag")
-      .in("id", teamIds)
-      .returns<{ id: string; tag: string }[]>();
+    const { data: teamRows } = await supabase.from("teams").select("id, tag").in("id", teamIds).returns<{ id: string; tag: string }[]>();
     for (const t of teamRows ?? []) teamTagMap.set(t.id, t.tag);
   }
 

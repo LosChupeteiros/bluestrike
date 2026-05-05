@@ -1020,7 +1020,7 @@ function ScoreboardTeam({
           </thead>
           <tbody>
             {sorted.map((p, i) => (
-              <tr key={p.profileId} className={`border-b border-[var(--border)]/50 last:border-b-0 ${i === 0 && isWinner ? "bg-[var(--primary)]/3" : ""}`}>
+              <tr key={p.profileId ?? p.steamid64} className={`border-b border-[var(--border)]/50 last:border-b-0 ${i === 0 && isWinner ? "bg-[var(--primary)]/3" : ""}`}>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2">
                     <Avatar className="h-7 w-7">
@@ -1341,8 +1341,16 @@ export default function MatchPageClient({
       {/* ── Scoreboard ── */}
       {isFinished && (() => {
         const stats = detail.playerStats ?? [];
-        const t1Stats = stats.filter((p) => p.teamId === match.team1Id);
-        const t2Stats = stats.filter((p) => p.teamId === match.team2Id);
+        const t1Name = match.team1?.name?.toLowerCase() ?? "";
+        const t2Name = match.team2?.name?.toLowerCase() ?? "";
+        const t1Stats = stats.filter((p) =>
+          (p.teamId && p.teamId === match.team1Id) ||
+          (!p.teamId && p.teamName && t1Name && p.teamName.toLowerCase() === t1Name)
+        );
+        const t2Stats = stats.filter((p) =>
+          (p.teamId && p.teamId === match.team2Id) ||
+          (!p.teamId && p.teamName && t2Name && p.teamName.toLowerCase() === t2Name)
+        );
         const t1Won = match.winnerId === match.team1Id;
         const t2Won = match.winnerId === match.team2Id;
         const mapScore = detail.matchMaps[0];

@@ -62,7 +62,7 @@ function ScoreboardTable({ players, isWinner }: { players: PlayerStat[]; isWinne
         <tbody>
           {sorted.map((p, i) => (
             <tr
-              key={p.profileId}
+              key={p.profileId ?? p.steamid64}
               className={cn(
                 "border-b border-[var(--border)]/60 last:border-b-0 transition-colors",
                 i === 0 && isWinner && "bg-[var(--primary)]/5"
@@ -133,8 +133,16 @@ export default async function MatchPage({ params }: MatchPageProps) {
   const t1Won = isFinished && t1Score > t2Score;
   const t2Won = isFinished && t2Score > t1Score;
 
-  const t1Stats = playerStats.filter((p) => p.teamId === match.team1Id);
-  const t2Stats = playerStats.filter((p) => p.teamId === match.team2Id);
+  const t1NameLower = match.team1?.name?.toLowerCase() ?? "";
+  const t2NameLower = match.team2?.name?.toLowerCase() ?? "";
+  const t1Stats = playerStats.filter((p) =>
+    (p.teamId && p.teamId === match.team1Id) ||
+    (!p.teamId && p.teamName && t1NameLower && p.teamName.toLowerCase() === t1NameLower)
+  );
+  const t2Stats = playerStats.filter((p) =>
+    (p.teamId && p.teamId === match.team2Id) ||
+    (!p.teamId && p.teamName && t2NameLower && p.teamName.toLowerCase() === t2NameLower)
+  );
 
   const statusLabel =
     match.status === "finished"
