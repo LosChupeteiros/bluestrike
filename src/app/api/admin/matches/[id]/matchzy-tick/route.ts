@@ -1,6 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { cleanupMatchServer, getMatchzyStats, processSeriesEnd } from "@/lib/matchzy";
-import { writeDathostLog } from "@/lib/dathost";
+import { writeRollingDathostLog } from "@/lib/dathost";
 
 // In-process dedup: prevents concurrent processSeriesEnd for the same match
 const processing = new Set<string>();
@@ -46,13 +46,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   ]);
 
   if (!stats) {
-    writeDathostLog({
+    await writeRollingDathostLog({
       matchId,
       method: "POLL",
       url: "matchzy_tick::no_data",
       responseStatus: 200,
       responseBody: { matchzyMatchId, reason: "MySQL sem dados ainda" },
-    }).catch(() => {});
+    }, { urlLike: "matchzy_tick::%", keep: 3 }).catch(() => {});
     return Response.json({ done: false, reason: "no_data_yet" });
   }
 
@@ -85,31 +85,31 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (seriesDone && !processing.has(matchId)) {
     processing.add(matchId);
 
-    await writeDathostLog({
+    await writeRollingDathostLog({
       matchId,
       method: "POLL",
       url: "matchzy_tick::series_end",
       responseStatus: 200,
       responseBody: { matchzyMatchId, wins, maps: mapsPayload },
-    }).catch(() => {});
+    }, { urlLike: "matchzy_tick::%", keep: 3 }).catch(() => {});
 
     try {
       await processSeriesEnd(matchId);
     } catch (err: unknown) {
       finalizeError = err instanceof Error ? err.message : String(err);
-      await writeDathostLog({
+      await writeRollingDathostLog({
         matchId,
         method: "POLL",
         url: "matchzy_tick::error",
         responseStatus: 500,
         responseBody: { error: finalizeError },
-      }).catch(() => {});
+      }, { urlLike: "matchzy_tick::%", keep: 3 }).catch(() => {});
     } finally {
       processing.delete(matchId);
     }
   }
 
-  return Response.json({
+  const responseBody = {
     done: seriesDone && !finalizeError,
     error: finalizeError,
     fast_polling: mapsPayload.some((m) => Math.max(m.t1, m.t2) >= 11)
@@ -117,5 +117,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     team1_maps: stats.match.team1_score ?? 0,
     team2_maps: stats.match.team2_score ?? 0,
     maps: mapsPayload,
-  });
+  };
+
+  if (!seriesDone) {
+    await writeRollingDathostLog({
+      matchId,
+      method: "POLL",
+      url: "matchzy_tick::live",
+      responseStatus: 200,
+      responseBody: { matchzyMatchId, ...responseBody },
+    }, { urlLike: "matchzy_tick::%", keep: 3 }).catch(() => {});
+  }
+
+  return Response.json(responseBody);
 }

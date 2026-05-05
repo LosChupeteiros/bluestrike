@@ -433,7 +433,10 @@ export async function cleanupMatchServer(matchId: string): Promise<void> {
     .maybeSingle<{ dathost_server_id: string | null; status: string | null }>();
 
   const serverId = serverRow?.dathost_server_id;
-  if (!serverId) return;
+  if (!serverId) {
+    await clearDathostLogsForMatch(matchId);
+    return;
+  }
 
   await stopGameServer(serverId, matchId).catch((err: unknown) => {
     console.warn(`[matchzy/cleanup] stopGameServer failed for ${matchId}:`, err);
@@ -470,7 +473,8 @@ export async function cleanupMatchServer(matchId: string): Promise<void> {
   if (serverRow?.status !== "terminated") {
     await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
   }
-  await clearDathostLogsForMatch(matchId);
+  const deletedLogs = await clearDathostLogsForMatch(matchId);
+  console.log(`[matchzy/cleanup] cleared ${deletedLogs} dathost_api_logs rows for ${matchId}`);
 }
 
 export async function processSeriesEnd(matchId: string): Promise<void> {

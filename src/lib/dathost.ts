@@ -41,15 +41,64 @@ export async function writeDathostLog(entry: LogEntry): Promise<void> {
   }
 }
 
-export async function clearDathostLogsForMatch(matchId: string): Promise<void> {
+export async function pruneDathostLogsForMatch(
+  matchId: string,
+  options: { method?: string; urlLike?: string; keep?: number }
+): Promise<void> {
+  const keep = options.keep ?? 3;
+  if (keep < 0) return;
+
   try {
     const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
-    await createSupabaseAdminClient()
+    const supabase = createSupabaseAdminClient();
+    let query = supabase
       .from("dathost_api_logs")
-      .delete()
+      .select("id")
+      .eq("match_id", matchId)
+      .order("created_at", { ascending: false })
+      .range(keep, keep + 999);
+
+    if (options.method) query = query.eq("method", options.method);
+    if (options.urlLike) query = query.like("url", options.urlLike);
+
+    const { data } = await query.returns<{ id: string }[]>();
+    const ids = data?.map((row) => row.id) ?? [];
+    if (ids.length) {
+      await supabase.from("dathost_api_logs").delete().in("id", ids);
+    }
+  } catch {
+    // Log pruning is best-effort and must not break match flow.
+  }
+}
+
+export async function writeRollingDathostLog(
+  entry: LogEntry,
+  options: { urlLike: string; keep?: number }
+): Promise<void> {
+  await writeDathostLog(entry);
+  if (!entry.matchId) return;
+  await pruneDathostLogsForMatch(entry.matchId, {
+    method: entry.method,
+    urlLike: options.urlLike,
+    keep: options.keep ?? 3,
+  });
+}
+
+export async function clearDathostLogsForMatch(matchId: string): Promise<number> {
+  try {
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+    const { count, error } = await createSupabaseAdminClient()
+      .from("dathost_api_logs")
+      .delete({ count: "exact" })
       .eq("match_id", matchId);
+    if (error) {
+      console.error(`[dathost/logs] failed to clear logs for ${matchId}:`, error.message);
+      return 0;
+    }
+    return count ?? 0;
   } catch {
     // Log cleanup is best-effort and must not break match finalization.
+    return 0;
   }
 }
 
