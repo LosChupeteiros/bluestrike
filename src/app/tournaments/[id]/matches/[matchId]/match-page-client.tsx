@@ -81,10 +81,24 @@ const STATUS_VARIANT: Record<string, "open" | "ongoing" | "finished" | "upcoming
 function useCopyStr(value: string) {
   const [copied, setCopied] = useState(false);
   function copy() {
-    navigator.clipboard.writeText(value).then(() => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(value).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      // Fallback para HTTP/contexto não-seguro
+      const el = document.createElement("textarea");
+      el.value = value;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }
   }
   return { copied, copy };
 }
@@ -1192,15 +1206,15 @@ export default function MatchPageClient({
               {/* Col 3 — placar ao vivo ou VS */}
               {(() => {
                 // Mapa atual: o que ainda está sendo jogado ou o último
-                const currentMap = tickData?.maps.find((m) => !m.finished) ?? tickData?.maps[tickData.maps.length - 1] ?? null;
+                const currentMap = tickData?.maps?.find((m) => !m.finished) ?? tickData?.maps?.[tickData.maps.length - 1] ?? null;
                 const liveT1 = currentMap?.t1 ?? 0;
                 const liveT2 = currentMap?.t2 ?? 0;
                 const liveMap = currentMap?.mapname ?? null;
                 // Após finish: usa dados server-rendered; durante live: usa tick
                 const finalT1 = detail.matchMaps[0]?.team1Score ?? null;
                 const finalT2 = detail.matchMaps[0]?.team2Score ?? null;
-                const dispT1 = isFinished ? (finalT1 ?? tickData?.maps[0]?.t1 ?? null) : isMatchLive ? liveT1 : null;
-                const dispT2 = isFinished ? (finalT2 ?? tickData?.maps[0]?.t2 ?? null) : isMatchLive ? liveT2 : null;
+                const dispT1 = isFinished ? (finalT1 ?? tickData?.maps?.[0]?.t1 ?? null) : isMatchLive ? liveT1 : null;
+                const dispT2 = isFinished ? (finalT2 ?? tickData?.maps?.[0]?.t2 ?? null) : isMatchLive ? liveT2 : null;
                 const showScore = dispT1 !== null && dispT2 !== null;
                 return (
                   <div className="flex flex-col items-center justify-center gap-1">
