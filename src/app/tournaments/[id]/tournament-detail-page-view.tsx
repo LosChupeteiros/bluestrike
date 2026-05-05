@@ -552,7 +552,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     </p>
                   </div>
                 ) : (
-                  <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} />
+                  <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} isAdmin={currentProfile?.isAdmin ?? false} />
                 )}
               </TabsContent>
             </Tabs>

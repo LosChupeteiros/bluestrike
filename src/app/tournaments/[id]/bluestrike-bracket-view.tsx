@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { Trophy } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Match } from "@/types";
 
 // ── layout constants ──────────────────────────────────────────────────────────
@@ -149,10 +151,26 @@ function BracketMatchCard({
 export default function BlueStrikeBracketView({
   matches,
   tournamentId,
+  isAdmin,
 }: {
   matches: Match[];
   tournamentId: string;
+  isAdmin?: boolean;
 }) {
+  const router = useRouter();
+  const [fixing, setFixing] = useState(false);
+  const [fixMsg, setFixMsg] = useState<string | null>(null);
+
+  async function handleFixBracket() {
+    setFixing(true);
+    setFixMsg(null);
+    const res = await fetch(`/api/admin/tournaments/${tournamentId}/fix-bracket`, { method: "POST" });
+    const d = await res.json().catch(() => ({})) as { fixed?: number; error?: string };
+    setFixMsg(res.ok ? `${d.fixed ?? 0} partida(s) corrigida(s)` : (d.error ?? "Erro"));
+    if (res.ok) router.refresh();
+    setFixing(false);
+  }
+
   if (matches.length === 0) {
     return (
       <div className="py-16 text-center text-sm text-[var(--muted-foreground)]">
@@ -267,6 +285,19 @@ export default function BlueStrikeBracketView({
           })}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            onClick={handleFixBracket}
+            disabled={fixing}
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"
+          >
+            {fixing ? "Corrigindo..." : "Admin: Corrigir Bracket"}
+          </button>
+          {fixMsg && <span className="text-xs text-[var(--muted-foreground)]">{fixMsg}</span>}
+        </div>
+      )}
     </div>
   );
 }

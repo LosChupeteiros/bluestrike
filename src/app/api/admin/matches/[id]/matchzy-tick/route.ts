@@ -65,7 +65,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (m.winner) wins[m.winner] = (wins[m.winner] ?? 0) + 1;
   }
 
-  const seriesDone = Object.values(wins).some((c) => c >= neededWins);
+  let seriesDone = Object.values(wins).some((c) => c >= neededWins);
+
+  // Fallback: matchzy_stats_maps can be empty even after series ends (BO1 / end_time lag).
+  // Use matchzy_stats_matches aggregate scores in that case.
+  if (!seriesDone && finishedMaps.length === 0) {
+    const t1 = stats.match.team1_score ?? 0;
+    const t2 = stats.match.team2_score ?? 0;
+    if (Math.max(t1, t2) >= neededWins) seriesDone = true;
+  }
 
   if (seriesDone && !processing.has(matchId)) {
     processing.add(matchId);

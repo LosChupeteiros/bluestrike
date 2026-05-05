@@ -114,7 +114,7 @@ export async function getMatchzyStatsWithRetry(
 ): Promise<MatchzyStats | null> {
   for (let i = 0; i < attempts; i++) {
     const stats = await getMatchzyStats(matchzyMatchId).catch(() => null);
-    if (stats && stats.maps.length > 0 && stats.players.length > 0) return stats;
+    if (stats && stats.players.length > 0) return stats;
     await sleep(2000);
   }
   return null;
@@ -196,7 +196,24 @@ export async function saveMatchStats(
   const team1Name = teamRows?.find((t) => t.id === team1Id)?.name ?? "";
   const team2Name = teamRows?.find((t) => t.id === team2Id)?.name ?? "";
 
-  for (const mapRow of stats.maps) {
+  // When matchzy_stats_maps is empty (BO1 or end_time not yet written),
+  // synthesize a single map row from matchzy_stats_matches so player stats can be saved.
+  const isSyntheticMaps = stats.maps.length === 0;
+  const mapsToProcess: MatchzyStatsMap[] = isSyntheticMaps
+    ? [
+        {
+          matchid: stats.match.matchid,
+          mapnumber: 0,
+          mapname: "map1",
+          team1_score: stats.match.team1_score,
+          team2_score: stats.match.team2_score,
+          winner: stats.match.winner,
+          end_time: "done",
+        } as MatchzyStatsMap,
+      ]
+    : stats.maps;
+
+  for (const mapRow of mapsToProcess) {
     const mapNumber = mapRow.mapnumber ?? 0;
     const mapName = (mapRow.mapname as string | undefined) ?? "unknown";
 
@@ -246,7 +263,7 @@ export async function saveMatchStats(
     result.maps++;
     const matchMapId = matchMapRow.id;
 
-    for (const player of stats.players.filter((p) => p.mapnumber === mapNumber)) {
+    for (const player of (isSyntheticMaps ? stats.players : stats.players.filter((p) => p.mapnumber === mapNumber))) {
       const profileId = steamToProfileId.get(player.steamid64);
       if (!profileId) {
         result.skippedNoProfile.push(`${player.steamid64} (${String(player.name)})`);
