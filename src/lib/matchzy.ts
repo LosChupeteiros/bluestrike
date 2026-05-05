@@ -83,24 +83,26 @@ export interface MatchzyStats {
 export async function getMatchzyStats(matchzyMatchId: number): Promise<MatchzyStats | null> {
   const pool = getPool();
 
-  const [matchRows] = await pool.execute<mysql.RowDataPacket[]>(
-    "SELECT * FROM matchzy_stats_matches WHERE matchid = ? LIMIT 1",
-    [matchzyMatchId]
-  );
-  if (!matchRows.length) return null;
+  const [[matchRows], [mapRows], [playerRows]] = await Promise.all([
+    pool.execute<mysql.RowDataPacket[]>(
+      "SELECT * FROM matchzy_stats_matches WHERE matchid = ? LIMIT 1",
+      [matchzyMatchId]
+    ),
+    pool.execute<mysql.RowDataPacket[]>(
+      "SELECT * FROM matchzy_stats_maps WHERE matchid = ? ORDER BY mapnumber ASC",
+      [matchzyMatchId]
+    ),
+    pool.execute<mysql.RowDataPacket[]>(
+      "SELECT * FROM matchzy_stats_players WHERE matchid = ? ORDER BY mapnumber ASC, kills DESC",
+      [matchzyMatchId]
+    ),
+  ]);
 
-  const [mapRows] = await pool.execute<mysql.RowDataPacket[]>(
-    "SELECT * FROM matchzy_stats_maps WHERE matchid = ? ORDER BY mapnumber ASC",
-    [matchzyMatchId]
-  );
-
-  const [playerRows] = await pool.execute<mysql.RowDataPacket[]>(
-    "SELECT * FROM matchzy_stats_players WHERE matchid = ? ORDER BY mapnumber ASC, kills DESC",
-    [matchzyMatchId]
-  );
+  // matchzy_stats_maps é a fonte primária — matchzy_stats_matches pode demorar a ser preenchida
+  if (!mapRows.length && !matchRows.length) return null;
 
   return {
-    match: matchRows[0] as MatchzyStatsMatch,
+    match: (matchRows[0] as MatchzyStatsMatch) ?? { matchid: matchzyMatchId },
     maps: mapRows as MatchzyStatsMap[],
     players: playerRows as MatchzyStatsPlayer[],
   };
