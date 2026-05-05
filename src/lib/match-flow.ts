@@ -3,7 +3,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
 import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGameServer, sendConsoleCommand, writeDathostLog } from "@/lib/dathost";
-import { getMatchzyStats, processSeriesEnd } from "@/lib/matchzy";
 
 // Mirror server cloned for each match. Override via DATHOST_MIRROR_SERVER_ID env var.
 const MIRROR_SERVER_ID = process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1";
@@ -344,109 +343,6 @@ export async function provisionServerAsync(
   console.log(
     `[provision/${matchId}] OK — matchzy_match_id: ${matchzyMatchId}, server: ${server.id}, map: ${mapName} (${mapId}), ip: ${confirmedIp}:${port}`
   );
-
-  // Buscar bo_type para determinar quantos mapas precisam terminar
-  const { data: matchMeta } = await supabase
-    .from("matches")
-    .select("bo_type")
-    .eq("id", matchId)
-    .maybeSingle<{ bo_type: 1 | 3 | 5 }>();
-  const boType = matchMeta?.bo_type ?? 1;
-  const neededWins = Math.ceil(boType / 2); // BO1=1, BO3=2, BO5=3
-
-  const POLL_MS = 30_000;
-  const MAX_ATTEMPTS = 480; // 4 horas
-  const LOG_EVERY = 4;      // log periódico a cada ~2 min mesmo sem mudança de score
-
-  let lastT1 = -1;
-  let lastT2 = -1;
-  let seriesEnded = false;
-
-  await writeDathostLog({
-    matchId, method: "POLL", url: "matchzy_poll::start",
-    responseStatus: 200,
-    responseBody: { matchzyMatchId, boType, neededWins, pollIntervalMs: POLL_MS },
-  });
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS && !seriesEnded; attempt++) {
-    await sleep(POLL_MS);
-
-    // Parar se a partida foi finalizada/cancelada externamente
-    const { data: liveMatch } = await supabase
-      .from("matches")
-      .select("status")
-      .eq("id", matchId)
-      .maybeSingle<{ status: string }>();
-
-    if (liveMatch?.status === "finished" || liveMatch?.status === "cancelled") {
-      await writeDathostLog({
-        matchId, method: "POLL", url: "matchzy_poll::stopped",
-        responseStatus: 200,
-        responseBody: { reason: `status externo: ${liveMatch.status}`, attempt },
-      });
-      seriesEnded = true;
-      break;
-    }
-
-    const stats = await getMatchzyStats(matchzyMatchId).catch(() => null);
-    const t1 = stats?.match?.team1_score ?? 0;
-    const t2 = stats?.match?.team2_score ?? 0;
-    const finishedMaps = (stats?.maps ?? []).filter((m) => m.end_time != null);
-
-    const scoreChanged = t1 !== lastT1 || t2 !== lastT2;
-    if (scoreChanged || attempt % LOG_EVERY === 0) {
-      lastT1 = t1;
-      lastT2 = t2;
-      await writeDathostLog({
-        matchId, method: "POLL", url: "matchzy_poll::live",
-        responseStatus: 200,
-        requestBody: { attempt, matchzyMatchId, boType },
-        responseBody: {
-          team1_maps: t1,
-          team2_maps: t2,
-          maps: (stats?.maps ?? []).map((m) => ({
-            mapname: m.mapname ?? "?",
-            t1: m.team1_score ?? 0,
-            t2: m.team2_score ?? 0,
-            winner: m.winner ?? null,
-            finished: m.end_time != null,
-          })),
-        },
-      });
-    }
-
-    if (!stats || finishedMaps.length === 0) continue;
-
-    // Contar vitórias de mapa por time
-    const wins: Record<string, number> = {};
-    for (const m of finishedMaps) {
-      if (m.winner) wins[m.winner] = (wins[m.winner] ?? 0) + 1;
-    }
-
-    if (Object.values(wins).some((c) => c >= neededWins)) {
-      seriesEnded = true;
-      await writeDathostLog({
-        matchId, method: "POLL", url: "matchzy_poll::series_end",
-        responseStatus: 200,
-        responseBody: { matchzyMatchId, wins, finishedMaps: finishedMaps.length, team1_maps: t1, team2_maps: t2 },
-      });
-      await processSeriesEnd(matchId).catch(async (err: unknown) => {
-        await writeDathostLog({
-          matchId, method: "POLL", url: "matchzy_poll::process_error",
-          responseStatus: 500,
-          responseBody: { error: err instanceof Error ? err.message : String(err) },
-        });
-      });
-    }
-  }
-
-  if (!seriesEnded) {
-    await writeDathostLog({
-      matchId, method: "POLL", url: "matchzy_poll::timeout",
-      responseStatus: 408,
-      responseBody: { message: "Polling encerrado após 4h sem resultado", matchzyMatchId },
-    });
-  }
 }
 
 function sleep(ms: number): Promise<void> {

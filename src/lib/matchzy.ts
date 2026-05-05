@@ -27,6 +27,7 @@ function getPool(): mysql.Pool {
     database: process.env.WEAPONPAINTS_MYSQL_DATABASE,
     waitForConnections: true,
     connectionLimit: 5,
+    connectTimeout: 3000,
     ssl,
   });
 

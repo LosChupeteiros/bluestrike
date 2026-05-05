@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Trophy, Crown, Swords, Clock, Check, Copy, Wifi,
@@ -1040,6 +1041,7 @@ export default function MatchPageClient({
   detail, tournamentId, roundLabel, isFinal,
   userTeamId, isCaptain, isPlayer, isAdmin,
 }: Props) {
+  const router = useRouter();
   const { match, team1Members, team2Members } = detail;
 
   const [poll, setPoll] = useState<PollData | null>(null);
@@ -1101,6 +1103,29 @@ export default function MatchPageClient({
     const id = setInterval(doPoll, interval);
     return () => clearInterval(id);
   }, [shouldPoll, doPoll, interval]);
+
+  // Matchzy tick: checa MySQL a cada 10s enquanto a partida está live
+  const doMatchzyTick = useCallback(async () => {
+    try {
+      await fetch(`/api/admin/matches/${match.id}/matchzy-tick`, { method: "POST", cache: "no-store" });
+    } catch { /* ignore */ }
+  }, [match.id]);
+
+  useEffect(() => {
+    if (effectiveStatus !== "live") return;
+    doMatchzyTick(); // checagem imediata ao entrar em live
+    const id = setInterval(doMatchzyTick, 10_000);
+    return () => clearInterval(id);
+  }, [effectiveStatus, doMatchzyTick]);
+
+  // Quando a partida finaliza, recarrega dados do servidor (scoreboard, winner)
+  const wasFinished = useRef(isFinished);
+  useEffect(() => {
+    if (isFinished && !wasFinished.current) {
+      router.refresh();
+    }
+    wasFinished.current = isFinished;
+  }, [isFinished, router]);
 
   return (
     <div className="space-y-3">
