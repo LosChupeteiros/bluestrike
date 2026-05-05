@@ -130,7 +130,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     maplist,
     map_sides: mapSides,
     clinch_series: true,
-    players_per_team: 5,
+    players_per_team: Math.max(
+      Object.keys(team1Players).length,
+      Object.keys(team2Players).length,
+    ),
     cvars: {
       hostname: `BlueStrike: ${team1Name} vs ${team2Name}`,
     },
