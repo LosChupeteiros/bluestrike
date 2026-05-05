@@ -292,7 +292,8 @@ export async function provisionServerAsync(
 
   // Gerar matchzy_match_id: identificador numérico único que o MatchZy ecoará de volta
   // nos webhooks e gravará nas tabelas MySQL matchzy_stats_*.
-  const matchzyMatchId = Date.now();
+  // MatchZy espera int32 — Unix timestamp em segundos (~1.78 bi em 2026, cabe em int32 até 2038)
+  const matchzyMatchId = Math.floor(Date.now() / 1000);
   await supabase.from("matches").update({ matchzy_match_id: matchzyMatchId }).eq("id", matchId);
 
   // Connect string já disponível (IP + porta do servidor duplicado)
