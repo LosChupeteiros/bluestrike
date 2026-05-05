@@ -103,8 +103,6 @@ async function handleMatchzyEvent(
       }
 
       // Idempotente: se já finalizada com vencedor, não reprocessar
-      if (matchRow.status === "finished" && matchRow.winner_id) break;
-
       await processSeriesEnd(matchRow.id);
       break;
     }

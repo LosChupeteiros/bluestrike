@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMatchRowByIdForWebhook, processWebhookResult } from "@/lib/matches";
+import { getMatchRowByIdForWebhook } from "@/lib/matches";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { writeDathostLog, getCs2Match, stopGameServer, deleteGameServer, clearDathostLogsForMatch } from "@/lib/dathost";
 import type { DathostFullPlayer } from "@/lib/dathost";
@@ -244,16 +244,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     case "match_ended": {
-      await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
       if (match.status === "finished") {
         return NextResponse.json({ ok: true, note: "already_finished" });
       }
 
-      const t1Score = payload.team1?.stats?.score ?? 0;
-      const t2Score = payload.team2?.stats?.score ?? 0;
       const mapName = payload.settings?.map ?? "unknown";
 
-      // Fetch authoritative stats from Dathost (has rounds_played for ADR)
+      // Dathost match_ended is not authoritative for MatchZy matches.
+      // MatchZy series_end/matchzy-tick is the only path that writes score,
+      // winner, bracket advancement, and server cleanup.
       let richPlayers: DathostFullPlayer[] = (payload.players ?? []) as unknown as DathostFullPlayer[];
       let roundsPlayed = payload.rounds_played ?? 0;
       if (match.dathost_match_id) {
@@ -270,34 +269,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         await saveRichPlayerStats(matchId, match.team1_id, match.team2_id, mapName, richPlayers, roundsPlayed);
       }
 
-      // Update map scores on the match_maps row
-      if (t1Score !== t2Score) {
-        const winnerId = t1Score > t2Score ? match.team1_id : match.team2_id;
-        if (winnerId) {
-          await supabase
-            .from("match_maps")
-            .update({
-              team1_score: t1Score,
-              team2_score: t2Score,
-              winner_id: winnerId,
-              status: "finished",
-              played_at: new Date().toISOString(),
-            })
-            .eq("match_id", matchId)
-            .eq("map_order", 1);
-        }
-      }
-
-      await processWebhookResult(match, t1Score, t2Score);
-
-      // Stop and delete the duplicated server (fire-and-forget)
-      const serverId = await getDathostServerId(matchId);
-      if (serverId) {
-        cleanupDathostServer(serverId, matchId).catch(
-          (err: unknown) => console.error("[webhook/cs2] cleanupDathostServer error:", err)
-        );
-      }
-      break;
+      return NextResponse.json({ ok: true, note: "matchzy_authoritative" });
     }
 
     case "match_canceled": {

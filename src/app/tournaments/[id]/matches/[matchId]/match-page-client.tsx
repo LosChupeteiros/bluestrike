@@ -57,7 +57,7 @@ const STATUS_LABEL: Record<string, string> = {
   pending:    "Aguardando",
   veto:       "Veto de mapa",
   pre_live:   "Confirmando início",
-  live:       "Iniciando",
+  live:       "Live",
   finished:   "Finalizado",
   walkover:   "W.O.",
   cancelled:  "Cancelado",
@@ -1102,9 +1102,9 @@ export default function MatchPageClient({
        null)
     : null;
 
-  // "Ao vivo" badge only when server confirms match_started (server.status === "live")
+  // Promote the header badge to "Live" when the server confirms match start.
   const isMatchLive = effectiveStatus === "live" && effectiveServer?.status === "live";
-  const displayStatusLabel = isMatchLive ? "Ao vivo" : (STATUS_LABEL[effectiveStatus] ?? effectiveStatus);
+  const displayStatusLabel = isMatchLive ? "Live" : (STATUS_LABEL[effectiveStatus] ?? effectiveStatus);
   const displayStatusVariant = isMatchLive ? "live" : (STATUS_VARIANT[effectiveStatus] ?? "upcoming");
 
   const winner = isFinished

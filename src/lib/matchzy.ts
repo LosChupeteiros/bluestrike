@@ -424,6 +424,54 @@ async function getBracketScores(
 }
 
 // ── Main handler: called on series_end ───────────────────────────────────────
+export async function cleanupMatchServer(matchId: string): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const { data: serverRow } = await supabase
+    .from("dathost_servers")
+    .select("dathost_server_id, status")
+    .eq("match_id", matchId)
+    .maybeSingle<{ dathost_server_id: string | null; status: string | null }>();
+
+  const serverId = serverRow?.dathost_server_id;
+  if (!serverId) return;
+
+  await stopGameServer(serverId, matchId).catch((err: unknown) => {
+    console.warn(`[matchzy/cleanup] stopGameServer failed for ${matchId}:`, err);
+  });
+
+  await sleep(2000);
+
+  let deleted = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await deleteGameServer(serverId, matchId);
+      deleted = true;
+      break;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("404")) {
+        deleted = true;
+        break;
+      }
+      if (attempt === 3) {
+        console.error(`[matchzy/cleanup] deleteGameServer failed for ${matchId}:`, err);
+        break;
+      }
+      console.warn(`[matchzy/cleanup] deleteGameServer retry ${attempt} for ${matchId}:`, err);
+      await sleep(2000);
+    }
+  }
+
+  if (!deleted) {
+    await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
+    return;
+  }
+
+  if (serverRow?.status !== "terminated") {
+    await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
+  }
+  await clearDathostLogsForMatch(matchId);
+}
 
 export async function processSeriesEnd(matchId: string): Promise<void> {
   const supabase = createSupabaseAdminClient();
@@ -447,6 +495,9 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   // Buscar stats no MySQL com retry (MatchZy pode demorar alguns segundos para gravar)
   const stats = await getMatchzyStatsWithRetry(matchzyMatchId);
   if (!stats) {
+    if (bracketDone) {
+      await cleanupMatchServer(matchId);
+    }
     if (!bracketDone) {
       await supabase.from("matches").update({ status: "processing_failed" }).eq("id", matchId);
     }
@@ -462,7 +513,10 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   }
 
   // Bracket já avançado anteriormente — não repetir
-  if (bracketDone) return;
+  if (bracketDone) {
+    await cleanupMatchServer(matchId);
+    return;
+  }
 
   // Resolver vencedor e avançar bracket
   const bracketScores = await getBracketScores(
@@ -472,18 +526,5 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   );
   await processWebhookResult(match, bracketScores.team1Score, bracketScores.team2Score);
 
-  // Cleanup do servidor: stop -> delete -> limpa logs dessa partida.
-  const { data: serverRow } = await supabase
-    .from("dathost_servers")
-    .select("dathost_server_id")
-    .eq("match_id", matchId)
-    .maybeSingle<{ dathost_server_id: string | null }>();
-
-  if (serverRow?.dathost_server_id) {
-    const sid = serverRow.dathost_server_id;
-    await stopGameServer(sid, matchId).catch(() => {});
-    await deleteGameServer(sid, matchId).catch(() => {});
-    await supabase.from("dathost_servers").update({ status: "terminated" }).eq("match_id", matchId);
-    await clearDathostLogsForMatch(matchId);
-  }
+  await cleanupMatchServer(matchId);
 }

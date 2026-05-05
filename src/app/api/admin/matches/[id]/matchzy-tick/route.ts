@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getMatchzyStats, processSeriesEnd } from "@/lib/matchzy";
+import { cleanupMatchServer, getMatchzyStats, processSeriesEnd } from "@/lib/matchzy";
 import { writeDathostLog } from "@/lib/dathost";
 
 // In-process dedup: prevents concurrent processSeriesEnd for the same match
@@ -22,7 +22,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   if (!match) return Response.json({ error: "not found" }, { status: 404 });
 
-  if (match.status === "finished" || match.status === "cancelled") {
+  if (match.status === "finished") {
+    await cleanupMatchServer(matchId);
+    return Response.json({ done: true, status: match.status });
+  }
+
+  if (match.status === "cancelled") {
     return Response.json({ done: true, status: match.status });
   }
 
@@ -75,10 +80,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (Math.max(t1, t2) >= neededWins) seriesDone = true;
   }
 
+  let finalizeError: string | null = null;
+
   if (seriesDone && !processing.has(matchId)) {
     processing.add(matchId);
 
-    writeDathostLog({
+    await writeDathostLog({
       matchId,
       method: "POLL",
       url: "matchzy_tick::series_end",
@@ -86,21 +93,25 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       responseBody: { matchzyMatchId, wins, maps: mapsPayload },
     }).catch(() => {});
 
-    processSeriesEnd(matchId)
-      .catch(async (err: unknown) => {
-        writeDathostLog({
-          matchId,
-          method: "POLL",
-          url: "matchzy_tick::error",
-          responseStatus: 500,
-          responseBody: { error: err instanceof Error ? err.message : String(err) },
-        }).catch(() => {});
-      })
-      .finally(() => processing.delete(matchId));
+    try {
+      await processSeriesEnd(matchId);
+    } catch (err: unknown) {
+      finalizeError = err instanceof Error ? err.message : String(err);
+      await writeDathostLog({
+        matchId,
+        method: "POLL",
+        url: "matchzy_tick::error",
+        responseStatus: 500,
+        responseBody: { error: finalizeError },
+      }).catch(() => {});
+    } finally {
+      processing.delete(matchId);
+    }
   }
 
   return Response.json({
-    done: seriesDone,
+    done: seriesDone && !finalizeError,
+    error: finalizeError,
     team1_maps: stats.match.team1_score ?? 0,
     team2_maps: stats.match.team2_score ?? 0,
     maps: mapsPayload,
