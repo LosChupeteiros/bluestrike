@@ -35,6 +35,13 @@ interface PollData {
   server: ServerInfo | null;
 }
 
+interface TickData {
+  done: boolean;
+  team1Maps: number;
+  team2Maps: number;
+  maps: { mapname: string; t1: number; t2: number; winner: string | null; finished: boolean }[];
+}
+
 interface ServerInfo {
   status: string;
   rawIp: string | null;
@@ -1046,6 +1053,7 @@ export default function MatchPageClient({
 
   const [poll, setPoll] = useState<PollData | null>(null);
   const [polledVetoes, setPolledVetoes] = useState<VetoEntry[] | null>(null);
+  const [tickData, setTickData] = useState<TickData | null>(null);
 
   const effectiveStatus = poll?.status ?? match.status;
   const effectiveReadyTeam1 = poll?.readyTeam1 ?? match.readyTeam1;
@@ -1104,10 +1112,11 @@ export default function MatchPageClient({
     return () => clearInterval(id);
   }, [shouldPoll, doPoll, interval]);
 
-  // Matchzy tick: checa MySQL a cada 10s enquanto a partida está live
+  // Matchzy tick: checa MySQL a cada 10s enquanto a partida está live e atualiza o placar
   const doMatchzyTick = useCallback(async () => {
     try {
-      await fetch(`/api/admin/matches/${match.id}/matchzy-tick`, { method: "POST", cache: "no-store" });
+      const res = await fetch(`/api/admin/matches/${match.id}/matchzy-tick`, { method: "POST", cache: "no-store" });
+      if (res.ok) setTickData(await res.json());
     } catch { /* ignore */ }
   }, [match.id]);
 
@@ -1149,8 +1158,8 @@ export default function MatchPageClient({
               <Badge variant="secondary">{match.boType === 1 ? "BO1" : match.boType === 3 ? "BO3" : "BO5"}</Badge>
             </div>
 
-            {/* 5-col: [25% players] [35% team1] [VS] [35% team2] [25% players] */}
-            <div className="grid grid-cols-[5fr_7fr_32px_7fr_5fr] items-center gap-x-2">
+            {/* 5-col: [players] [team1] [score/VS] [team2] [players] */}
+            <div className="grid grid-cols-[5fr_7fr_96px_7fr_5fr] items-center gap-x-2">
 
               {/* Col 1 — Team 1 players: avatar → nick, left-aligned */}
               <div className="flex flex-col gap-1.5 min-w-0">
@@ -1180,10 +1189,48 @@ export default function MatchPageClient({
                 </div>
               </div>
 
-              {/* Col 3 — VS swords, fixed 32 px column */}
-              <div className="flex flex-col items-center justify-center gap-1">
-                <Swords className={`h-5 w-5 transition-colors ${isFinished ? "text-[var(--muted-foreground)]/30" : "text-[var(--primary)] opacity-70 drop-shadow-[0_0_6px_var(--primary)]"}`} />
-              </div>
+              {/* Col 3 — placar ao vivo ou VS */}
+              {(() => {
+                // Mapa atual: o que ainda está sendo jogado ou o último
+                const currentMap = tickData?.maps.find((m) => !m.finished) ?? tickData?.maps[tickData.maps.length - 1] ?? null;
+                const liveT1 = currentMap?.t1 ?? 0;
+                const liveT2 = currentMap?.t2 ?? 0;
+                const liveMap = currentMap?.mapname ?? null;
+                // Após finish: usa dados server-rendered; durante live: usa tick
+                const finalT1 = detail.matchMaps[0]?.team1Score ?? null;
+                const finalT2 = detail.matchMaps[0]?.team2Score ?? null;
+                const dispT1 = isFinished ? (finalT1 ?? tickData?.maps[0]?.t1 ?? null) : isMatchLive ? liveT1 : null;
+                const dispT2 = isFinished ? (finalT2 ?? tickData?.maps[0]?.t2 ?? null) : isMatchLive ? liveT2 : null;
+                const showScore = dispT1 !== null && dispT2 !== null;
+                return (
+                  <div className="flex flex-col items-center justify-center gap-1">
+                    {showScore ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-baseline gap-1.5 tabular-nums">
+                          <span className={`text-4xl font-black leading-none ${dispT1! > dispT2! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
+                            {dispT1}
+                          </span>
+                          <span className="text-xl font-black text-[var(--muted-foreground)]/30">:</span>
+                          <span className={`text-4xl font-black leading-none ${dispT2! > dispT1! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
+                            {dispT2}
+                          </span>
+                        </div>
+                        {isMatchLive && liveMap && (
+                          <span className="text-[8px] font-mono text-[var(--muted-foreground)]/60 truncate max-w-[88px] text-center">{liveMap}</span>
+                        )}
+                        {isMatchLive && (
+                          <div className="flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.9)]" />
+                            <span className="text-[8px] font-bold text-green-400">AO VIVO</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <Swords className={`h-5 w-5 transition-colors ${isFinished ? "text-[var(--muted-foreground)]/30" : "text-[var(--primary)] opacity-70 drop-shadow-[0_0_6px_var(--primary)]"}`} />
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Col 4 — Team 2 info, centered */}
               <div className="flex flex-col items-center gap-2">
@@ -1250,8 +1297,8 @@ export default function MatchPageClient({
           team1Name={t1Name} team2Name={t2Name} />
       )}
 
-      {/* ── Post-veto: ready (left) + server/connect (right) ── */}
-      {vetoDone && (isPreLive || effectiveStatus === "live" || effectiveServer !== null) && (
+      {/* ── Post-veto: ready (left) + server/connect (right) ── oculto após finalizar ── */}
+      {vetoDone && !isFinished && (isPreLive || effectiveStatus === "live" || effectiveServer !== null) && (
         <PostVetoPanel
           matchId={match.id} tournamentId={tournamentId}
           team1Tag={t1Tag} team2Tag={t2Tag} team1Name={t1Name} team2Name={t2Name}
@@ -1265,22 +1312,45 @@ export default function MatchPageClient({
         />
       )}
 
-      {/* ── Scoreboard (aparece quando a partida termina, acima do veto) ── */}
-      {isFinished && (detail.playerStats?.length ?? 0) > 0 && (() => {
-        const t1Stats = (detail.playerStats ?? []).filter((p) => p.teamId === match.team1Id);
-        const t2Stats = (detail.playerStats ?? []).filter((p) => p.teamId === match.team2Id);
+      {/* ── Scoreboard ── */}
+      {isFinished && (() => {
+        const stats = detail.playerStats ?? [];
+        const t1Stats = stats.filter((p) => p.teamId === match.team1Id);
+        const t2Stats = stats.filter((p) => p.teamId === match.team2Id);
         const t1Won = match.winnerId === match.team1Id;
         const t2Won = match.winnerId === match.team2Id;
+        const mapScore = detail.matchMaps[0];
         return (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 px-1">
-              <Trophy className="h-4 w-4 text-yellow-400" />
-              <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Scoreboard</span>
+            {/* Header com mapa e placar de rounds */}
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-yellow-400" />
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Scoreboard</span>
+                {mapScore?.mapName && (
+                  <span className="rounded bg-[var(--secondary)] px-2 py-0.5 text-[10px] font-mono text-[var(--muted-foreground)]">
+                    {mapScore.mapName}
+                  </span>
+                )}
+              </div>
+              {mapScore && mapScore.team1Score !== null && mapScore.team2Score !== null && (
+                <span className="text-xs font-black tabular-nums text-[var(--muted-foreground)]">
+                  <span className={t1Won ? "text-green-400" : ""}>{mapScore.team1Score}</span>
+                  {" : "}
+                  <span className={t2Won ? "text-green-400" : ""}>{mapScore.team2Score}</span>
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-              <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} />
-              <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} />
-            </div>
+            {stats.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} />
+                <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} />
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-8 text-center">
+                <p className="text-sm text-[var(--muted-foreground)]">Stats carregando…</p>
+              </div>
+            )}
           </div>
         );
       })()}
