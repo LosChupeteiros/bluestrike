@@ -5,6 +5,7 @@ import { Trophy } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Match } from "@/types";
+import { getBracketRoundLabel, getBracketRoundModel, isFinalRound, isThirdPlaceRound, type BracketRoundModel } from "@/lib/bracket-model";
 
 // ── layout constants ──────────────────────────────────────────────────────────
 const CW = 210;
@@ -15,20 +16,16 @@ const CT = CW + CG;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function roundLabel(r: number, maxR: number): string {
-  if (r === maxR) return "Final";
-  if (r === maxR - 1 && maxR > 2) return "Semifinal";
-  if (r === maxR - 2 && maxR > 3) return "Quartas";
-  return `Rodada ${r}`;
+function expectedMatchCount(round: number, model: BracketRoundModel): number {
+  if (isFinalRound(round, model) || isThirdPlaceRound(round, model)) return 1;
+  const lastNormalRound = model.semifinalRound ?? model.finalRound;
+  return Math.max(1, Math.pow(2, lastNormalRound - round + 1));
 }
 
-function buildRounds(matches: Match[]): (Match | null)[][] {
+function buildRounds(matches: Match[], model: BracketRoundModel): (Match | null)[][] {
   if (matches.length === 0) return [];
-  const maxRound = Math.max(...matches.map((m) => m.round));
-  const bracketMatches = matches.filter((m) => !(m.round === maxRound && m.matchIndex === 1));
-
   const byRound = new Map<number, Match[]>();
-  for (const m of bracketMatches) {
+  for (const m of matches) {
     const arr = byRound.get(m.round) ?? [];
     arr.push(m);
     byRound.set(m.round, arr);
@@ -38,14 +35,10 @@ function buildRounds(matches: Match[]): (Match | null)[][] {
     arr.sort((a, b) => a.matchIndex - b.matchIndex);
   }
 
-  const roundNums = [...byRound.keys()].sort((a, b) => a - b);
-  const firstCount = byRound.get(roundNums[0])?.length ?? 0;
-  const totalCols = firstCount > 0 ? Math.round(Math.log2(firstCount * 2)) : roundNums.length;
-
   const rounds: (Match | null)[][] = [];
-  for (let i = 0; i < totalCols; i++) {
-    const expected = Math.pow(2, totalCols - i - 1);
-    const got = i < roundNums.length ? (byRound.get(roundNums[i]) ?? []) : [];
+  for (let round = 1; round <= model.finalRound; round++) {
+    const expected = expectedMatchCount(round, model);
+    const got = byRound.get(round) ?? [];
     const row: (Match | null)[] = got.slice(0, expected);
     while (row.length < expected) row.push(null);
     rounds.push(row);
@@ -153,10 +146,12 @@ function BracketMatchCard({
 export default function BlueStrikeBracketView({
   matches,
   tournamentId,
+  teamCount,
   isAdmin,
 }: {
   matches: Match[];
   tournamentId: string;
+  teamCount: number;
   isAdmin?: boolean;
 }) {
   const router = useRouter();
@@ -181,26 +176,61 @@ export default function BlueStrikeBracketView({
     );
   }
 
-  const maxRound = Math.max(...matches.map((m) => m.round));
-  const thirdPlaceMatch = matches.find((m) => m.round === maxRound && m.matchIndex === 1) ?? null;
-  const rounds    = buildRounds(matches);
+  const model = getBracketRoundModel(teamCount);
+  const rounds    = buildRounds(matches, model);
   const numRounds = rounds.length;
   const bracketH  = (rounds[0]?.length ?? 1) * U;
   const bracketW  = numRounds * CT - CG;
 
-  type SvgPath = { d: string };
+  type SvgPath = { d: string; stroke?: string; dash?: string };
   const connectors: SvgPath[] = [];
 
+  function cardTop(roundColumn: number, index: number): number {
+    const roundNumber = roundColumn + 1;
+    if (isFinalRound(roundNumber, model)) return bracketH / 2 - CH / 2;
+    if (isThirdPlaceRound(roundNumber, model)) return bracketH / 2 - CH / 2;
+    const count = Math.max(1, rounds[roundColumn]?.length ?? 1);
+    const slotH = bracketH / count;
+    return index * slotH + (slotH - CH) / 2;
+  }
+
+  function cardCenter(roundColumn: number, index: number): number {
+    return cardTop(roundColumn, index) + CH / 2;
+  }
+
   for (let r = 0; r < numRounds - 1; r++) {
-    const slotH  = U * Math.pow(2, r);
-    const nextN  = rounds[r + 1].length;
+    const nextRound = r + 2;
+    if (isThirdPlaceRound(r + 1, model) || isFinalRound(r + 1, model)) continue;
+
     const xRight = r * CT + CW;
     const xMid   = xRight + CG / 2;
     const xLeft  = (r + 1) * CT;
 
+    if (isThirdPlaceRound(nextRound, model)) {
+      const thirdXLeft = (model.thirdPlaceRound! - 1) * CT;
+      const finalXLeft = (model.finalRound - 1) * CT;
+      const thirdY = cardCenter(model.thirdPlaceRound! - 1, 0);
+      const finalY = cardCenter(model.finalRound - 1, 0);
+
+      for (let j = 0; j < rounds[r].length; j++) {
+        const y = cardCenter(r, j);
+        connectors.push({
+          d: `M ${xRight} ${y} H ${xMid} V ${finalY} H ${finalXLeft}`,
+          stroke: "rgba(0,200,255,0.24)",
+        });
+        connectors.push({
+          d: `M ${xRight} ${y} H ${xMid} V ${thirdY} H ${thirdXLeft}`,
+          stroke: "rgba(251,146,60,0.30)",
+          dash: "4 4",
+        });
+      }
+      continue;
+    }
+
+    const nextN  = rounds[r + 1].length;
     for (let j = 0; j < nextN; j++) {
-      const y0      = (j * 2) * slotH + slotH / 2;
-      const y1      = (j * 2 + 1) * slotH + slotH / 2;
+      const y0      = cardCenter(r, j * 2);
+      const y1      = cardCenter(r, j * 2 + 1);
       const yTarget = (y0 + y1) / 2;
       connectors.push({ d: `M ${xRight} ${y0} H ${xMid} V ${y1}` });
       connectors.push({ d: `M ${xRight} ${y1} H ${xMid}` });
@@ -210,7 +240,7 @@ export default function BlueStrikeBracketView({
 
   const champion = matches.find(
     (m) =>
-      m.round === numRounds &&
+      m.round === model.finalRound &&
       (m.status === "finished" || m.status === "walkover") &&
       m.winnerId
   );
@@ -246,7 +276,7 @@ export default function BlueStrikeBracketView({
               style={{ width: CW, marginRight: r < numRounds - 1 ? CG : 0 }}
             >
               <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
-                {roundLabel(r + 1, numRounds)}
+                {getBracketRoundLabel(r + 1, model)}
               </span>
             </div>
           ))}
@@ -264,22 +294,22 @@ export default function BlueStrikeBracketView({
                 key={i}
                 d={c.d}
                 fill="none"
-                stroke="rgba(0,200,255,0.25)"
+                stroke={c.stroke ?? "rgba(0,200,255,0.25)"}
                 strokeWidth={1.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeDasharray={c.dash}
               />
             ))}
           </svg>
 
           {rounds.map((roundMatches, r) => {
-            const slotH = U * Math.pow(2, r);
             return roundMatches.map((match, i) => (
               <div
                 key={`${r}-${i}`}
                 style={{
                   position: "absolute",
-                  top: i * slotH + (slotH - CH) / 2,
+                  top: cardTop(r, i),
                   left: r * CT,
                 }}
               >
@@ -289,18 +319,6 @@ export default function BlueStrikeBracketView({
           })}
         </div>
       </div>
-
-      {thirdPlaceMatch && (
-        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4">
-          <div className="mb-3 flex items-center gap-3">
-            <span className="text-[11px] font-black uppercase tracking-widest text-orange-300">
-              Disputa de 3º lugar
-            </span>
-            <div className="h-px flex-1 rounded bg-gradient-to-r from-orange-500/30 to-transparent" />
-          </div>
-          <BracketMatchCard match={thirdPlaceMatch} tournamentId={tournamentId} />
-        </div>
-      )}
 
       {isAdmin && (
         <div className="flex items-center gap-3 pt-2">

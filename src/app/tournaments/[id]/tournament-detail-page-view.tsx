@@ -24,6 +24,7 @@ import { getCurrentTeamForProfile } from "@/lib/teams";
 import { getTournamentById } from "@/lib/tournaments";
 import { getEffectiveTournamentStatus, isTournamentRegistrationOpen, getTournamentBadgeProps } from "@/lib/tournament-status";
 import { getTournamentMatches } from "@/lib/matches";
+import { getBracketRoundModel } from "@/lib/bracket-model";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import TournamentRegistrationCard from "./tournament-registration-card";
 import BlueStrikeBracketView from "./bluestrike-bracket-view";
@@ -81,9 +82,11 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   let podiumSecond: Team | null = null;
   let podiumThird: Team | null = null;
   if (isFinishedTournament && matches.length > 0) {
-    const maxRound = matches.reduce((acc, m) => Math.max(acc, m.round), 0);
-    const finalMatch = matches.find((m) => m.round === maxRound && m.matchIndex === 0 && m.status === "finished");
-    const thirdPlaceMatch = matches.find((m) => m.round === maxRound && m.matchIndex === 1 && m.status === "finished");
+    const model = getBracketRoundModel(teams.length);
+    const finalMatch = matches.find((m) => m.round === model.finalRound && m.status === "finished");
+    const thirdPlaceMatch = model.thirdPlaceRound !== null
+      ? matches.find((m) => m.round === model.thirdPlaceRound && m.status === "finished")
+      : null;
     if (finalMatch?.winnerId) {
       podiumFirst = teams.find((t) => t.id === finalMatch.winnerId) ?? null;
       const runnerUpId = finalMatch.team1Id === finalMatch.winnerId ? finalMatch.team2Id : finalMatch.team1Id;
@@ -563,7 +566,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     </p>
                   </div>
                 ) : (
-                  <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} isAdmin={currentProfile?.isAdmin ?? false} />
+                  <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} teamCount={teams.length} isAdmin={currentProfile?.isAdmin ?? false} />
                 )}
               </TabsContent>
             </Tabs>

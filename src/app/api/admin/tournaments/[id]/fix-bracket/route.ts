@@ -1,130 +1,166 @@
 import { randomUUID } from "crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { advanceWinnerPublic } from "@/lib/matches";
+import { getBracketRoundModel } from "@/lib/bracket-model";
 
-type FinishedMatch = {
+type MatchRow = {
   id: string;
-  winner_id: string;
   round: number;
   match_index: number;
+  team1_id: string | null;
+  team2_id: string | null;
+  winner_id: string | null;
+  status: string;
   bo_type: 1 | 3 | 5;
+  teams_assigned_at: string | null;
+  created_at: string;
 };
+
+type RegistrationRow = {
+  team_id: string;
+  registered_at: string;
+};
+
+function isFinished(row: MatchRow): boolean {
+  return (row.status === "finished" || row.status === "walkover") && Boolean(row.winner_id);
+}
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = await params;
   const supabase = createSupabaseAdminClient();
 
-  const { data: allMatches } = await supabase
-    .from("matches")
-    .select("id, round, match_index, bo_type")
-    .eq("tournament_id", tournamentId)
-    .returns<{ id: string; round: number; match_index: number; bo_type: 1 | 3 | 5 }[]>();
-
-  const maxRound = Math.max(0, ...(allMatches ?? []).map((m) => m.round));
-  const finalMatch = allMatches?.find((m) => m.round === maxRound && m.match_index === 0);
-  const thirdPlaceMatch = allMatches?.find((m) => m.round === maxRound && m.match_index === 1);
-  if (finalMatch && finalMatch.bo_type !== 3) {
-    await supabase.from("matches").update({ bo_type: 3 }).eq("id", finalMatch.id);
-  }
-  const { count: confirmedTeamCount } = await supabase
+  const { data: registrations } = await supabase
     .from("tournament_registrations")
-    .select("*", { count: "exact", head: true })
+    .select("team_id, registered_at")
     .eq("tournament_id", tournamentId)
-    .neq("status", "withdrawn");
-  if ((confirmedTeamCount ?? 0) >= 4 && maxRound >= 2 && !thirdPlaceMatch) {
-    await supabase.from("matches").insert({
-      id: randomUUID(),
-      tournament_id: tournamentId,
-      round: maxRound,
-      match_index: 1,
-      bo_type: 1,
-      status: "pending",
-      webhook_secret: randomUUID(),
-    });
-  }
+    .neq("status", "withdrawn")
+    .order("registered_at", { ascending: true })
+    .order("team_id", { ascending: true })
+    .returns<RegistrationRow[]>();
 
-  const { data: finishedMatches } = await supabase
+  const activeTeams = registrations ?? [];
+  const model = getBracketRoundModel(activeTeams.length);
+
+  const { data: initialRows } = await supabase
     .from("matches")
-    .select("id, winner_id, round, match_index, bo_type")
+    .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type, teams_assigned_at, created_at")
     .eq("tournament_id", tournamentId)
-    .eq("status", "finished")
-    .not("winner_id", "is", null)
     .order("round", { ascending: true })
     .order("match_index", { ascending: true })
-    .returns<FinishedMatch[]>();
+    .order("created_at", { ascending: true })
+    .returns<MatchRow[]>();
 
-  const results: { matchId: string; fixed: boolean; reason?: string }[] = [];
+  const rows = initialRows ?? [];
+  const results: string[] = [];
 
-  for (const match of finishedMatches ?? []) {
-    const nextRound = match.round + 1;
-    const nextIndex = Math.floor(match.match_index / 2);
-    const isEvenSlot = match.match_index % 2 === 0;
-
-    const { data: nextMatch } = await supabase
-      .from("matches")
-      .select("id, team1_id, team2_id")
-      .eq("tournament_id", tournamentId)
-      .eq("round", nextRound)
-      .eq("match_index", nextIndex)
-      .maybeSingle<{ id: string; team1_id: string | null; team2_id: string | null }>();
-
-    if (nextMatch) {
-      const assignedSlot = isEvenSlot ? nextMatch.team1_id : nextMatch.team2_id;
-      if (assignedSlot === match.winner_id) {
-        results.push({ matchId: match.id, fixed: false, reason: "already_advanced" });
-        continue;
-      }
-      await advanceWinnerPublic(match.id, match.winner_id);
-      results.push({ matchId: match.id, fixed: true });
-      continue;
-    }
-
-    // Next match row doesn't exist — check if there should be one (not the final)
-    const { count: higherRoundCount } = await supabase
-      .from("matches")
-      .select("*", { count: "exact", head: true })
-      .eq("tournament_id", tournamentId)
-      .gt("round", match.round);
-
-    if ((higherRoundCount ?? 0) === 0) {
-      // This was the final — no next match expected
-      results.push({ matchId: match.id, fixed: false, reason: "is_final" });
-      continue;
-    }
-
-    // Look up the sibling feeder match to populate both team slots at once
-    const siblingIndex = isEvenSlot ? match.match_index + 1 : match.match_index - 1;
-    const { data: siblingMatch } = await supabase
-      .from("matches")
-      .select("winner_id")
-      .eq("tournament_id", tournamentId)
-      .eq("round", match.round)
-      .eq("match_index", siblingIndex)
-      .maybeSingle<{ winner_id: string | null }>();
-
-    const siblingWinnerId = siblingMatch?.winner_id ?? null;
-    const bothReady = Boolean(siblingWinnerId);
-
-    const newRow = {
-      id: randomUUID(),
-      tournament_id: tournamentId,
-      round: nextRound,
-      match_index: nextIndex,
-      bo_type: match.bo_type,
-      status: "pending",
-      team1_id: isEvenSlot ? match.winner_id : siblingWinnerId,
-      team2_id: isEvenSlot ? siblingWinnerId : match.winner_id,
-      webhook_secret: randomUUID(),
-      teams_assigned_at: bothReady ? new Date().toISOString() : null,
-    };
-
-    const { error: insertError } = await supabase.from("matches").insert(newRow);
-    if (insertError) {
-      results.push({ matchId: match.id, fixed: false, reason: `insert_failed: ${insertError.message}` });
-      continue;
-    }
-    results.push({ matchId: match.id, fixed: true, reason: "created_next_match" });
+  async function updateRow(row: MatchRow, patch: Partial<MatchRow>) {
+    await supabase.from("matches").update(patch).eq("id", row.id);
+    Object.assign(row, patch);
+    results.push(`updated:${row.id}`);
   }
 
-  return Response.json({ fixed: results.filter((r) => r.fixed).length, results });
+  async function ensureRow(round: number, matchIndex: number, boType: 1 | 3 | 5): Promise<MatchRow> {
+    const existing = rows.find((m) => m.round === round && m.match_index === matchIndex);
+    if (existing) {
+      if (existing.bo_type !== boType) await updateRow(existing, { bo_type: boType });
+      return existing;
+    }
+
+    const { data: created, error } = await supabase
+      .from("matches")
+      .insert({
+        id: randomUUID(),
+        tournament_id: tournamentId,
+        round,
+        match_index: matchIndex,
+        status: "pending",
+        bo_type: boType,
+        webhook_secret: randomUUID(),
+      })
+      .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type, teams_assigned_at, created_at")
+      .single<MatchRow>();
+
+    if (error) throw new Error(`Falha ao criar linha da bracket: ${error.message}`);
+    rows.push(created);
+    results.push(`created:${created.id}`);
+    return created;
+  }
+
+  async function moveRow(row: MatchRow, round: number, matchIndex: number, boType: 1 | 3 | 5) {
+    if (row.round === round && row.match_index === matchIndex && row.bo_type === boType) return;
+    await updateRow(row, { round, match_index: matchIndex, bo_type: boType });
+  }
+
+  const maxRound = Math.max(0, ...rows.map((m) => m.round));
+  const brokenFinal = rows.find((m) => m.round === maxRound && m.match_index === 0) ?? null;
+  const brokenThird = rows.find((m) => m.round === maxRound && m.match_index === 1) ?? null;
+
+  if (model.hasThirdPlace && brokenThird) {
+    await moveRow(brokenThird, model.thirdPlaceRound!, 0, 1);
+  } else if (!model.hasThirdPlace && brokenThird && !isFinished(brokenThird)) {
+    await updateRow(brokenThird, { status: "cancelled" });
+  }
+
+  if (brokenFinal) {
+    await moveRow(brokenFinal, model.finalRound, 0, 3);
+  }
+
+  const lastNormalRound = model.semifinalRound ?? model.finalRound;
+  for (let round = 1; round <= lastNormalRound; round++) {
+    const expectedMatches = Math.max(1, Math.pow(2, lastNormalRound - round + 1));
+    for (let matchIndex = 0; matchIndex < expectedMatches; matchIndex++) {
+      await ensureRow(round, matchIndex, round === model.finalRound ? 3 : 1);
+    }
+  }
+
+  await ensureRow(model.finalRound, 0, 3);
+  if (model.hasThirdPlace && model.thirdPlaceRound !== null) {
+    await ensureRow(model.thirdPlaceRound, 0, 1);
+  }
+
+  const firstRoundRows = rows
+    .filter((m) => m.round === 1)
+    .sort((a, b) => a.match_index - b.match_index);
+
+  const assigned = new Set(rows.flatMap((m) => [m.team1_id, m.team2_id]).filter(Boolean) as string[]);
+  const remainingTeams = activeTeams.map((r) => r.team_id).filter((teamId) => !assigned.has(teamId));
+  let reseededSlots = 0;
+
+  for (const row of firstRoundRows) {
+    const patch: Partial<MatchRow> = {};
+    if (!row.team1_id && remainingTeams.length > 0) {
+      patch.team1_id = remainingTeams.shift() ?? null;
+      reseededSlots++;
+    }
+    if (!row.team2_id && remainingTeams.length > 0) {
+      patch.team2_id = remainingTeams.shift() ?? null;
+      reseededSlots++;
+    }
+    const team1 = patch.team1_id ?? row.team1_id;
+    const team2 = patch.team2_id ?? row.team2_id;
+    if (team1 && team2 && !row.teams_assigned_at) patch.teams_assigned_at = new Date().toISOString();
+    if (Object.keys(patch).length > 0) await updateRow(row, patch);
+  }
+
+  const finishedRows = rows
+    .filter(isFinished)
+    .sort((a, b) => a.round - b.round || a.match_index - b.match_index);
+
+  let advanced = 0;
+  for (const match of finishedRows) {
+    if (!match.winner_id) continue;
+    await advanceWinnerPublic(match.id, match.winner_id);
+    advanced++;
+  }
+
+  return Response.json({
+    fixed: results.length + advanced + reseededSlots,
+    details: {
+      changedRows: results.length,
+      advanced,
+      reseededSlots,
+      finalRound: model.finalRound,
+      thirdPlaceRound: model.thirdPlaceRound,
+    },
+  });
 }

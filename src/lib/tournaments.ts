@@ -7,6 +7,7 @@ import {
   getEffectiveTournamentStatus,
   isTournamentRegistrationOpen,
 } from "@/lib/tournament-status";
+import { getBracketRoundModel } from "@/lib/bracket-model";
 
 export { getEffectiveTournamentStatus, isTournamentRegistrationOpen } from "@/lib/tournament-status";
 
@@ -380,11 +381,12 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
 
   if (count && count > 0) return;
 
+  const model = getBracketRoundModel(confirmedTeamIds.length);
+
   // Shuffle teams
   const shuffled = [...confirmedTeamIds].sort(() => Math.random() - 0.5);
-  const exp = Math.ceil(Math.log2(Math.max(shuffled.length, 2)));
-  const nextPow2 = Math.pow(2, exp);
-  const totalRounds = exp;
+  const nextPow2 = Math.pow(2, model.baseRounds);
+  const normalLastRound = model.semifinalRound ?? model.finalRound;
 
   while (shuffled.length < nextPow2) shuffled.push("");
 
@@ -403,10 +405,10 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
 
   const toInsert: MatchInsert[] = [];
 
-  for (let round = 1; round <= totalRounds; round++) {
+  for (let round = 1; round <= normalLastRound; round++) {
     const matchCount = nextPow2 / Math.pow(2, round);
     for (let idx = 0; idx < matchCount; idx++) {
-      const isFinalRound = round === totalRounds;
+      const isFinalRound = round === model.finalRound;
       if (round === 1) {
         const t1 = shuffled[idx * 2] || null;
         const t2 = shuffled[idx * 2 + 1] || null;
@@ -440,17 +442,30 @@ async function generateTournamentBracket(tournament: Tournament): Promise<void> 
     }
   }
 
-  // Extra match: third-place decider. Convention: final round, match_index 1.
-  if (confirmedTeamIds.length >= 4) {
+  if (model.hasThirdPlace && model.thirdPlaceRound !== null) {
     toInsert.push({
       tournament_id: tournament.id,
       team1_id: null,
       team2_id: null,
-      round: totalRounds,
-      match_index: 1,
+      round: model.thirdPlaceRound,
+      match_index: 0,
       status: "pending",
       winner_id: null,
       bo_type: 1,
+      webhook_secret: randomUUID(),
+    });
+  }
+
+  if (model.hasThirdPlace) {
+    toInsert.push({
+      tournament_id: tournament.id,
+      team1_id: null,
+      team2_id: null,
+      round: model.finalRound,
+      match_index: 0,
+      status: "pending",
+      winner_id: null,
+      bo_type: 3,
       webhook_secret: randomUUID(),
     });
   }

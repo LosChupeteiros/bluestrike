@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/profiles";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { getBracketRoundModel } from "@/lib/bracket-model";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -33,9 +34,16 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ first: null, second: null, third: null });
   }
 
-  const maxRound = Math.max(...matches.map((m) => m.round));
-  const finalMatch = matches.find((m) => m.round === maxRound && m.match_index === 0);
-  const thirdPlaceMatch = matches.find((m) => m.round === maxRound && m.match_index === 1);
+  const { count: teamCount } = await supabase
+    .from("tournament_registrations")
+    .select("*", { count: "exact", head: true })
+    .eq("tournament_id", tournamentId)
+    .neq("status", "withdrawn");
+  const model = getBracketRoundModel(teamCount ?? 2);
+  const finalMatch = matches.find((m) => m.round === model.finalRound);
+  const thirdPlaceMatch = model.thirdPlaceRound !== null
+    ? matches.find((m) => m.round === model.thirdPlaceRound)
+    : null;
 
   const firstId = finalMatch?.winner_id ?? null;
   const secondId = firstId

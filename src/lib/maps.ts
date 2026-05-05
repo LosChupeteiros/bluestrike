@@ -47,6 +47,7 @@ export function getVetoSequence(boType: 1 | 3 | 5): VetoSlot[] {
       { turn: "team2", action: "pick" },
       { turn: "team1", action: "ban" },
       { turn: "team2", action: "ban" },
+      { turn: "team1", action: "pick" },
     ];
   }
   // BO5: pick pick pick pick, ban ban → last is decider

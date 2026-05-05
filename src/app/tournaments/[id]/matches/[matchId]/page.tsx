@@ -4,8 +4,8 @@ import type { Metadata } from "next";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getTournamentById } from "@/lib/tournaments";
-import { getTournamentMatches } from "@/lib/matches";
 import { getFullMatchDetail, getMatchWebhookInfo } from "@/lib/matches";
+import { getBracketRoundLabel, getBracketRoundModel } from "@/lib/bracket-model";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import MatchPageClient from "./match-page-client";
 import WebhookInfoPanel from "./webhook-info-panel";
@@ -74,25 +74,15 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
   const isPlayer = Boolean(userTeamId);
   const isAdmin = Boolean(currentProfile?.isAdmin);
 
-  const [detail, allMatches, webhookInfo] = await Promise.all([
+  const [detail, webhookInfo] = await Promise.all([
     getFullMatchDetail(matchId, isPlayer || isAdmin),
-    getTournamentMatches(tournamentId),
     isAdmin ? getMatchWebhookInfo(matchId) : Promise.resolve(null),
   ]);
 
   if (!detail || detail.match.tournamentId !== tournamentId) notFound();
 
-  const maxRound = allMatches.reduce((acc: number, m) => Math.max(acc, m.round), 0);
-  const roundLabel =
-    detail.match.round === maxRound && detail.match.matchIndex === 1
-      ? "Disputa de 3º lugar"
-      : detail.match.round === maxRound
-      ? "Final"
-      : detail.match.round === maxRound - 1 && maxRound > 2
-      ? "Semifinal"
-      : detail.match.round === maxRound - 2 && maxRound > 3
-      ? "Quartas de Final"
-      : `Rodada ${detail.match.round}`;
+  const model = getBracketRoundModel(tournament.registeredTeamsCount ?? 2);
+  const roundLabel = getBracketRoundLabel(detail.match.round, model);
 
   return (
     <div className="min-h-screen pb-20 pt-20">
@@ -114,7 +104,7 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
           detail={detail}
           tournamentId={tournamentId}
           roundLabel={roundLabel}
-          isFinal={detail.match.round === maxRound && detail.match.matchIndex === 0}
+          isFinal={detail.match.round === model.finalRound}
           currentProfileId={currentProfile?.id ?? null}
           userTeamId={userTeamId}
           isCaptain={isCaptain}

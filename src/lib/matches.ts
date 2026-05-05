@@ -1,6 +1,7 @@
 import type { Match, Team } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { getBracketRoundModel } from "@/lib/bracket-model";
 import { randomUUID } from "crypto";
 
 interface MatchRow {
@@ -170,7 +171,7 @@ export async function getMatchWebhookInfo(matchId: string): Promise<MatchWebhook
   };
 }
 
-async function advanceWinner(
+async function advanceWinnerByRoundModel(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   match: MatchRow,
   winnerId: string
@@ -178,46 +179,144 @@ async function advanceWinner(
   const loserId = winnerId === match.team1_id ? match.team2_id : match.team1_id;
   if (!match.tournament_id) return;
 
-  const { data: finalRoundRows } = await supabase
-    .from("matches")
-    .select("id, round, match_index, team1_id, team2_id, winner_id, status")
+  const { count: teamCount } = await supabase
+    .from("tournament_registrations")
+    .select("*", { count: "exact", head: true })
     .eq("tournament_id", match.tournament_id)
-    .order("round", { ascending: false })
+    .neq("status", "withdrawn");
+
+  const model = getBracketRoundModel(teamCount ?? 2);
+
+  const { data: tournamentRows } = await supabase
+    .from("matches")
+    .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type")
+    .eq("tournament_id", match.tournament_id)
+    .order("round", { ascending: true })
     .order("match_index", { ascending: true })
-    .limit(4)
-    .returns<Array<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status">>>();
+    .returns<Array<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status" | "bo_type">>>();
 
-  const finalRound = finalRoundRows?.[0]?.round ?? match.round;
-  const isFinalMatch = match.round === finalRound && match.match_index === 0;
-  const isThirdPlaceMatch = match.round === finalRound && match.match_index === 1;
-  const thirdPlaceMatch = finalRoundRows?.find((m) => m.round === finalRound && m.match_index === 1) ?? null;
-  const shouldSendLoserToThird = Boolean(
-    loserId &&
-    thirdPlaceMatch &&
-    match.round === finalRound - 1 &&
-    (match.match_index === 0 || match.match_index === 1)
-  );
+  const allMatches = tournamentRows ?? [];
 
-  if (loserId && !shouldSendLoserToThird) {
+  async function markEliminated(teamId: string | null): Promise<void> {
+    if (!teamId) return;
     await supabase
       .from("tournament_registrations")
       .update({ status: "eliminated" })
       .eq("tournament_id", match.tournament_id)
-      .eq("team_id", loserId)
+      .eq("team_id", teamId)
       .neq("status", "withdrawn");
   }
 
-  if (loserId && shouldSendLoserToThird && thirdPlaceMatch) {
-    const isEvenSlot = match.match_index % 2 === 0;
-    const otherTeamAlreadySet = isEvenSlot ? Boolean(thirdPlaceMatch.team2_id) : Boolean(thirdPlaceMatch.team1_id);
-    const update = isEvenSlot
-      ? { team1_id: loserId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
-      : { team2_id: loserId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+  async function getOrCreateMatch(round: number, matchIndex: number, boType: 1 | 3 | 5) {
+    const existing = allMatches.find((m) => m.round === round && m.match_index === matchIndex) ?? null;
+    if (existing) {
+      if (existing.bo_type !== boType) {
+        await supabase.from("matches").update({ bo_type: boType }).eq("id", existing.id);
+        existing.bo_type = boType;
+      }
+      return existing;
+    }
+
+    const { data: created, error } = await supabase
+      .from("matches")
+      .insert({
+        id: randomUUID(),
+        tournament_id: match.tournament_id,
+        round,
+        match_index: matchIndex,
+        bo_type: boType,
+        status: "pending",
+        webhook_secret: randomUUID(),
+      })
+      .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type")
+      .single<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status" | "bo_type">>();
+
+    if (error) {
+      console.error(`[advanceWinner] Failed to create bracket row: ${error.message}`);
+      return null;
+    }
+
+    allMatches.push(created);
+    return created;
+  }
+
+  async function assignSlot(
+    target: { id: string; team1_id: string | null; team2_id: string | null },
+    slot: 1 | 2,
+    teamId: string
+  ) {
+    const otherTeamAlreadySet = slot === 1 ? Boolean(target.team2_id) : Boolean(target.team1_id);
+    const update = slot === 1
+      ? { team1_id: teamId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
+      : { team2_id: teamId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+
+    await supabase.from("matches").update(update).eq("id", target.id);
+    if (slot === 1) target.team1_id = teamId;
+    else target.team2_id = teamId;
+  }
+
+  async function maybeFinishTournament(): Promise<void> {
+    const finalMatch = allMatches.find((m) => m.round === model.finalRound) ?? null;
+    if (!finalMatch?.winner_id) return;
+
+    if (model.hasThirdPlace && model.thirdPlaceRound !== null) {
+      const thirdPlaceMatch = allMatches.find((m) => m.round === model.thirdPlaceRound) ?? null;
+      if (thirdPlaceMatch && !(thirdPlaceMatch.status === "finished" || thirdPlaceMatch.status === "walkover")) return;
+      if (thirdPlaceMatch && !thirdPlaceMatch.winner_id) return;
+    }
 
     await supabase
-      .from("matches")
-      .update(update)
-      .eq("id", thirdPlaceMatch.id);
+      .from("tournament_registrations")
+      .update({ status: "champion" })
+      .eq("tournament_id", match.tournament_id)
+      .eq("team_id", finalMatch.winner_id);
+
+    await supabase
+      .from("tournament_registrations")
+      .update({ status: "eliminated" })
+      .eq("tournament_id", match.tournament_id)
+      .neq("team_id", finalMatch.winner_id)
+      .neq("status", "withdrawn")
+      .neq("status", "champion");
+
+    await supabase
+      .from("tournaments")
+      .update({ status: "finished" })
+      .eq("id", match.tournament_id);
+  }
+
+  if (model.hasThirdPlace && match.round === model.semifinalRound) {
+    const slot: 1 | 2 = match.match_index === 0 ? 1 : 2;
+    const finalMatch = await getOrCreateMatch(model.finalRound, 0, 3);
+    if (finalMatch) await assignSlot(finalMatch, slot, winnerId);
+
+    if (loserId && model.thirdPlaceRound !== null) {
+      const thirdPlaceMatch = await getOrCreateMatch(model.thirdPlaceRound, 0, 1);
+      if (thirdPlaceMatch) await assignSlot(thirdPlaceMatch, slot, loserId);
+    }
+    return;
+  }
+
+  if (model.hasThirdPlace && match.round === model.thirdPlaceRound) {
+    await markEliminated(loserId);
+    const current = allMatches.find((m) => m.id === match.id);
+    if (current) {
+      current.winner_id = winnerId;
+      current.status = "finished";
+    }
+    await maybeFinishTournament();
+    return;
+  }
+
+  if (match.round === model.finalRound) {
+    await markEliminated(loserId);
+    const current = allMatches.find((m) => m.id === match.id);
+    if (current) {
+      current.winner_id = winnerId;
+      current.status = "finished";
+    }
+    await maybeFinishTournament();
+    return;
   }
 
   const { data: nextMatch } = await supabase
@@ -229,78 +328,16 @@ async function advanceWinner(
     .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id">>();
 
   if (nextMatch) {
-    const isEvenSlot = match.match_index % 2 === 0;
-    const otherTeamAlreadySet = isEvenSlot ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
-    const update = isEvenSlot
-      ? { team1_id: winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
-      : { team2_id: winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
-
-    await supabase
-      .from("matches")
-      .update(update)
-      .eq("id", nextMatch.id);
+    const slot: 1 | 2 = match.match_index % 2 === 0 ? 1 : 2;
+    await assignSlot(nextMatch, slot, winnerId);
+    await markEliminated(loserId);
     return;
   }
 
-  // No next match found — verify this is actually the final round before closing the tournament
-  const { count: higherRoundCount } = await supabase
-    .from("matches")
-    .select("*", { count: "exact", head: true })
-    .eq("tournament_id", match.tournament_id)
-    .gt("round", match.round);
-
-  if ((higherRoundCount ?? 0) === 0) {
-    if (isThirdPlaceMatch) {
-      if (loserId) {
-        await supabase
-          .from("tournament_registrations")
-          .update({ status: "eliminated" })
-          .eq("tournament_id", match.tournament_id)
-          .eq("team_id", loserId)
-          .neq("status", "withdrawn");
-      }
-
-      const finalDone = finalRoundRows?.some((m) =>
-        m.round === finalRound && m.match_index === 0 && m.status === "finished" && m.winner_id
-      );
-      if (!finalDone) return;
-    } else if (!isFinalMatch) {
-      return;
-    } else if (thirdPlaceMatch && !(thirdPlaceMatch.status === "finished" && thirdPlaceMatch.winner_id)) {
-      return;
-    }
-  }
-
-  if ((higherRoundCount ?? 0) > 0) {
-    console.error(
-      `[advanceWinner] Missing bracket row: expected round=${match.round + 1} match_index=${Math.floor(match.match_index / 2)} for tournament ${match.tournament_id}. Winner ${winnerId} was not advanced.`
-    );
-    return;
-  }
-
-  // This is the final — close the tournament
-  const finalWinnerId = finalRoundRows?.find((m) => m.round === finalRound && m.match_index === 0)?.winner_id ?? null;
-  const championId = isThirdPlaceMatch ? finalWinnerId : winnerId;
-  if (!championId) return;
-
-  await supabase
-    .from("tournament_registrations")
-    .update({ status: "champion" })
-    .eq("tournament_id", match.tournament_id)
-    .eq("team_id", championId);
-
-  await supabase
-    .from("tournament_registrations")
-    .update({ status: "eliminated" })
-    .eq("tournament_id", match.tournament_id)
-    .neq("team_id", championId)
-    .neq("status", "withdrawn")
-    .neq("status", "champion");
-
-  await supabase
-    .from("tournaments")
-    .update({ status: "finished" })
-    .eq("id", match.tournament_id);
+  await markEliminated(loserId);
+  console.error(
+    `[advanceWinner] Missing bracket row: expected round=${match.round + 1} match_index=${Math.floor(match.match_index / 2)} for tournament ${match.tournament_id}. Winner ${winnerId} was not advanced.`
+  );
 }
 
 export async function submitMatchResult(
@@ -335,7 +372,7 @@ export async function submitMatchResult(
 
   if (updateError) throw new Error(`Falha ao salvar resultado: ${updateError.message}`);
 
-  await advanceWinner(supabase, match, winnerId);
+  await advanceWinnerByRoundModel(supabase, match, winnerId);
 }
 
 // Public wrapper used by match-flow.ts to advance bracket after a walkover
@@ -346,7 +383,7 @@ export async function advanceWinnerPublic(matchId: string, winnerId: string): Pr
     .select("*")
     .eq("id", matchId)
     .maybeSingle<MatchRow>();
-  if (match) await advanceWinner(supabase, match, winnerId);
+  if (match) await advanceWinnerByRoundModel(supabase, match, winnerId);
 }
 
 // Called by the CS2 server webhook — no admin check, auth is done via webhook_secret
@@ -366,7 +403,7 @@ export async function processWebhookResult(
     .update({ status: "finished", winner_id: winnerId, finished_at: new Date().toISOString() })
     .eq("id", match.id);
 
-  await advanceWinner(supabase, match, winnerId);
+  await advanceWinnerByRoundModel(supabase, match, winnerId);
 }
 
 export async function getMatchRowByIdForWebhook(matchId: string): Promise<MatchRow | null> {
