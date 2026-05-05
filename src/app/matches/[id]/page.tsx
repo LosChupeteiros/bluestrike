@@ -80,11 +80,11 @@ function ScoreboardTable({ players, mvpSteamId }: { players: PlayerStat[]; mvpSt
                       <AvatarFallback className="text-xs">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                     {p.profilePublicId ? (
-                      <Link href={`/profile/${p.profilePublicId}`} className={cn("text-sm font-semibold transition-colors group-hover:text-[var(--primary)] hover:text-[var(--primary)] hover:underline hover:underline-offset-4", isMvp && "text-blue-200")}>
+                      <Link href={`/profile/${p.profilePublicId}`} className={cn("text-sm font-semibold transition-colors group-hover:text-[var(--primary)] hover:text-[var(--primary)]", isMvp && "text-blue-200")}>
                         {p.nickname}
                       </Link>
                     ) : (
-                      <span className={cn("font-semibold text-sm", isMvp && "text-blue-200")}>{p.nickname}</span>
+                      <span className={cn("text-sm font-semibold transition-colors group-hover:text-[var(--primary)]", isMvp && "text-blue-200")}>{p.nickname}</span>
                     )}
                     {isMvp && (
                       <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-300">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -992,8 +991,8 @@ function getMvp(players: PlayerStat[]) {
 }
 
 function ScoreboardTeam({
-  players, teamTag, teamName, isWinner, mvpSteamId,
-}: { players: PlayerStat[]; teamTag: string; teamName: string; isWinner: boolean; mvpSteamId: string | null }) {
+  players, teamTag, teamName, isWinner, mvpSteamId, onOpenProfile,
+}: { players: PlayerStat[]; teamTag: string; teamName: string; isWinner: boolean; mvpSteamId: string | null; onOpenProfile: (href: string) => void }) {
   const sorted = [...players].sort((a, b) => b.score - a.score || b.kills - a.kills);
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
@@ -1024,21 +1023,17 @@ function ScoreboardTeam({
           <tbody>
             {sorted.map((p) => {
               const isMvp = p.steamid64 === mvpSteamId;
+              const profileHref = p.profilePublicId ? `/profile/${p.profilePublicId}` : null;
               return (
                 <tr
                   key={p.profileId ?? p.steamid64}
-                  className={`group border-b border-[var(--border)]/50 transition-colors last:border-b-0 hover:bg-[var(--primary)]/5 ${isMvp ? "border-l-2 border-l-blue-400 bg-blue-500/10 hover:bg-blue-500/15" : ""}`}
+                  onClick={profileHref ? () => onOpenProfile(profileHref) : undefined}
+                  className={`group border-b border-[var(--border)]/50 transition-colors last:border-b-0 hover:bg-[var(--primary)]/5 ${profileHref ? "cursor-pointer" : ""} ${isMvp ? "border-l-2 border-l-blue-400 bg-blue-500/10 hover:bg-blue-500/15" : ""}`}
                 >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <SmallAvatar nickname={p.nickname} avatarUrl={p.avatarUrl} />
-                      {p.profilePublicId ? (
-                        <Link href={`/profile/${p.profilePublicId}`} className={`text-xs font-semibold transition-colors group-hover:text-[var(--primary)] hover:text-[var(--primary)] hover:underline hover:underline-offset-4 ${isMvp ? "text-blue-200" : ""}`}>
-                          {p.nickname}
-                        </Link>
-                      ) : (
-                        <span className={`text-xs font-semibold ${isMvp ? "text-blue-200" : ""}`}>{p.nickname}</span>
-                      )}
+                      <span className={`text-xs font-semibold transition-colors group-hover:text-[var(--primary)] ${isMvp ? "text-blue-200" : ""}`}>{p.nickname}</span>
                       {isMvp && (
                         <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-300">
                           MVP
@@ -1391,8 +1386,8 @@ export default function MatchPageClient({
             </div>
             {stats.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} mvpSteamId={mvpSteamId} />
-                <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} mvpSteamId={mvpSteamId} />
+                <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} mvpSteamId={mvpSteamId} onOpenProfile={(href) => router.push(href)} />
+                <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} mvpSteamId={mvpSteamId} onOpenProfile={(href) => router.push(href)} />
               </div>
             ) : (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-8 text-center space-y-3">
