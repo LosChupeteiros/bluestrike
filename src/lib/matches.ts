@@ -349,6 +349,7 @@ interface DathostServerRow {
 
 export interface PlayerStat {
   profileId: string | null;
+  profilePublicId: number | null;
   teamId: string | null;
   teamName: string | null;
   steamid64: string;
@@ -529,9 +530,9 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
     const steamIds = [...new Set(rawStatRows.map((s) => s.steamid64))];
     const { data: profileRows } = await supabase
       .from("profiles")
-      .select("id, steam_id, steam_persona_name, steam_avatar_url")
+      .select("id, public_id, steam_id, steam_persona_name, steam_avatar_url")
       .in("steam_id", steamIds)
-      .returns<{ id: string; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+      .returns<{ id: string; public_id: number; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
 
     const profileBySteamId = new Map((profileRows ?? []).map((p) => [p.steam_id, p]));
 
@@ -541,6 +542,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
       const adr = rounds > 0 ? Math.round((s.damage / rounds) * 100) / 100 : 0;
       return {
         profileId: profile?.id ?? null,
+        profilePublicId: profile?.public_id ?? null,
         teamId: null,
         teamName: s.team_name,
         steamid64: s.steamid64,
@@ -586,14 +588,15 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
         const profileIds = [...new Set(statRows.map((s) => s.profile_id))];
         const { data: profileRows } = await supabase
           .from("profiles")
-          .select("id, steam_id, steam_persona_name, steam_avatar_url")
+          .select("id, public_id, steam_id, steam_persona_name, steam_avatar_url")
           .in("id", profileIds)
-          .returns<{ id: string; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
+          .returns<{ id: string; public_id: number; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
 
         const profileMap = new Map((profileRows ?? []).map((p) => [p.id, p]));
 
         playerStats = statRows.map((s) => ({
           profileId: s.profile_id,
+          profilePublicId: profileMap.get(s.profile_id)?.public_id ?? null,
           teamId: s.team_id ?? null,
           teamName: null,
           steamid64: profileMap.get(s.profile_id)?.steam_id ?? "",

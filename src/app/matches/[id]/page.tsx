@@ -32,6 +32,10 @@ function hsPercent(hs: number, kills: number) {
   return Math.round((hs / kills) * 100).toString();
 }
 
+function getMvp(players: PlayerStat[]) {
+  return [...players].sort((a, b) => b.score - a.score || b.kills - a.kills || b.adr - a.adr)[0] ?? null;
+}
+
 function StatCell({ value, highlight }: { value: string | number; highlight?: boolean }) {
   return (
     <td className={cn("px-3 py-3 text-sm tabular-nums", highlight && "font-bold text-[var(--primary)]")}>
@@ -40,7 +44,7 @@ function StatCell({ value, highlight }: { value: string | number; highlight?: bo
   );
 }
 
-function ScoreboardTable({ players, isWinner }: { players: PlayerStat[]; isWinner: boolean }) {
+function ScoreboardTable({ players, mvpSteamId }: { players: PlayerStat[]; isWinner: boolean; mvpSteamId: string | null }) {
   const sorted = [...players].sort((a, b) => b.score - a.score || b.kills - a.kills);
 
   return (
@@ -59,38 +63,46 @@ function ScoreboardTable({ players, isWinner }: { players: PlayerStat[]; isWinne
           </tr>
         </thead>
         <tbody>
-          {sorted.map((p, i) => (
-            <tr
-              key={p.profileId ?? p.steamid64}
-              className={cn(
-                "border-b border-[var(--border)]/60 last:border-b-0 transition-colors",
-                i === 0 && isWinner && "bg-[var(--primary)]/5"
-              )}
-            >
-              <td className="px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
-                    <AvatarFallback className="text-xs">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  {p.profileId ? (
-                    <Link href={`/players/${p.profileId}`} className="font-semibold text-sm hover:text-[var(--primary)] transition-colors">
-                      {p.nickname}
-                    </Link>
-                  ) : (
-                    <span className="font-semibold text-sm">{p.nickname}</span>
-                  )}
-                </div>
-              </td>
-              <StatCell value={p.kills} highlight={p.kills >= 20} />
-              <StatCell value={p.deaths} />
-              <StatCell value={p.assists} />
-              <StatCell value={kd(p.kills, p.deaths)} highlight={p.kills / Math.max(p.deaths, 1) >= 1.5} />
-              <StatCell value={`${hsPercent(p.hsCount, p.kills)}%`} />
-              <StatCell value={p.adr.toFixed(1)} highlight={p.adr >= 90} />
-              <StatCell value={p.score} />
-            </tr>
-          ))}
+          {sorted.map((p) => {
+            const isMvp = p.steamid64 === mvpSteamId;
+            return (
+              <tr
+                key={p.profileId ?? p.steamid64}
+                className={cn(
+                  "border-b border-[var(--border)]/60 last:border-b-0 transition-colors",
+                  isMvp && "border-l-2 border-l-blue-400 bg-blue-500/10"
+                )}
+              >
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
+                      <AvatarFallback className="text-xs">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    {p.profilePublicId ? (
+                      <Link href={`/profile/${p.profilePublicId}`} className={cn("font-semibold text-sm transition-colors hover:text-[var(--primary)]", isMvp && "text-blue-200")}>
+                        {p.nickname}
+                      </Link>
+                    ) : (
+                      <span className={cn("font-semibold text-sm", isMvp && "text-blue-200")}>{p.nickname}</span>
+                    )}
+                    {isMvp && (
+                      <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-300">
+                        MVP
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <StatCell value={p.kills} highlight={p.kills >= 20} />
+                <StatCell value={p.deaths} />
+                <StatCell value={p.assists} />
+                <StatCell value={kd(p.kills, p.deaths)} highlight={p.kills / Math.max(p.deaths, 1) >= 1.5} />
+                <StatCell value={`${hsPercent(p.hsCount, p.kills)}%`} />
+                <StatCell value={p.adr.toFixed(1)} highlight={p.adr >= 90} />
+                <StatCell value={p.score} />
+              </tr>
+            );
+          })}
           {sorted.length === 0 && (
             <tr>
               <td colSpan={8} className="px-5 py-8 text-center text-sm text-[var(--muted-foreground)]">
@@ -144,6 +156,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
     (p.teamId && p.teamId === match.team2Id) ||
     (!p.teamId && p.teamName && t2NameLower && p.teamName.toLowerCase() === t2NameLower)
   );
+  const mvpSteamId = getMvp(playerStats)?.steamid64 ?? null;
 
   const statusLabel =
     match.status === "finished"
@@ -315,7 +328,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
                   </Badge>
                 )}
               </div>
-              <ScoreboardTable players={stats} isWinner={isWinner} />
+              <ScoreboardTable players={stats} isWinner={isWinner} mvpSteamId={mvpSteamId} />
             </section>
           ))}
         </div>

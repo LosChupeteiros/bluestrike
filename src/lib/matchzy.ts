@@ -1,37 +1,21 @@
 // MatchZy integration: MySQL stats client + series_end processing.
 // All MySQL access is server-side only — never called from client components.
 
-import mysql from "mysql2/promise";
+import type mysql from "mysql2/promise";
 import crypto from "crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { processWebhookResult, getMatchRowByIdForWebhook } from "@/lib/matches";
 import { stopGameServer, deleteGameServer } from "@/lib/dathost";
+import { getWeaponPaintsPool } from "@/lib/weaponpaints/mysql";
 
 // ── MySQL pool ────────────────────────────────────────────────────────────────
 
-let _pool: mysql.Pool | null = null;
-
 function getPool(): mysql.Pool {
-  if (_pool) return _pool;
-
-  const ssl =
-    process.env.WEAPONPAINTS_MYSQL_SSL === "true"
-      ? { rejectUnauthorized: true }
-      : undefined;
-
-  _pool = mysql.createPool({
-    host: process.env.WEAPONPAINTS_MYSQL_HOST,
-    port: Number(process.env.WEAPONPAINTS_MYSQL_PORT ?? 3306),
-    user: process.env.WEAPONPAINTS_MYSQL_USER,
-    password: process.env.WEAPONPAINTS_MYSQL_PASSWORD,
-    database: process.env.WEAPONPAINTS_MYSQL_DATABASE,
-    waitForConnections: true,
-    connectionLimit: 5,
-    connectTimeout: 3000,
-    ssl,
-  });
-
-  return _pool;
+  const pool = getWeaponPaintsPool();
+  if (!pool) {
+    throw new Error("MySQL MatchZy/WeaponPaints não configurado.");
+  }
+  return pool;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -110,12 +94,22 @@ export async function getMatchzyStats(matchzyMatchId: number): Promise<MatchzySt
 
 export async function getMatchzyStatsWithRetry(
   matchzyMatchId: number,
-  attempts = 10
+  attempts = 4
 ): Promise<MatchzyStats | null> {
+  let lastError: unknown = null;
+
   for (let i = 0; i < attempts; i++) {
-    const stats = await getMatchzyStats(matchzyMatchId).catch(() => null);
+    const stats = await getMatchzyStats(matchzyMatchId).catch((err: unknown) => {
+      lastError = err;
+      console.error(`[matchzy/mysql] tentativa ${i + 1}/${attempts} falhou para ${matchzyMatchId}:`, err);
+      return null;
+    });
     if (stats && stats.players.length > 0) return stats;
-    await sleep(2000);
+    if (i < attempts - 1) await sleep(2000);
+  }
+
+  if (lastError) {
+    console.error(`[matchzy/mysql] stats indisponíveis para ${matchzyMatchId}:`, lastError);
   }
   return null;
 }
@@ -376,13 +370,62 @@ export async function saveMysqlStats(
   return { saved: playerRows.length, errors: [] };
 }
 
+async function getBracketScores(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  match: { team1_id: string; team2_id: string },
+  stats: MatchzyStats
+): Promise<{ team1Score: number; team2Score: number }> {
+  const matchTeam1Score = Number(stats.match.team1_score ?? 0);
+  const matchTeam2Score = Number(stats.match.team2_score ?? 0);
+
+  if (matchTeam1Score !== matchTeam2Score) {
+    return { team1Score: matchTeam1Score, team2Score: matchTeam2Score };
+  }
+
+  const { data: teamRows } = await supabase
+    .from("teams")
+    .select("id, name")
+    .in("id", [match.team1_id, match.team2_id])
+    .returns<{ id: string; name: string }[]>();
+
+  const team1Name = teamRows?.find((t) => t.id === match.team1_id)?.name ?? "";
+  const team2Name = teamRows?.find((t) => t.id === match.team2_id)?.name ?? "";
+
+  const winnerId = resolveWinner(
+    { team1_id: match.team1_id, team2_id: match.team2_id, team1_name: team1Name, team2_name: team2Name },
+    stats.match
+  );
+  if (winnerId === match.team1_id) return { team1Score: 1, team2Score: 0 };
+  if (winnerId === match.team2_id) return { team1Score: 0, team2Score: 1 };
+
+  let team1MapWins = 0;
+  let team2MapWins = 0;
+  for (const map of stats.maps) {
+    const winner = map.winner ? normalize(map.winner) : "";
+    if (winner && winner === normalize(team1Name)) team1MapWins++;
+    if (winner && winner === normalize(team2Name)) team2MapWins++;
+  }
+
+  if (team1MapWins !== team2MapWins) {
+    return { team1Score: team1MapWins, team2Score: team2MapWins };
+  }
+
+  if (stats.maps.length === 1) {
+    const map = stats.maps[0];
+    return {
+      team1Score: Number(map.team1_score ?? 0),
+      team2Score: Number(map.team2_score ?? 0),
+    };
+  }
+
+  return { team1Score: matchTeam1Score, team2Score: matchTeam2Score };
+}
+
 // ── Main handler: called on series_end ───────────────────────────────────────
 
 export async function processSeriesEnd(matchId: string): Promise<void> {
   const supabase = createSupabaseAdminClient();
 
-  // Buscar o match completo (select *) para que processWebhookResult/advanceWinner
-  // tenham todos os campos necessários (tournament_id, round, match_index, etc.)
   const match = await getMatchRowByIdForWebhook(matchId);
   if (!match) throw new Error(`Partida ${matchId} não encontrada`);
 
@@ -419,29 +462,13 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   // Bracket já avançado anteriormente — não repetir
   if (bracketDone) return;
 
-  // Resolver vencedor
-  const { data: teamRows } = await supabase
-    .from("teams")
-    .select("id, name")
-    .in("id", [match.team1_id, match.team2_id])
-    .returns<{ id: string; name: string }[]>();
-
-  const team1Name = teamRows?.find((t) => t.id === match.team1_id)?.name ?? "";
-  const team2Name = teamRows?.find((t) => t.id === match.team2_id)?.name ?? "";
-
-  const winnerId = resolveWinner(
-    { team1_id: match.team1_id, team2_id: match.team2_id, team1_name: team1Name, team2_name: team2Name },
-    stats.match
+  // Resolver vencedor e avançar bracket
+  const bracketScores = await getBracketScores(
+    supabase,
+    { team1_id: match.team1_id, team2_id: match.team2_id },
+    stats
   );
-
-  if (!winnerId) {
-    throw new Error(
-      `Não foi possível determinar o vencedor (team1_score=${stats.match.team1_score}, team2_score=${stats.match.team2_score}, winner="${stats.match.winner}")`
-    );
-  }
-
-  // Marcar partida como finalizada e avançar bracket
-  await processWebhookResult(match, stats.match.team1_score ?? 0, stats.match.team2_score ?? 0);
+  await processWebhookResult(match, bracketScores.team1Score, bracketScores.team2Score);
 
   // Cleanup do servidor (fire-and-forget)
   const { data: serverRow } = await supabase

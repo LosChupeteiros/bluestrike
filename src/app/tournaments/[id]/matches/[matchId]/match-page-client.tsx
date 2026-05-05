@@ -244,12 +244,12 @@ function ReadyPanel({
 function VetoPanel({
   matchId, boType, existingVetoes, team1Id, team2Id,
   team1Name, team2Name, team1Tag, team2Tag,
-  userTeamId, isPlayer, isVetoActive, onVetoDone,
+  userTeamId, isVetoActive, onVetoDone,
 }: {
   matchId: string; boType: 1 | 3 | 5; existingVetoes: VetoEntry[];
   team1Id: string | null; team2Id: string | null;
   team1Name: string; team2Name: string; team1Tag: string; team2Tag: string;
-  userTeamId: string | null; isPlayer: boolean; isVetoActive: boolean;
+  userTeamId: string | null; isVetoActive: boolean;
   onVetoDone?: () => void;
 }) {
   const sequence = getVetoSequence(boType);
@@ -957,10 +957,10 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
 // ── Deadline ──────────────────────────────────────────────────────────────────
 
 function DeadlinePanel({ teamsAssignedAt }: { teamsAssignedAt: string | null }) {
-  const [, tick] = useState(0);
-  useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 60_000); return () => clearInterval(id); }, []);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id); }, []);
   if (!teamsAssignedAt) return null;
-  const msLeft = new Date(teamsAssignedAt).getTime() + 3_600_000 - Date.now();
+  const msLeft = new Date(teamsAssignedAt).getTime() + 3_600_000 - now;
   if (msLeft <= 0) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3">
@@ -988,9 +988,13 @@ function hsPercent(hs: number, kills: number) {
   return kills === 0 ? "0" : Math.round((hs / kills) * 100).toString();
 }
 
+function getMvp(players: PlayerStat[]) {
+  return [...players].sort((a, b) => b.score - a.score || b.kills - a.kills || b.adr - a.adr)[0] ?? null;
+}
+
 function ScoreboardTeam({
-  players, teamTag, teamName, isWinner,
-}: { players: PlayerStat[]; teamTag: string; teamName: string; isWinner: boolean }) {
+  players, teamTag, teamName, isWinner, mvpSteamId,
+}: { players: PlayerStat[]; teamTag: string; teamName: string; isWinner: boolean; mvpSteamId: string | null }) {
   const sorted = [...players].sort((a, b) => b.score - a.score || b.kills - a.kills);
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
@@ -1019,31 +1023,39 @@ function ScoreboardTeam({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((p, i) => (
-              <tr key={p.profileId ?? p.steamid64} className={`border-b border-[var(--border)]/50 last:border-b-0 ${i === 0 && isWinner ? "bg-[var(--primary)]/3" : ""}`}>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
-                      <AvatarFallback className="text-[10px]">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    {p.profileId ? (
-                      <Link href={`/players/${p.profileId}`} className="text-xs font-semibold hover:text-[var(--primary)] transition-colors">
-                        {p.nickname}
-                      </Link>
-                    ) : (
-                      <span className="text-xs font-semibold">{p.nickname}</span>
-                    )}
-                  </div>
-                </td>
-                <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.kills >= 20 ? "font-bold text-[var(--primary)]" : ""}`}>{p.kills}</td>
-                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.deaths}</td>
-                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.assists}</td>
-                <td className={`px-2 py-2.5 text-center text-xs tabular-nums font-semibold ${Number(kd(p.kills, p.deaths)) >= 1.5 ? "text-green-400" : ""}`}>{kd(p.kills, p.deaths)}</td>
-                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{hsPercent(p.hsCount, p.kills)}%</td>
-                <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.adr >= 90 ? "font-bold text-[var(--primary)]" : ""}`}>{p.adr.toFixed(1)}</td>
-              </tr>
-            ))}
+            {sorted.map((p) => {
+              const isMvp = p.steamid64 === mvpSteamId;
+              return (
+                <tr key={p.profileId ?? p.steamid64} className={`border-b border-[var(--border)]/50 last:border-b-0 ${isMvp ? "border-l-2 border-l-blue-400 bg-blue-500/10" : ""}`}>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
+                        <AvatarFallback className="text-[10px]">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      {p.profilePublicId ? (
+                        <Link href={`/profile/${p.profilePublicId}`} className={`text-xs font-semibold transition-colors hover:text-[var(--primary)] ${isMvp ? "text-blue-200" : ""}`}>
+                          {p.nickname}
+                        </Link>
+                      ) : (
+                        <span className={`text-xs font-semibold ${isMvp ? "text-blue-200" : ""}`}>{p.nickname}</span>
+                      )}
+                      {isMvp && (
+                        <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-300">
+                          MVP
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.kills >= 20 ? "font-bold text-[var(--primary)]" : ""}`}>{p.kills}</td>
+                  <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.deaths}</td>
+                  <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.assists}</td>
+                  <td className={`px-2 py-2.5 text-center text-xs tabular-nums font-semibold ${Number(kd(p.kills, p.deaths)) >= 1.5 ? "text-green-400" : ""}`}>{kd(p.kills, p.deaths)}</td>
+                  <td className="px-2 py-2.5 text-center text-xs tabular-nums">{hsPercent(p.hsCount, p.kills)}%</td>
+                  <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.adr >= 90 ? "font-bold text-[var(--primary)]" : ""}`}>{p.adr.toFixed(1)}</td>
+                </tr>
+              );
+            })}
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
@@ -1353,6 +1365,7 @@ export default function MatchPageClient({
           (p.teamId && p.teamId === match.team2Id) ||
           (!p.teamId && p.teamName && t2Name && p.teamName.toLowerCase() === t2Name)
         );
+        const mvpSteamId = getMvp(stats)?.steamid64 ?? null;
         const t1Won = match.winnerId === match.team1Id;
         const t2Won = match.winnerId === match.team2Id;
         const mapScore = detail.matchMaps[0];
@@ -1379,8 +1392,8 @@ export default function MatchPageClient({
             </div>
             {stats.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} />
-                <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} />
+                <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} mvpSteamId={mvpSteamId} />
+                <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} mvpSteamId={mvpSteamId} />
               </div>
             ) : (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-8 text-center space-y-3">
@@ -1424,7 +1437,7 @@ export default function MatchPageClient({
         <VetoPanel matchId={match.id} boType={match.boType} existingVetoes={effectiveVetoes}
           team1Id={match.team1Id} team2Id={match.team2Id}
           team1Name={t1Name} team2Name={t2Name} team1Tag={t1Tag} team2Tag={t2Tag}
-          userTeamId={userTeamId} isPlayer={isPlayer} isVetoActive={isVetoActive}
+          userTeamId={userTeamId} isVetoActive={isVetoActive}
           onVetoDone={doPoll} />
       )}
 
