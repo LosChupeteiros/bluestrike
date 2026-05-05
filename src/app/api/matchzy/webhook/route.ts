@@ -2,14 +2,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { computePayloadHash, processSeriesEnd } from "@/lib/matchzy";
 
 export async function POST(req: Request) {
-  // 1. Validar Authorization
-  const auth = req.headers.get("authorization");
-  const expected = `Bearer ${process.env.MATCHZY_WEBHOOK_SECRET}`;
-  if (!process.env.MATCHZY_WEBHOOK_SECRET || auth !== expected) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // 2. Parse payload
+  // Parse payload
   let payload: Record<string, unknown>;
   try {
     payload = await req.json();
