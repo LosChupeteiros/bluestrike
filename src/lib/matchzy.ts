@@ -158,21 +158,32 @@ function sleep(ms: number): Promise<void> {
 
 // ── Save stats to Supabase ────────────────────────────────────────────────────
 
+export interface SaveMatchStatsResult {
+  maps: number;
+  players: number;
+  skippedNoProfile: string[];
+  skippedNoTeam: string[];
+  errors: string[];
+}
+
 export async function saveMatchStats(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   matchId: string,
   team1Id: string,
   team2Id: string,
   stats: MatchzyStats
-): Promise<void> {
+): Promise<SaveMatchStatsResult> {
+  const result: SaveMatchStatsResult = { maps: 0, players: 0, skippedNoProfile: [], skippedNoTeam: [], errors: [] };
+
   // Resolve steam_id → profile_id
   const steamIds = [...new Set(stats.players.map((p) => p.steamid64))];
-  const { data: profileRows } = await supabase
+  const { data: profileRows, error: profileErr } = await supabase
     .from("profiles")
     .select("id, steam_id")
     .in("steam_id", steamIds)
     .returns<{ id: string; steam_id: string }[]>();
 
+  if (profileErr) result.errors.push(`profiles lookup: ${profileErr.message}`);
   const steamToProfileId = new Map((profileRows ?? []).map((p) => [p.steam_id, p.id]));
 
   // Resolve team name → team_id
@@ -185,7 +196,6 @@ export async function saveMatchStats(
   const team1Name = teamRows?.find((t) => t.id === team1Id)?.name ?? "";
   const team2Name = teamRows?.find((t) => t.id === team2Id)?.name ?? "";
 
-  // Upsert each map
   for (const mapRow of stats.maps) {
     const mapNumber = mapRow.mapnumber ?? 0;
     const mapName = (mapRow.mapname as string | undefined) ?? "unknown";
@@ -197,7 +207,9 @@ export async function saveMatchStats(
       else if (normalize(winnerName) === normalize(team2Name)) mapWinnerId = team2Id;
     }
 
-    const { data: matchMapRow, error: mapErr } = await supabase
+    // Upsert map row — do NOT chain .select() here; some PostgREST versions
+    // silently return nothing on UPDATE. We fetch the ID in a separate query.
+    const { error: mapUpsertErr } = await supabase
       .from("match_maps")
       .upsert(
         {
@@ -211,40 +223,57 @@ export async function saveMatchStats(
           played_at: new Date().toISOString(),
         },
         { onConflict: "match_id,map_order" }
-      )
-      .select("id")
-      .maybeSingle<{ id: string }>();
+      );
 
-    if (mapErr || !matchMapRow) {
-      console.error(`[matchzy] upsert match_maps map ${mapNumber}:`, mapErr?.message);
+    if (mapUpsertErr) {
+      result.errors.push(`match_maps upsert map ${mapNumber}: ${mapUpsertErr.message}`);
       continue;
     }
 
+    // Fetch the ID explicitly — reliable regardless of INSERT vs UPDATE
+    const { data: matchMapRow, error: mapFetchErr } = await supabase
+      .from("match_maps")
+      .select("id")
+      .eq("match_id", matchId)
+      .eq("map_order", mapNumber)
+      .maybeSingle<{ id: string }>();
+
+    if (mapFetchErr || !matchMapRow) {
+      result.errors.push(`match_maps fetch map ${mapNumber}: ${mapFetchErr?.message ?? "row not found"}`);
+      continue;
+    }
+
+    result.maps++;
     const matchMapId = matchMapRow.id;
 
-    // Player stats for this map
-    const mapPlayers = stats.players.filter((p) => p.mapnumber === mapNumber);
-
-    for (const player of mapPlayers) {
+    for (const player of stats.players.filter((p) => p.mapnumber === mapNumber)) {
       const profileId = steamToProfileId.get(player.steamid64);
-      if (!profileId) continue;
+      if (!profileId) {
+        result.skippedNoProfile.push(`${player.steamid64} (${String(player.name)})`);
+        continue;
+      }
+
+      const teamSide = player.team as string | undefined;
+      let teamId: string | null = null;
+      if (teamSide) {
+        const norm = normalize(teamSide);
+        if (norm === normalize(team1Name)) teamId = team1Id;
+        else if (norm === normalize(team2Name)) teamId = team2Id;
+      }
+      if (!teamId) {
+        result.skippedNoTeam.push(`${player.steamid64} team="${String(player.team)}" t1="${team1Name}" t2="${team2Name}"`);
+        continue;
+      }
 
       const kills = (player.kills as number | undefined) ?? 0;
       const deaths = (player.deaths as number | undefined) ?? 0;
       const assists = (player.assists as number | undefined) ?? 0;
       const damage = (player.damage as number | undefined) ?? 0;
       const hsKills = (player.head_shot_kills as number | undefined) ?? 0;
-
-      // Determine team_id from player.team ("team1" / "team2")
-      const teamSide = player.team as string | undefined;
-      const teamId = teamSide === "team1" ? team1Id : teamSide === "team2" ? team2Id : null;
-
-      // ADR approximation: we don't have round count per map, use damage as proxy.
-      // If MatchZy provides rounds in the map row, we could divide here.
       const rounds = (mapRow.rounds_played as number | undefined) ?? 30;
       const adr = rounds > 0 ? Math.round((damage / rounds) * 100) / 100 : 0;
 
-      await supabase.from("match_player_stats").upsert(
+      const { error: statsErr } = await supabase.from("match_player_stats").upsert(
         {
           match_map_id: matchMapId,
           profile_id: profileId,
@@ -264,8 +293,15 @@ export async function saveMatchStats(
         },
         { onConflict: "match_map_id,profile_id" }
       );
+      if (statsErr) {
+        result.errors.push(`match_player_stats upsert ${player.steamid64}: ${statsErr.message}`);
+      } else {
+        result.players++;
+      }
     }
   }
+
+  return result;
 }
 
 // ── Main handler: called on series_end ───────────────────────────────────────
@@ -288,15 +324,26 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   if (!matchzyMatchId) throw new Error(`matchzy_match_id não definido para ${matchId}`);
   if (!match.team1_id || !match.team2_id) throw new Error(`Times não definidos para ${matchId}`);
 
-  // Idempotente: já finalizada com vencedor
-  if (match.status === "finished" && match.winner_id) return;
+  // Bracket já finalizado: só re-salva stats (upserts são idempotentes), não avança bracket de novo
+  const bracketDone = match.status === "finished" && !!match.winner_id;
 
   // Buscar stats no MySQL com retry (MatchZy pode demorar alguns segundos para gravar)
   const stats = await getMatchzyStatsWithRetry(matchzyMatchId);
   if (!stats) {
-    await supabase.from("matches").update({ status: "processing_failed" }).eq("id", matchId);
+    if (!bracketDone) {
+      await supabase.from("matches").update({ status: "processing_failed" }).eq("id", matchId);
+    }
     throw new Error(`Stats MySQL não disponíveis após retries para matchzy_match_id ${matchzyMatchId}`);
   }
+
+  // Sempre salvar stats — upserts são idempotentes, corrige casos onde salvou parcialmente
+  const saveResult = await saveMatchStats(supabase, matchId, match.team1_id, match.team2_id, stats);
+  if (saveResult.errors.length || saveResult.skippedNoProfile.length || saveResult.skippedNoTeam.length) {
+    console.warn(`[matchzy/processSeriesEnd] saveMatchStats result for ${matchId}:`, JSON.stringify(saveResult));
+  }
+
+  // Bracket já avançado anteriormente — não repetir
+  if (bracketDone) return;
 
   // Resolver vencedor
   const { data: teamRows } = await supabase
@@ -319,10 +366,7 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
     );
   }
 
-  // Salvar mapas e stats de players no Supabase
-  await saveMatchStats(supabase, matchId, match.team1_id, match.team2_id, stats);
-
-  // Marcar partida como finalizada e avançar bracket (reutiliza função existente)
+  // Marcar partida como finalizada e avançar bracket
   await processWebhookResult(match, stats.match.team1_score ?? 0, stats.match.team2_score ?? 0);
 
   // Cleanup do servidor (fire-and-forget)

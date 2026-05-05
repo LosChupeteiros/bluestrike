@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   Trophy, Crown, Swords, Clock, Check, Copy, Wifi,
   Loader2, AlertTriangle, Server, X, Star, Eye, EyeOff,
-  ChevronDown, ChevronUp, Terminal, Lock, Ban, Flag, PowerOff,
+  ChevronDown, ChevronUp, Terminal, Lock, Ban, Flag, PowerOff, RefreshCw,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -1068,6 +1068,9 @@ export default function MatchPageClient({
   const [poll, setPoll] = useState<PollData | null>(null);
   const [polledVetoes, setPolledVetoes] = useState<VetoEntry[] | null>(null);
   const [tickData, setTickData] = useState<TickData | null>(null);
+  const [reloadingStats, setReloadingStats] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+  const [showReloadButton, setShowReloadButton] = useState(false);
 
   const effectiveStatus = poll?.status ?? match.status;
   const effectiveReadyTeam1 = poll?.readyTeam1 ?? match.readyTeam1;
@@ -1149,6 +1152,14 @@ export default function MatchPageClient({
     }
     wasFinished.current = isFinished;
   }, [isFinished, router]);
+
+  // Mostra botão de reload do scoreboard apenas se após 12s os stats ainda não chegaram
+  const statsEmpty = isFinished && !(detail.playerStats?.length);
+  useEffect(() => {
+    if (!statsEmpty) { setShowReloadButton(false); return; }
+    const id = setTimeout(() => setShowReloadButton(true), 12_000);
+    return () => clearTimeout(id);
+  }, [statsEmpty]);
 
   return (
     <div className="space-y-3">
@@ -1362,8 +1373,36 @@ export default function MatchPageClient({
                 <ScoreboardTeam players={t2Stats} teamTag={t2Tag} teamName={t2Name} isWinner={t2Won} />
               </div>
             ) : (
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-8 text-center">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-8 text-center space-y-3">
                 <p className="text-sm text-[var(--muted-foreground)]">Stats carregando…</p>
+                {showReloadButton && <button
+                  type="button"
+                  disabled={reloadingStats}
+                  onClick={async () => {
+                    setReloadingStats(true);
+                    setReloadError(null);
+                    try {
+                      const res = await fetch(`/api/matches/${match.id}/reload-stats`, { method: "POST" });
+                      const d = await res.json().catch(() => ({})) as { ok?: boolean; error?: string };
+                      if (res.ok) {
+                        router.refresh();
+                      } else {
+                        setReloadError(d.error ?? "Erro ao carregar stats.");
+                      }
+                    } catch {
+                      setReloadError("Erro de rede.");
+                    } finally {
+                      setReloadingStats(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-4 py-2 text-xs font-bold text-[var(--foreground)] transition-all hover:border-[var(--primary)]/40 hover:text-[var(--primary)] disabled:opacity-50"
+                >
+                  {reloadingStats
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RefreshCw className="h-3.5 w-3.5" />}
+                  {reloadingStats ? "Carregando…" : "Atualizar stats"}
+                </button>}
+                {reloadError && <p className="text-[10px] text-red-400">{reloadError}</p>}
               </div>
             )}
           </div>
