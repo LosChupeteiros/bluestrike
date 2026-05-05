@@ -279,6 +279,29 @@ export async function deleteGameServer(serverId: string, matchId?: string | null
   await dathostFetch<unknown>(`/game-servers/${serverId}`, { method: "DELETE", matchId });
 }
 
+// Starts a stopped game server. Uses multipart/form-data (Dathost requirement).
+export async function startServer(serverId: string, matchId?: string | null): Promise<void> {
+  const url = `${DATHOST_BASE}/game-servers/${serverId}/start`;
+  const body = new FormData();
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: dathostAuth() },
+    body,
+  });
+  let responseBody: unknown;
+  if (!res.ok) {
+    responseBody = await res.text().catch(() => null);
+  }
+  await writeDathostLog({
+    matchId,
+    method: "POST",
+    url,
+    responseStatus: res.status,
+    responseBody,
+  });
+  if (!res.ok) throw new Error(`Dathost start → ${res.status}: ${responseBody}`);
+}
+
 // Returns first CS2 server with no active match, not booting, and not already reserved.
 export async function findAvailableServer(
   matchId?: string | null,

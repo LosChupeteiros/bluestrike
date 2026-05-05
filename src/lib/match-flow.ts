@@ -2,7 +2,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
-import { duplicateServer, createCs2Match, getGameServer, stopGameServer, deleteGameServer, writeDathostLog } from "@/lib/dathost";
+import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGameServer, sendConsoleCommand, writeDathostLog } from "@/lib/dathost";
 
 // Mirror server cloned for each match. Override via DATHOST_MIRROR_SERVER_ID env var.
 const MIRROR_SERVER_ID = process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1";
@@ -75,7 +75,7 @@ export async function readyUpMatch(
 
   if (bothReady && match.status === "pre_live") {
     const { mapName, mapId } = await resolveMatchMap(matchId);
-    provisionServerAsync(matchId, match.team1_id!, match.team2_id!, mapName, mapId).catch(
+    provisionServerAsync(matchId, mapName, mapId).catch(
       (err: unknown) => console.error("[match-flow] provision error:", err)
     );
   }
@@ -208,8 +208,6 @@ export async function submitVetoAction(
 
 export async function provisionServerAsync(
   matchId: string,
-  team1Id: string,
-  team2Id: string,
   mapName: string,
   mapId: string
 ): Promise<void> {
@@ -292,132 +290,62 @@ export async function provisionServerAsync(
     (e: unknown) => console.warn("[provision] newer columns not set (migration pending?):", e)
   );
 
-  // Fetch team info
-  const { data: teamRows } = await supabase
-    .from("teams")
-    .select("id, name, tag")
-    .in("id", [team1Id, team2Id])
-    .returns<{ id: string; name: string; tag: string }[]>();
+  // Gerar matchzy_match_id: identificador numérico único que o MatchZy ecoará de volta
+  // nos webhooks e gravará nas tabelas MySQL matchzy_stats_*.
+  const matchzyMatchId = Date.now();
+  await supabase.from("matches").update({ matchzy_match_id: matchzyMatchId }).eq("id", matchId);
 
-  const team1Row = teamRows?.find((t) => t.id === team1Id);
-  const team2Row = teamRows?.find((t) => t.id === team2Id);
-
-  // Fetch player steam IDs + nicknames
-  const { data: members } = await supabase
-    .from("team_members")
-    .select("team_id, profile_id")
-    .in("team_id", [team1Id, team2Id])
-    .returns<{ team_id: string; profile_id: string }[]>();
-
-  const profileIds = (members ?? []).map((m) => m.profile_id);
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, steam_id, steam_persona_name")
-    .in("id", profileIds)
-    .returns<{ id: string; steam_id: string | null; steam_persona_name: string | null }[]>();
-
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-  const players = (members ?? [])
-    .filter((m) => profileMap.get(m.profile_id)?.steam_id)
-    .map((m) => {
-      const p = profileMap.get(m.profile_id)!;
-      return {
-        steam_id_64: p.steam_id!,
-        team: (m.team_id === team1Id ? "team1" : "team2") as "team1" | "team2",
-        ...(p.steam_persona_name ? { nickname_override: p.steam_persona_name } : {}),
-      };
-    });
-
-  // Webhook config — ensure a secret exists, generating one if needed
-  const { data: matchRow } = await supabase
-    .from("matches")
-    .select("webhook_secret")
-    .eq("id", matchId)
-    .maybeSingle<{ webhook_secret: string | null }>();
-
-  let webhookSecret = matchRow?.webhook_secret ?? null;
-  if (!webhookSecret) {
-    webhookSecret = randomUUID().replace(/-/g, "");
-    await supabase
-      .from("matches")
-      .update({ webhook_secret: webhookSecret })
-      .eq("id", matchId);
-  }
-
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
-  const webhookUrl = `${base}/api/webhooks/cs2/${matchId}`;
-
-  // Create Dathost CS2 match — this boots the server
-  let dathostMatchId: string;
-  try {
-    const dathostMatch = await createCs2Match(
-      {
-        game_server_id: server.id,
-        team1: { name: team1Row?.name ?? "Time 1" },
-        team2: { name: team2Row?.name ?? "Time 2" },
-        players,
-        settings: {
-          map: mapId,
-          enable_plugin: true,
-          enable_tech_pause: true,
-          wait_for_gotv: false,
-          match_begin_countdown: 0,
-          connect_time: 300,
-          password,
-        },
-        webhooks: {
-          event_url: webhookUrl,
-          authorization_header: `Bearer ${webhookSecret}`,
-          enabled_events: [
-            "booting_server",
-            "server_ready_for_players",
-            "all_players_connected",
-            "match_started",
-            "match_ended",
-            "match_canceled",
-          ],
-        },
-      },
-      matchId
-    );
-    dathostMatchId = dathostMatch.id;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[provision/${matchId}] createCs2Match failed:`, msg);
-    await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
-    await writeDathostLog({
-      matchId,
-      method: "POST",
-      url: "https://dathost.net/api/0.1/cs2-matches",
-      errorMessage: `Falha ao criar partida CS2: ${msg}`,
-    });
-    throw err;
-  }
-
-  // Fetch server info to get confirmed IP after provisioning
-  const serverInfo = await getGameServer(server.id, matchId).catch(() => server);
-  const rawIp = serverInfo.raw_ip ?? server.raw_ip ?? server.ip ?? "";
-  const connectString = `steam://connect/${rawIp}:${port}/${password}`;
-
+  // Connect string já disponível (IP + porta do servidor duplicado)
+  const connectString = `steam://connect/${ipStr}:${port}/${password}`;
   await supabase
     .from("dathost_servers")
-    .update({
-      dathost_id: dathostMatchId,
-      ip: rawIp,
-      raw_ip: rawIp,
-      connect_string: connectString,
-      status: "provisioning",
-    })
+    .update({ connect_string: connectString, status: "provisioning" })
     .eq("match_id", matchId);
 
+  // Iniciar o servidor
+  try {
+    await startServer(server.id, matchId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[provision/${matchId}] startServer failed:`, msg);
+    await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
+    return;
+  }
+
+  // Polling até o servidor estar online (max ~60 s)
+  let serverOnline = false;
+  for (let i = 0; i < 12; i++) {
+    await sleep(5000);
+    const info = await getGameServer(server.id, matchId).catch(() => null);
+    if (info?.on && !info.booting) { serverOnline = true; break; }
+  }
+
+  if (!serverOnline) {
+    console.error(`[provision/${matchId}] servidor não ficou online após 60s`);
+    await supabase.from("dathost_servers").update({ status: "error" }).eq("match_id", matchId);
+    return;
+  }
+
+  // Atualizar IP confirmado após boot
+  const confirmedInfo = await getGameServer(server.id, matchId).catch(() => server);
+  const confirmedIp = confirmedInfo.raw_ip ?? confirmedInfo.ip ?? ipStr;
   await supabase
-    .from("matches")
-    .update({ dathost_match_id: dathostMatchId })
-    .eq("id", matchId);
+    .from("dathost_servers")
+    .update({ ip: confirmedIp, raw_ip: confirmedIp, status: "ready" })
+    .eq("match_id", matchId);
+
+  // Enviar config MatchZy via console command
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
+  const configUrl = `${base}/api/matches/${matchId}/matchzy-config`;
+  await sendConsoleCommand(server.id, `matchzy_loadmatch_url "${configUrl}"`, matchId);
 
   console.log(
-    `[provision/${matchId}] OK — server: ${server.id}, map: ${mapName} (${mapId}), ip: ${rawIp}:${port}`
+    `[provision/${matchId}] OK — matchzy_match_id: ${matchzyMatchId}, server: ${server.id}, map: ${mapName} (${mapId}), ip: ${confirmedIp}:${port}`
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Admin retry: clears error/broken state and re-provisions.
@@ -426,15 +354,12 @@ export async function retryProvision(matchId: string): Promise<void> {
 
   const { data: match } = await supabase
     .from("matches")
-    .select("team1_id, team2_id, status")
+    .select("status")
     .eq("id", matchId)
-    .maybeSingle<{ team1_id: string | null; team2_id: string | null; status: string }>();
+    .maybeSingle<{ status: string }>();
 
-  if (!match?.team1_id || !match?.team2_id) {
-    throw new Error("Times não definidos para esta partida.");
-  }
-  if (match.status !== "live" && match.status !== "pre_live") {
-    throw new Error(`Partida no status "${match.status}" não pode ser reiniciada.`);
+  if (match?.status !== "live" && match?.status !== "pre_live") {
+    throw new Error(`Partida no status "${match?.status ?? "desconhecido"}" não pode ser reiniciada.`);
   }
 
   // Fetch the duplicated server ID so we can clean it up on Dathost
@@ -460,5 +385,5 @@ export async function retryProvision(matchId: string): Promise<void> {
   }
 
   const { mapName, mapId } = await resolveMatchMap(matchId);
-  await provisionServerAsync(matchId, match.team1_id, match.team2_id, mapName, mapId);
+  await provisionServerAsync(matchId, mapName, mapId);
 }

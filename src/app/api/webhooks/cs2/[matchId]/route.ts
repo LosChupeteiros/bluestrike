@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchRowByIdForWebhook, processWebhookResult } from "@/lib/matches";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { writeDathostLog, sendConsoleCommand, getCs2Match, stopGameServer, deleteGameServer } from "@/lib/dathost";
+import { writeDathostLog, getCs2Match, stopGameServer, deleteGameServer } from "@/lib/dathost";
 import type { DathostFullPlayer } from "@/lib/dathost";
 
 interface RouteContext {
@@ -238,11 +238,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
           .from("matches")
           .update({ status: "live", started_at: new Date().toISOString() })
           .eq("id", matchId);
-      }
-      if (payload.game_server_id) {
-        sendConsoleCommand(payload.game_server_id, "mp_warmuptime 900;mp_warmup_start", matchId).catch(
-          (err: unknown) => console.error("[webhook/cs2] sendConsoleCommand error:", err)
-        );
       }
       break;
     }
