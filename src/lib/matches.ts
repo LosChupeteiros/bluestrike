@@ -681,19 +681,41 @@ export interface RecentMatchSummary {
 export async function getRecentMatchesForProfile(profileId: string, limit = 10): Promise<RecentMatchSummary[]> {
   const supabase = createSupabaseAdminClient();
 
-  // Get this profile's steam_id to query matchzy_player_stats
+  // Get this profile's Steam identity to query matchzy_player_stats.
+  // Older rows may have rounded steamid64 values from MySQL BIGINT parsing, so
+  // player_name is a compatibility fallback for matches saved before the fix.
   const { data: profileData } = await supabase
     .from("profiles")
-    .select("steam_id")
+    .select("steam_id, steam_persona_name")
     .eq("id", profileId)
-    .maybeSingle<{ steam_id: string | null }>();
+    .maybeSingle<{ steam_id: string | null; steam_persona_name: string | null }>();
 
   if (profileData?.steam_id) {
-    const { data: rawRows } = await supabase
-      .from("matchzy_player_stats")
-      .select("match_id, team_name, map_team1_score, map_team2_score, mapname")
-      .eq("steamid64", profileData.steam_id)
-      .returns<{ match_id: string; team_name: string | null; map_team1_score: number | null; map_team2_score: number | null; mapname: string | null }[]>();
+    type RawRecentStatRow = {
+      match_id: string;
+      team_name: string | null;
+      map_team1_score: number | null;
+      map_team2_score: number | null;
+      mapname: string | null;
+    };
+
+    const statSelect = "match_id, team_name, map_team1_score, map_team2_score, mapname";
+    const [steamResult, nameResult] = await Promise.all([
+      supabase
+        .from("matchzy_player_stats")
+        .select(statSelect)
+        .eq("steamid64", normalizeSteamId(profileData.steam_id))
+        .returns<RawRecentStatRow[]>(),
+      profileData.steam_persona_name
+        ? supabase
+            .from("matchzy_player_stats")
+            .select(statSelect)
+            .eq("player_name", profileData.steam_persona_name)
+            .returns<RawRecentStatRow[]>()
+        : Promise.resolve({ data: [] as RawRecentStatRow[], error: null }),
+    ]);
+
+    const rawRows = [...(steamResult.data ?? []), ...(nameResult.data ?? [])];
 
     if (rawRows && rawRows.length > 0) {
       // Deduplicate by match_id
