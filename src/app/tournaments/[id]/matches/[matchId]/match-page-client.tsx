@@ -1026,7 +1026,10 @@ function ScoreboardTeam({
             {sorted.map((p) => {
               const isMvp = p.steamid64 === mvpSteamId;
               return (
-                <tr key={p.profileId ?? p.steamid64} className={`border-b border-[var(--border)]/50 last:border-b-0 ${isMvp ? "border-l-2 border-l-blue-400 bg-blue-500/10" : ""}`}>
+                <tr
+                  key={p.profileId ?? p.steamid64}
+                  className={`group border-b border-[var(--border)]/50 transition-colors last:border-b-0 hover:bg-[var(--primary)]/5 ${isMvp ? "border-l-2 border-l-blue-400 bg-blue-500/10 hover:bg-blue-500/15" : ""}`}
+                >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <Avatar className="h-7 w-7">
@@ -1034,7 +1037,7 @@ function ScoreboardTeam({
                         <AvatarFallback className="text-[10px]">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
                       {p.profilePublicId ? (
-                        <Link href={`/profile/${p.profilePublicId}`} className={`text-xs font-semibold transition-colors hover:text-[var(--primary)] ${isMvp ? "text-blue-200" : ""}`}>
+                        <Link href={`/profile/${p.profilePublicId}`} className={`text-xs font-semibold transition-colors group-hover:text-[var(--primary)] hover:text-[var(--primary)] hover:underline hover:underline-offset-4 ${isMvp ? "text-blue-200" : ""}`}>
                           {p.nickname}
                         </Link>
                       ) : (
@@ -1355,15 +1358,15 @@ export default function MatchPageClient({
       {/* ── Scoreboard ── */}
       {isFinished && (() => {
         const stats = detail.playerStats ?? [];
-        const t1Name = match.team1?.name?.toLowerCase() ?? "";
-        const t2Name = match.team2?.name?.toLowerCase() ?? "";
+        const t1NameForCompare = match.team1?.name?.toLowerCase() ?? "";
+        const t2NameForCompare = match.team2?.name?.toLowerCase() ?? "";
         const t1Stats = stats.filter((p) =>
           (p.teamId && p.teamId === match.team1Id) ||
-          (!p.teamId && p.teamName && t1Name && p.teamName.toLowerCase() === t1Name)
+          (!p.teamId && p.teamName && t1NameForCompare && p.teamName.toLowerCase() === t1NameForCompare)
         );
         const t2Stats = stats.filter((p) =>
           (p.teamId && p.teamId === match.team2Id) ||
-          (!p.teamId && p.teamName && t2Name && p.teamName.toLowerCase() === t2Name)
+          (!p.teamId && p.teamName && t2NameForCompare && p.teamName.toLowerCase() === t2NameForCompare)
         );
         const mvpSteamId = getMvp(stats)?.steamid64 ?? null;
         const t1Won = match.winnerId === match.team1Id;

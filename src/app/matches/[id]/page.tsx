@@ -44,7 +44,7 @@ function StatCell({ value, highlight }: { value: string | number; highlight?: bo
   );
 }
 
-function ScoreboardTable({ players, mvpSteamId }: { players: PlayerStat[]; isWinner: boolean; mvpSteamId: string | null }) {
+function ScoreboardTable({ players, mvpSteamId }: { players: PlayerStat[]; mvpSteamId: string | null }) {
   const sorted = [...players].sort((a, b) => b.score - a.score || b.kills - a.kills);
 
   return (
@@ -69,8 +69,8 @@ function ScoreboardTable({ players, mvpSteamId }: { players: PlayerStat[]; isWin
               <tr
                 key={p.profileId ?? p.steamid64}
                 className={cn(
-                  "border-b border-[var(--border)]/60 last:border-b-0 transition-colors",
-                  isMvp && "border-l-2 border-l-blue-400 bg-blue-500/10"
+                  "group border-b border-[var(--border)]/60 transition-colors last:border-b-0 hover:bg-[var(--primary)]/5",
+                  isMvp && "border-l-2 border-l-blue-400 bg-blue-500/10 hover:bg-blue-500/15"
                 )}
               >
                 <td className="px-5 py-3">
@@ -80,7 +80,7 @@ function ScoreboardTable({ players, mvpSteamId }: { players: PlayerStat[]; isWin
                       <AvatarFallback className="text-xs">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                     {p.profilePublicId ? (
-                      <Link href={`/profile/${p.profilePublicId}`} className={cn("font-semibold text-sm transition-colors hover:text-[var(--primary)]", isMvp && "text-blue-200")}>
+                      <Link href={`/profile/${p.profilePublicId}`} className={cn("text-sm font-semibold transition-colors group-hover:text-[var(--primary)] hover:text-[var(--primary)] hover:underline hover:underline-offset-4", isMvp && "text-blue-200")}>
                         {p.nickname}
                       </Link>
                     ) : (
@@ -328,7 +328,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
                   </Badge>
                 )}
               </div>
-              <ScoreboardTable players={stats} isWinner={isWinner} mvpSteamId={mvpSteamId} />
+              <ScoreboardTable players={stats} mvpSteamId={mvpSteamId} />
             </section>
           ))}
         </div>

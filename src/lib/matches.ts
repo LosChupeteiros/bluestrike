@@ -388,6 +388,10 @@ export interface FullMatchDetail {
   playerStats: PlayerStat[];
 }
 
+function normalizeSteamId(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
 function mapVetoRow(row: MapVetoRow): import("@/types").MapVeto {
   return {
     id: row.id,
@@ -527,17 +531,18 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
 
   if (rawStatRows && rawStatRows.length > 0) {
     // Enrich with Supabase profile data (avatar, username) by steam_id — best-effort
-    const steamIds = [...new Set(rawStatRows.map((s) => s.steamid64))];
+    const steamIds = [...new Set(rawStatRows.map((s) => normalizeSteamId(s.steamid64)).filter(Boolean))];
     const { data: profileRows } = await supabase
       .from("profiles")
       .select("id, public_id, steam_id, steam_persona_name, steam_avatar_url")
       .in("steam_id", steamIds)
       .returns<{ id: string; public_id: number; steam_id: string; steam_persona_name: string; steam_avatar_url: string | null }[]>();
 
-    const profileBySteamId = new Map((profileRows ?? []).map((p) => [p.steam_id, p]));
+    const profileBySteamId = new Map((profileRows ?? []).map((p) => [normalizeSteamId(p.steam_id), p]));
 
     playerStats = rawStatRows.map((s) => {
-      const profile = profileBySteamId.get(s.steamid64);
+      const steamid64 = normalizeSteamId(s.steamid64);
+      const profile = profileBySteamId.get(steamid64);
       const rounds = (s.map_team1_score ?? 0) + (s.map_team2_score ?? 0);
       const adr = rounds > 0 ? Math.round((s.damage / rounds) * 100) / 100 : 0;
       return {
@@ -545,7 +550,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
         profilePublicId: profile?.public_id ?? null,
         teamId: null,
         teamName: s.team_name,
-        steamid64: s.steamid64,
+        steamid64,
         nickname: profile?.steam_persona_name ?? s.player_name ?? s.steamid64,
         avatarUrl: profile?.steam_avatar_url ?? null,
         kills: s.kills,

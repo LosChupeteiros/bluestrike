@@ -324,6 +324,8 @@ export async function saveMysqlStats(
 ): Promise<{ saved: number; errors: string[] }> {
   if (!stats.players.length) return { saved: 0, errors: [] };
 
+  await supabase.from("matchzy_player_stats").delete().eq("match_id", matchId);
+
   // One row per player per map — no profile or team lookup required
   const playerRows = stats.players.map((player) => {
     const mapRow = stats.maps.find((m) => m.mapnumber === player.mapnumber) ?? stats.maps[0] ?? null;

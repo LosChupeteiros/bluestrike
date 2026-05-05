@@ -19,6 +19,8 @@ function getMysqlConfig() {
     password,
     database,
     ssl: { rejectUnauthorized: process.env.WEAPONPAINTS_MYSQL_SSL === "strict" },
+    supportBigNumbers: true,
+    bigNumberStrings: true,
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0,
