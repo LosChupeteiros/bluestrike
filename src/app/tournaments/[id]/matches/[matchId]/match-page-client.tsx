@@ -119,6 +119,18 @@ function SmallAvatar({ nickname, avatarUrl }: { nickname: string; avatarUrl: str
   );
 }
 
+function FactionLogo({ side, className = "h-8 w-8" }: { side: "ct" | "t"; className?: string }) {
+  return (
+    <span
+      aria-label={side === "ct" ? "CT" : "TR"}
+      className={`inline-flex items-center justify-center bg-contain bg-center bg-no-repeat text-[9px] font-black ${side === "ct" ? "text-[#7B96FF]" : "text-[#FB923C]"} ${className}`}
+      style={{ backgroundImage: `url(${side === "ct" ? "/assets/sides/Ct_logo.webp" : "/assets/sides/Tr_logo.webp"})` }}
+    >
+      {side === "ct" ? "CT" : "TR"}
+    </span>
+  );
+}
+
 // ── Ready panel ────────────────────────────────────────────────────────────────
 
 function ReadyPanel({
@@ -350,7 +362,7 @@ function VetoPanel({
             <div className="text-[11px] text-[var(--muted-foreground)]">
               está escolhendo um mapa para{" "}
               <span className={`font-bold ${currentSlot?.action === "ban" ? "text-red-400" : "text-[var(--primary)]"}`}>
-                {currentSlot?.action === "ban" ? "vetar" : "escolher"}
+                {currentSlot?.action === "ban" ? "vetar" : "pick"}
               </span>
             </div>
           </div>
@@ -372,7 +384,7 @@ function VetoPanel({
             ))}
             {decider && (
               <span className="rounded-full border border-[var(--primary)]/40 bg-[var(--primary)]/15 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)]">
-                {decider} <span className="opacity-60">(decider)</span>
+                {decider} <span className="opacity-60">(sobra)</span>
               </span>
             )}
           </div>
@@ -416,7 +428,7 @@ function VetoPanel({
                   <div className="text-[9px] font-black uppercase tracking-wide text-white drop-shadow">{map.name}</div>
                   {isBanned && <div className="text-[8px] font-bold text-red-400">VETADO</div>}
                   {isPicked && <div className="text-[8px] font-bold text-[var(--primary)]">ESCOLHIDO</div>}
-                  {isDecider && <div className="text-[8px] font-bold text-[var(--primary)]">DECIDER</div>}
+                  {isDecider && <div className="text-[8px] font-bold text-[var(--primary)]">SOBRA</div>}
                 </div>
               </div>
             </button>
@@ -432,6 +444,112 @@ function VetoPanel({
 }
 
 // ── Post-veto panel: ready (left) + server/connect (right) ────────────────────
+
+function SideSelectionPanel({
+  matchId, vetoes, team1Id, team2Id, team1Name, team2Name, team1Tag, team2Tag,
+  userTeamId, isCaptain, onDone,
+}: {
+  matchId: string;
+  vetoes: VetoEntry[];
+  team1Id: string | null;
+  team2Id: string | null;
+  team1Name: string;
+  team2Name: string;
+  team1Tag: string;
+  team2Tag: string;
+  userTeamId: string | null;
+  isCaptain: boolean;
+  onDone: () => void;
+}) {
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const picks = vetoes.filter((v) => v.action === "pick");
+
+  async function choose(vetoId: string, side: "ct" | "t") {
+    if (loadingId) return;
+    setLoadingId(vetoId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/matches/${matchId}/side`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vetoId, side }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) setError(data.error ?? "Erro ao escolher lado.");
+      else onDone();
+    } catch {
+      setError("Erro de rede.");
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[var(--primary)]/25 bg-[var(--card)]">
+      <div className="border-b border-[var(--border)] bg-[var(--primary)]/5 px-5 py-3">
+        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Escolha de lados</div>
+        <div className="text-[11px] text-[var(--muted-foreground)]">O adversário de cada pick escolhe se começa CT ou TR.</div>
+      </div>
+      <div className="grid gap-3 p-4 md:grid-cols-2">
+        {picks.map((pick) => {
+          const pickerIsTeam1 = pick.teamId === team1Id;
+          const pickerName = pickerIsTeam1 ? team1Name : team2Name;
+          const pickerTag = pickerIsTeam1 ? team1Tag : team2Tag;
+          const chooserTeamId = pickerIsTeam1 ? team2Id : team1Id;
+          const chooserName = pickerIsTeam1 ? team2Name : team1Name;
+          const chooserTag = pickerIsTeam1 ? team2Tag : team1Tag;
+          const canChoose = isCaptain && userTeamId === chooserTeamId && !pick.pickedSide;
+          return (
+            <div key={pick.id} className={`rounded-xl border p-3 ${
+              !pick.pickedSide ? "border-[var(--primary)]/25 bg-[var(--primary)]/5" : "border-[var(--border)] bg-[var(--secondary)]/30"
+            }`}>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Mapa {pick.vetoOrder}</div>
+                  <div className="truncate text-base font-black text-[var(--foreground)]">{pick.mapName}</div>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-black/30 text-xs font-black text-[var(--primary)]">
+                  {pickerTag}
+                </div>
+              </div>
+              <div className="mb-3 text-[11px] text-[var(--muted-foreground)]">
+                Pick de <span className="font-bold text-[var(--foreground)]">{pickerName}</span>. Lado de{" "}
+                <span className="font-bold text-[var(--foreground)]">{chooserName}</span>.
+              </div>
+              {pick.pickedSide ? (
+                <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs font-black text-green-300">
+                  <FactionLogo side={pick.pickedSide} className="h-6 w-6" />
+                  {chooserTag} começa {pick.pickedSide.toUpperCase()}
+                </div>
+              ) : canChoose ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {(["ct", "t"] as const).map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      disabled={loadingId === pick.id}
+                      onClick={() => choose(pick.id, side)}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-black/30 px-3 py-2 text-xs font-black transition-all hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/10 disabled:opacity-50"
+                    >
+                      {loadingId === pick.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <FactionLogo side={side} className="h-7 w-7" />}
+                      {side.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-200/80">
+                  Aguardando {chooserName} escolher o lado.
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {error && <div className="border-t border-[var(--border)] px-5 py-3 text-xs text-red-400">{error}</div>}
+    </div>
+  );
+}
 
 function PostVetoPanel({
   matchId, tournamentId,
@@ -1095,10 +1213,13 @@ export default function MatchPageClient({
   const isPreLive = effectiveStatus === "pre_live";
   const sequence = getVetoSequence(match.boType);
   const vetoDone = effectiveVetoes.length >= sequence.length;
+  const pickedVetoes = effectiveVetoes.filter((v) => v.action === "pick");
+  const sidePickDone = match.boType <= 1 || pickedVetoes.every((v) => Boolean(v.pickedSide));
+  const sidePickActive = vetoDone && match.boType > 1 && isVetoActive && pickedVetoes.length > 0 && !sidePickDone;
   const bothTeamsDefined = Boolean(match.team1Id && match.team2Id);
 
   // Derive chosen map from veto history for ServerPanel
-  const picks = effectiveVetoes.filter((v) => v.action === "pick").map((v) => v.mapName);
+  const picks = pickedVetoes.map((v) => v.mapName);
   const vetoedBans = new Set(effectiveVetoes.filter((v) => v.action === "ban").map((v) => v.mapName));
   const chosenMap = vetoDone
     ? (CS2_MAP_POOL.find((m) => m.name === picks[0]) ??
@@ -1506,6 +1627,22 @@ export default function MatchPageClient({
       )}
 
       {/* ── Admin result form ── */}
+      {sidePickActive && (
+        <SideSelectionPanel
+          matchId={match.id}
+          vetoes={effectiveVetoes}
+          team1Id={match.team1Id}
+          team2Id={match.team2Id}
+          team1Name={t1Name}
+          team2Name={t2Name}
+          team1Tag={t1Tag}
+          team2Tag={t2Tag}
+          userTeamId={userTeamId}
+          isCaptain={isCaptain}
+          onDone={doPoll}
+        />
+      )}
+
       {isAdmin && !isFinished && match.team1Id && match.team2Id && (
         <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--card)] p-5">
           <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Registrar Resultado (Admin)</h3>

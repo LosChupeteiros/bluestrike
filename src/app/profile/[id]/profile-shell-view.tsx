@@ -81,8 +81,12 @@ export default function ProfileShellView({
   const [isEditModalOpen, setIsEditModalOpen] = useState(defaultEditOpen);
   const [isRankGuideOpen, setIsRankGuideOpen] = useState(false);
   const [isFaceitModalOpen, setIsFaceitModalOpen] = useState(false);
+  const [matchesPage, setMatchesPage] = useState(1);
   const searchParamsString = searchParams.toString();
   const activeTab = searchParams.get("tab") === "teams" ? "teams" : defaultTab;
+  const matchesPageSize = 5;
+  const matchesTotalPages = Math.max(1, Math.ceil(recentMatches.length / matchesPageSize));
+  const visibleRecentMatches = recentMatches.slice((matchesPage - 1) * matchesPageSize, matchesPage * matchesPageSize);
 
   useEffect(() => {
     setIsEditModalOpen(defaultEditOpen);
@@ -92,6 +96,14 @@ export default function ProfileShellView({
     setIsEditModalOpen(searchParams.get("edit") === "1");
     setIsRankGuideOpen(searchParams.get("guide") === "1");
   }, [searchParamsString, searchParams]);
+
+  useEffect(() => {
+    setMatchesPage(1);
+  }, [profile.id]);
+
+  useEffect(() => {
+    if (matchesPage > matchesTotalPages) setMatchesPage(matchesTotalPages);
+  }, [matchesPage, matchesTotalPages]);
 
   const handleTabChange = useCallback(
     (value: string) => {
@@ -358,7 +370,8 @@ export default function ProfileShellView({
 
                 <TabsContent value="matches" className="space-y-3">
                   {recentMatches.length > 0 ? (
-                    recentMatches.map((match) => {
+                    <>
+                    {visibleRecentMatches.map((match) => {
                       const href = match.tournamentId
                         ? `/tournaments/${match.tournamentId}/matches/${match.matchId}`
                         : `/matches/${match.matchId}`;
@@ -400,7 +413,33 @@ export default function ProfileShellView({
                           </div>
                         </Link>
                       );
-                    })
+                    })}
+                    {matchesTotalPages > 1 && (
+                      <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3">
+                        <span className="text-xs text-[var(--muted-foreground)]">
+                          Página {matchesPage} de {matchesTotalPages}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={matchesPage <= 1}
+                            onClick={() => setMatchesPage((page) => Math.max(1, page - 1))}
+                            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-bold transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--primary)] disabled:opacity-40"
+                          >
+                            Anterior
+                          </button>
+                          <button
+                            type="button"
+                            disabled={matchesPage >= matchesTotalPages}
+                            onClick={() => setMatchesPage((page) => Math.min(matchesTotalPages, page + 1))}
+                            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-bold transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--primary)] disabled:opacity-40"
+                          >
+                            Próxima
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   ) : (
                     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-12 text-center">
                       <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />

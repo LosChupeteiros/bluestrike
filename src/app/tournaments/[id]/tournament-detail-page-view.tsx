@@ -135,6 +135,11 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     { label: "Início do campeonato", value: tournament.startsAt },
     { label: "Encerramento", value: tournament.endsAt },
   ].filter((d) => d.value);
+  const podiumEntries = [
+    { label: "1º lugar", team: podiumFirst, prize: tournament.prizeBreakdown[0]?.amount ?? 0, className: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" },
+    { label: "2º lugar", team: podiumSecond, prize: tournament.prizeBreakdown[1]?.amount ?? 0, className: "border-slate-400/30 bg-slate-400/10 text-slate-300" },
+    { label: "3º lugar", team: podiumThird, prize: tournament.prizeBreakdown[2]?.amount ?? 0, className: "border-orange-600/30 bg-orange-600/10 text-orange-300" },
+  ];
 
   return (
     <div className="min-h-screen pb-20 pt-20">
@@ -235,6 +240,28 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
               {/* ── Info tab ── */}
               <TabsContent value="info">
                 <div className="space-y-5">
+                  {isFinishedTournament && (
+                    <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
+                      <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
+                        <Trophy className="h-4 w-4 text-yellow-400" />
+                        Pódio final
+                      </h3>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        {podiumEntries.map((entry, index) => (
+                          <div key={entry.label} className={`rounded-xl border p-5 text-center ${entry.className}`}>
+                            <div className="mb-2 text-3xl">{PLACE_ICONS[index] ?? `#${index + 1}`}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">{entry.label}</div>
+                            <div className="mt-2 truncate text-base font-black">{entry.team?.name ?? "—"}</div>
+                            {entry.team && <div className="text-[10px] opacity-70">{entry.team.elo} ELO</div>}
+                            <div className="mt-4 rounded-lg border border-current/15 bg-black/20 px-3 py-2 text-sm font-black">
+                              {formatCurrency(entry.prize)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Description */}
                   {tournament.description && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">

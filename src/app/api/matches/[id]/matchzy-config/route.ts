@@ -103,10 +103,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         mapSides.push("knife");
       } else {
         const pickerIsTeam1 = pick.team_id === team1_id;
+        const sideChooserIsTeam1 = !pickerIsTeam1;
         if (pick.picked_side === "ct") {
-          mapSides.push(pickerIsTeam1 ? "team1_ct" : "team2_ct");
+          mapSides.push(sideChooserIsTeam1 ? "team1_ct" : "team2_ct");
         } else {
-          mapSides.push(pickerIsTeam1 ? "team2_ct" : "team1_ct");
+          mapSides.push(sideChooserIsTeam1 ? "team2_ct" : "team1_ct");
         }
       }
     }

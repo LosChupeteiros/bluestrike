@@ -193,10 +193,13 @@ export async function submitVetoAction(
   const decider = CS2_MAP_POOL.find((m) => !pickedMaps.includes(m.name) && !allBanned.has(m.name))?.name ?? null;
 
   if (isLastStep) {
-    await supabase
-      .from("matches")
-      .update({ status: "pre_live", ready_team1: false, ready_team2: false })
-      .eq("id", matchId);
+    const pickedMapsNeedSides = match.bo_type > 1 && pickedMaps.length > 0;
+    if (!pickedMapsNeedSides) {
+      await supabase
+        .from("matches")
+        .update({ status: "pre_live", ready_team1: false, ready_team2: false })
+        .eq("id", matchId);
+    }
   }
 
   return { ok: true, done: isLastStep, pickedMaps, decider };
@@ -205,6 +208,59 @@ export async function submitVetoAction(
 // ── Server provisioning ───────────────────────────────────────────────────────
 // Called after both teams ready in pre_live, or by admin retry.
 // Safe to call multiple times — skips if already in a non-error state.
+
+export async function submitMapSideChoice(
+  matchId: string,
+  requestingTeamId: string,
+  vetoId: string,
+  side: "ct" | "t"
+): Promise<{ ok: true; done: boolean } | { ok: false; error: string }> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, team1_id, team2_id, status, bo_type")
+    .eq("id", matchId)
+    .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id" | "status" | "bo_type">>();
+
+  if (!match) return { ok: false, error: "Partida nÃ£o encontrada." };
+  if (match.status !== "veto") return { ok: false, error: "A escolha de lado nÃ£o estÃ¡ ativa." };
+  if (side !== "ct" && side !== "t") return { ok: false, error: "Lado invÃ¡lido." };
+
+  const { data: vetoes } = await supabase
+    .from("map_vetoes")
+    .select("id, team_id, action, picked_side, veto_order")
+    .eq("match_id", matchId)
+    .order("veto_order", { ascending: true })
+    .returns<{ id: string; team_id: string; action: string; picked_side: "ct" | "t" | null; veto_order: number }[]>();
+
+  const done = vetoes ?? [];
+  const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5);
+  if (done.length < sequence.length) return { ok: false, error: "O veto ainda nÃ£o terminou." };
+
+  const target = done.find((v) => v.id === vetoId && v.action === "pick");
+  if (!target) return { ok: false, error: "Pick nÃ£o encontrado." };
+
+  const sideChooserTeamId = target.team_id === match.team1_id ? match.team2_id : match.team1_id;
+  if (!sideChooserTeamId || requestingTeamId !== sideChooserTeamId) {
+    return { ok: false, error: "Esse lado deve ser escolhido pelo adversÃ¡rio do pick." };
+  }
+
+  await supabase.from("map_vetoes").update({ picked_side: side }).eq("id", vetoId);
+
+  const updated = done.map((v) => (v.id === vetoId ? { ...v, picked_side: side } : v));
+  const picks = updated.filter((v) => v.action === "pick");
+  const doneSides = picks.every((v) => Boolean(v.picked_side));
+
+  if (doneSides) {
+    await supabase
+      .from("matches")
+      .update({ status: "pre_live", ready_team1: false, ready_team2: false })
+      .eq("id", matchId);
+  }
+
+  return { ok: true, done: doneSides };
+}
 
 export async function provisionServerAsync(
   matchId: string,

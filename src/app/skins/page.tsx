@@ -16,57 +16,25 @@ export const metadata: Metadata = {
 
 function CTLogo() {
   return (
-    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon
-        points="22,3 40,12.5 40,31.5 22,41 4,31.5 4,12.5"
-        fill="#4B69FF"
-        fillOpacity="0.12"
-        stroke="#4B69FF"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <polygon
-        points="22,9 35,16.5 35,29.5 22,37 9,29.5 9,16.5"
-        fill="#4B69FF"
-        fillOpacity="0.07"
-        stroke="#4B69FF"
-        strokeWidth="0.75"
-        strokeLinejoin="round"
-      />
-      <text
-        x="22"
-        y="27"
-        textAnchor="middle"
-        fill="#7B96FF"
-        fontSize="12"
-        fontWeight="900"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-        letterSpacing="0.5"
-      >
-        CT
-      </text>
-    </svg>
+    <span
+      aria-label="CT"
+      className="flex h-11 w-11 items-center justify-center bg-contain bg-center bg-no-repeat text-xs font-black text-[#7B96FF]"
+      style={{ backgroundImage: "url(/assets/sides/Ct_logo.webp)" }}
+    >
+      CT
+    </span>
   );
 }
 
 function TLogo() {
   return (
-    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="22" cy="22" r="18" fill="#F97316" fillOpacity="0.12" stroke="#F97316" strokeWidth="1.5" />
-      <circle cx="22" cy="22" r="12" fill="#F97316" fillOpacity="0.07" stroke="#F97316" strokeWidth="0.75" />
-      <text
-        x="22"
-        y="27"
-        textAnchor="middle"
-        fill="#FB923C"
-        fontSize="12"
-        fontWeight="900"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-        letterSpacing="0.5"
-      >
-        TR
-      </text>
-    </svg>
+    <span
+      aria-label="TR"
+      className="flex h-11 w-11 items-center justify-center bg-contain bg-center bg-no-repeat text-xs font-black text-[#FB923C]"
+      style={{ backgroundImage: "url(/assets/sides/Tr_logo.webp)" }}
+    >
+      TR
+    </span>
   );
 }
 
