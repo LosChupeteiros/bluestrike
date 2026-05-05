@@ -4,10 +4,10 @@ import { getCurrentProfile } from "@/lib/profiles";
 import { getWeaponPaintsPool } from "@/lib/weaponpaints/mysql";
 import { getCurrentSkins, getCurrentKnife, getCurrentGlove, getCurrentMusic } from "@/lib/weaponpaints/queries";
 import { getSkinsByWeapon, getWeaponList, getKnifeList, getGloveCatalog, getMusicList } from "@/lib/weaponpaints/catalog";
-import { WeaponCard } from "./components/weapon-card";
 import { KnifeCard } from "./components/knife-card";
 import { GloveCard } from "./components/glove-card";
 import { MusicCard } from "./components/music-card";
+import { WeaponCardUnified } from "./components/weapon-card-unified";
 
 export const metadata: Metadata = {
   title: "Skins",
@@ -202,22 +202,6 @@ export default async function SkinsPage() {
               <SectionLabel>Kit de Música</SectionLabel>
               <MusicCard musicList={musicList} currentMusicId={musicCT} team={3} />
             </div>
-
-            <div>
-              <SectionLabel>Armas</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
-                {weaponEntries.map(({ defindex, defaultSkin, availableSkins }) => (
-                  <WeaponCard
-                    key={defindex}
-                    defindex={defindex}
-                    defaultSkin={defaultSkin}
-                    availableSkins={availableSkins}
-                    currentSkin={skinsCT[defindex] ?? null}
-                    team={3}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* ── T side ── */}
@@ -255,25 +239,29 @@ export default async function SkinsPage() {
               <SectionLabel>Kit de Música</SectionLabel>
               <MusicCard musicList={musicList} currentMusicId={musicT} team={2} />
             </div>
-
-            <div>
-              <SectionLabel>Armas</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
-                {weaponEntries.map(({ defindex, defaultSkin, availableSkins }) => (
-                  <WeaponCard
-                    key={defindex}
-                    defindex={defindex}
-                    defaultSkin={defaultSkin}
-                    availableSkins={availableSkins}
-                    currentSkin={skinsT[defindex] ?? null}
-                    team={2}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
 
         </div>
+
+        {/* ── Armas (unificado — aplica em ambos os lados) ── */}
+        <div className="mt-4 rounded-xl border border-[var(--border)] p-5 space-y-3">
+          <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
+            <p className="text-base font-black tracking-tight">Armas</p>
+            <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-widest">CT &amp; TR</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+            {weaponEntries.map(({ defindex, defaultSkin, availableSkins }) => (
+              <WeaponCardUnified
+                key={defindex}
+                defindex={defindex}
+                defaultSkin={defaultSkin}
+                availableSkins={availableSkins}
+                currentSkin={skinsCT[defindex] ?? null}
+              />
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

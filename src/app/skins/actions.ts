@@ -44,6 +44,34 @@ const musicSchema = z.object({
   team: teamSchema,
 });
 
+// Salva a skin de arma para AMBOS os lados (CT=3 e T=2) simultaneamente.
+// Usado para armas, que não dependem de lado.
+export async function saveSkinBothTeams(formData: FormData) {
+  const profile = await requireCurrentProfile("/skins");
+
+  const parsed = skinSchema.safeParse({
+    defindex: formData.get("defindex"),
+    paintId: formData.get("paintId"),
+    wear: formData.get("wear"),
+    seed: formData.get("seed"),
+    team: 3, // valor dummy para passar a validação — salvaremos nos dois
+  });
+
+  if (!parsed.success) return;
+
+  const { defindex, paintId, wear, seed } = parsed.data;
+  if (!isValidSkin(defindex, paintId)) return;
+
+  const pool = getWeaponPaintsPool();
+  if (!pool) return;
+
+  await Promise.all([
+    upsertSkin(pool, profile.steamId, defindex, paintId, wear, seed, 3),
+    upsertSkin(pool, profile.steamId, defindex, paintId, wear, seed, 2),
+  ]);
+  revalidatePath("/skins");
+}
+
 export async function saveSkin(formData: FormData) {
   const profile = await requireCurrentProfile("/skins");
 

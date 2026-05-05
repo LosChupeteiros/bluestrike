@@ -1240,26 +1240,7 @@ export default function MatchPageClient({
         />
       )}
 
-      {/* ── Veto panel ── */}
-      {(isVetoActive || effectiveVetoes.length > 0) && (
-        <VetoPanel matchId={match.id} boType={match.boType} existingVetoes={effectiveVetoes}
-          team1Id={match.team1Id} team2Id={match.team2Id}
-          team1Name={t1Name} team2Name={t2Name} team1Tag={t1Tag} team2Tag={t2Tag}
-          userTeamId={userTeamId} isPlayer={isPlayer} isVetoActive={isVetoActive}
-          onVetoDone={doPoll} />
-      )}
-
-      {/* ── Admin result form ── */}
-      {isAdmin && !isFinished && match.team1Id && match.team2Id && (
-        <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--card)] p-5">
-          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Registrar Resultado (Admin)</h3>
-          <AdminResultForm matchId={match.id} tournamentId={tournamentId}
-            team1={{ id: match.team1Id, name: t1Name }}
-            team2={{ id: match.team2Id, name: t2Name }} />
-        </div>
-      )}
-
-      {/* ── Scoreboard (after match finishes) ── */}
+      {/* ── Scoreboard (aparece quando a partida termina, acima do veto) ── */}
       {isFinished && (detail.playerStats?.length ?? 0) > 0 && (() => {
         const t1Stats = (detail.playerStats ?? []).filter((p) => p.teamId === match.team1Id);
         const t2Stats = (detail.playerStats ?? []).filter((p) => p.teamId === match.team2Id);
@@ -1278,6 +1259,25 @@ export default function MatchPageClient({
           </div>
         );
       })()}
+
+      {/* ── Veto panel ── */}
+      {(isVetoActive || effectiveVetoes.length > 0) && (
+        <VetoPanel matchId={match.id} boType={match.boType} existingVetoes={effectiveVetoes}
+          team1Id={match.team1Id} team2Id={match.team2Id}
+          team1Name={t1Name} team2Name={t2Name} team1Tag={t1Tag} team2Tag={t2Tag}
+          userTeamId={userTeamId} isPlayer={isPlayer} isVetoActive={isVetoActive}
+          onVetoDone={doPoll} />
+      )}
+
+      {/* ── Admin result form ── */}
+      {isAdmin && !isFinished && match.team1Id && match.team2Id && (
+        <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--card)] p-5">
+          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Registrar Resultado (Admin)</h3>
+          <AdminResultForm matchId={match.id} tournamentId={tournamentId}
+            team1={{ id: match.team1Id, name: t1Name }}
+            team2={{ id: match.team2Id, name: t2Name }} />
+        </div>
+      )}
 
       {/* ── Admin Dathost console ── */}
       {isAdmin && <DathostLogsPanel matchId={match.id} />}
