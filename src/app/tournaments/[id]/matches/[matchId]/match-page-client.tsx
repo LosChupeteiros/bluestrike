@@ -31,13 +31,16 @@ interface PollData {
   status: string;
   readyTeam1: boolean;
   readyTeam2: boolean;
+  matchzyConfigSent?: boolean;
   server: ServerInfo | null;
 }
 
 interface TickData {
   done: boolean;
-  team1Maps: number;
-  team2Maps: number;
+  error?: string | null;
+  fast_polling?: boolean;
+  team1_maps: number;
+  team2_maps: number;
   maps: { mapname: string; t1: number; t2: number; winner: string | null; finished: boolean }[];
 }
 
@@ -1151,25 +1154,26 @@ export default function MatchPageClient({
   }, [match.id]);
 
   useEffect(() => {
-    if (effectiveStatus !== "live") return;
+    if (effectiveStatus !== "live" || !poll?.matchzyConfigSent) return;
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let fastPolling = false;
 
     const schedule = (delay: number) => {
       timeoutId = setTimeout(async () => {
         const data = await doMatchzyTick();
         if (cancelled || data?.done) return;
-        const urgent = Boolean(data?.maps?.some((m) => Math.max(m.t1, m.t2) >= 11));
-        schedule(urgent ? 10_000 : 60_000);
+        if (data?.fast_polling || data?.maps?.some((m) => Math.max(m.t1, m.t2) >= 11)) fastPolling = true;
+        schedule(fastPolling ? 10_000 : 60_000);
       }, delay);
     };
 
-    schedule(30_000);
+    schedule(60_000);
     return () => {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [effectiveStatus, doMatchzyTick]);
+  }, [effectiveStatus, poll?.matchzyConfigSent, doMatchzyTick]);
 
   // Quando a partida finaliza, recarrega dados do servidor (scoreboard, winner)
   const wasFinished = useRef(isFinished);

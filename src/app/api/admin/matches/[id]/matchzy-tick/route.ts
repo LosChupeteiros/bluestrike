@@ -112,6 +112,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   return Response.json({
     done: seriesDone && !finalizeError,
     error: finalizeError,
+    fast_polling: mapsPayload.some((m) => Math.max(m.t1, m.t2) >= 11)
+      || Math.max(stats.match.team1_score ?? 0, stats.match.team2_score ?? 0) >= 11,
     team1_maps: stats.match.team1_score ?? 0,
     team2_maps: stats.match.team2_score ?? 0,
     maps: mapsPayload,

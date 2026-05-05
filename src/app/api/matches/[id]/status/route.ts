@@ -31,10 +31,28 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       server_password: string | null;
     }>();
 
+  const { data: consoleLogs } = await supabase
+    .from("dathost_api_logs")
+    .select("request_body")
+    .eq("match_id", matchId)
+    .eq("method", "POST")
+    .like("url", "%/console")
+    .order("created_at", { ascending: false })
+    .limit(5)
+    .returns<{ request_body: { line?: unknown } | null }[]>();
+
+  const matchzyConfigSent = Boolean(
+    consoleLogs?.some((log) => {
+      const line = log.request_body?.line;
+      return typeof line === "string" && line.startsWith("matchzy_loadmatch_url ");
+    })
+  );
+
   return NextResponse.json({
     status: match.status,
     readyTeam1: match.ready_team1 ?? false,
     readyTeam2: match.ready_team2 ?? false,
+    matchzyConfigSent,
     server: serverRow
       ? {
           status: serverRow.status,
