@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -1015,7 +1016,6 @@ function ScoreboardTeam({
               <th className="px-2 py-2.5 font-semibold">K/D</th>
               <th className="px-2 py-2.5 font-semibold">HS%</th>
               <th className="px-2 py-2.5 font-semibold">ADR</th>
-              <th className="px-2 py-2.5 font-semibold">MVP</th>
             </tr>
           </thead>
           <tbody>
@@ -1027,9 +1027,12 @@ function ScoreboardTeam({
                       <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
                       <AvatarFallback className="text-[10px]">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <span className="text-xs font-semibold">{p.nickname}</span>
-                    {i === 0 && isWinner && (
-                      <span className="rounded bg-[var(--primary)]/15 px-1 py-px text-[9px] font-bold text-[var(--primary)]">MVP</span>
+                    {p.profileId ? (
+                      <Link href={`/players/${p.profileId}`} className="text-xs font-semibold hover:text-[var(--primary)] transition-colors">
+                        {p.nickname}
+                      </Link>
+                    ) : (
+                      <span className="text-xs font-semibold">{p.nickname}</span>
                     )}
                   </div>
                 </td>
@@ -1039,12 +1042,11 @@ function ScoreboardTeam({
                 <td className={`px-2 py-2.5 text-center text-xs tabular-nums font-semibold ${Number(kd(p.kills, p.deaths)) >= 1.5 ? "text-green-400" : ""}`}>{kd(p.kills, p.deaths)}</td>
                 <td className="px-2 py-2.5 text-center text-xs tabular-nums">{hsPercent(p.hsCount, p.kills)}%</td>
                 <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.adr >= 90 ? "font-bold text-[var(--primary)]" : ""}`}>{p.adr.toFixed(1)}</td>
-                <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.mvps}</td>
               </tr>
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
+                <td colSpan={7} className="px-4 py-6 text-center text-xs text-[var(--muted-foreground)]">
                   Stats não disponíveis
                 </td>
               </tr>
@@ -1206,8 +1208,8 @@ export default function MatchPageClient({
                 <div className="text-center">
                   <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
                   {match.team1 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team1.elo} ELO</div>}
-                  {isFinished && winner?.id === match.team1Id && (
-                    <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400">
+                  {isFinished && (
+                    <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team1Id ? "" : "invisible"}`}>
                       <Crown className="h-3 w-3" /> Vencedor
                     </div>
                   )}
@@ -1268,8 +1270,8 @@ export default function MatchPageClient({
                 <div className="text-center">
                   <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
                   {match.team2 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team2.elo} ELO</div>}
-                  {isFinished && winner?.id === match.team2Id && (
-                    <div className="mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400">
+                  {isFinished && (
+                    <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team2Id ? "" : "invisible"}`}>
                       <Crown className="h-3 w-3" /> Vencedor
                     </div>
                   )}

@@ -55,7 +55,6 @@ function ScoreboardTable({ players, isWinner }: { players: PlayerStat[]; isWinne
             <th className="px-3 py-3 font-semibold">K/D</th>
             <th className="px-3 py-3 font-semibold">HS%</th>
             <th className="px-3 py-3 font-semibold">ADR</th>
-            <th className="px-3 py-3 font-semibold">MVPs</th>
             <th className="px-3 py-3 font-semibold">Score</th>
           </tr>
         </thead>
@@ -74,9 +73,12 @@ function ScoreboardTable({ players, isWinner }: { players: PlayerStat[]; isWinne
                     <AvatarImage src={p.avatarUrl ?? undefined} alt={p.nickname} />
                     <AvatarFallback className="text-xs">{p.nickname[0]?.toUpperCase()}</AvatarFallback>
                   </Avatar>
-                  <span className="font-semibold text-sm">{p.nickname}</span>
-                  {i === 0 && isWinner && (
-                    <span className="rounded bg-[var(--primary)]/15 px-1.5 py-0.5 text-[10px] font-bold text-[var(--primary)]">MVP</span>
+                  {p.profileId ? (
+                    <Link href={`/players/${p.profileId}`} className="font-semibold text-sm hover:text-[var(--primary)] transition-colors">
+                      {p.nickname}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-sm">{p.nickname}</span>
                   )}
                 </div>
               </td>
@@ -86,13 +88,12 @@ function ScoreboardTable({ players, isWinner }: { players: PlayerStat[]; isWinne
               <StatCell value={kd(p.kills, p.deaths)} highlight={p.kills / Math.max(p.deaths, 1) >= 1.5} />
               <StatCell value={`${hsPercent(p.hsCount, p.kills)}%`} />
               <StatCell value={p.adr.toFixed(1)} highlight={p.adr >= 90} />
-              <StatCell value={p.mvps} />
               <StatCell value={p.score} />
             </tr>
           ))}
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={9} className="px-5 py-8 text-center text-sm text-[var(--muted-foreground)]">
+              <td colSpan={8} className="px-5 py-8 text-center text-sm text-[var(--muted-foreground)]">
                 Stats ainda não disponíveis
               </td>
             </tr>
