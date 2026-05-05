@@ -562,11 +562,11 @@ export async function registerCurrentCaptainTeamForTournament(input: {
     throw new Error("Seu time ja esta inscrito nesse campeonato.");
   }
 
-  if ((tournament.entryFee ?? 0) > 0 && !input.paymentConfirmed) {
-    throw new Error("Confirme o pagamento fake via PIX antes de finalizar a inscricao.");
+  if ((tournament.entryFee ?? 0) > 0) {
+    throw new Error("Use o pagamento PIX para confirmar a inscricao desse campeonato.");
   }
 
-  const paymentReference = `PIX-${tournament.id.slice(0, 8).toUpperCase()}-${team.id.slice(0, 6).toUpperCase()}`;
+  const paymentReference = `FREE-${tournament.id.slice(0, 8).toUpperCase()}-${team.id.slice(0, 6).toUpperCase()}`;
 
   const { data, error } = await createSupabaseAdminClient()
     .from("tournament_registrations")
@@ -574,10 +574,10 @@ export async function registerCurrentCaptainTeamForTournament(input: {
       tournament_id: tournament.id,
       team_id: team.id,
       status: "confirmed",
-      payment_status: (tournament.entryFee ?? 0) > 0 ? "paid" : "pending",
-      payment_amount: tournament.entryFee ?? 0,
+      payment_status: "paid",
+      payment_amount: 0,
       payment_reference: paymentReference,
-      payment_method: (tournament.entryFee ?? 0) > 0 ? "pix" : null,
+      payment_method: null,
     })
     .select("*")
     .single<TournamentRegistrationRow>();

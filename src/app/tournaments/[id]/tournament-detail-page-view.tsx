@@ -22,11 +22,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getCurrentTeamForProfile } from "@/lib/teams";
 import { getTournamentById } from "@/lib/tournaments";
+import {
+  getCurrentTournamentRegistrationIntent,
+  getTournamentActiveReservationCount,
+} from "@/lib/tournament-registration-intents";
 import { getEffectiveTournamentStatus, isTournamentRegistrationOpen, getTournamentBadgeProps } from "@/lib/tournament-status";
 import { getTournamentMatches } from "@/lib/matches";
 import { getBracketRoundModel } from "@/lib/bracket-model";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import TournamentRegistrationCard from "./tournament-registration-card";
+import TournamentPodium from "./tournament-podium";
 import BlueStrikeBracketView from "./bluestrike-bracket-view";
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -65,10 +70,15 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
       ? getTournamentMatches(tournament.id)
       : Promise.resolve([]),
   ]);
+  const [activeReservationCount, currentRegistrationIntent] = await Promise.all([
+    getTournamentActiveReservationCount(tournament.id),
+    currentProfile ? getCurrentTournamentRegistrationIntent(tournament.id, currentProfile.id) : Promise.resolve(null),
+  ]);
 
   const registered = tournament.registeredTeamsCount ?? 0;
-  const spotsLeft = Math.max(0, tournament.maxTeams - registered);
-  const fillPercent = tournament.maxTeams > 0 ? (registered / tournament.maxTeams) * 100 : 0;
+  const occupiedSpots = registered + activeReservationCount;
+  const spotsLeft = Math.max(0, tournament.maxTeams - occupiedSpots);
+  const fillPercent = tournament.maxTeams > 0 ? (occupiedSpots / tournament.maxTeams) * 100 : 0;
   const isFull = spotsLeft === 0;
   const isFinishedTournament = effectiveStatus === "finished";
   const teams =
@@ -141,6 +151,12 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     { label: "3º lugar", team: podiumThird, prize: tournament.prizeBreakdown[2]?.amount ?? 0, className: "border-orange-600/30 bg-orange-600/10 text-orange-300" },
   ];
 
+  const finalPodiumEntries = [
+    { place: 1 as const, team: podiumFirst, prize: tournament.prizeBreakdown[0]?.amount ?? 0 },
+    { place: 2 as const, team: podiumSecond, prize: tournament.prizeBreakdown[1]?.amount ?? 0 },
+    { place: 3 as const, team: podiumThird, prize: tournament.prizeBreakdown[2]?.amount ?? 0 },
+  ];
+
   return (
     <div className="min-h-screen pb-20 pt-20">
       {/* ── Hero ── */}
@@ -197,7 +213,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
               <Users className="h-3 w-3" />
-              {registered}/{tournament.maxTeams} times
+              {occupiedSpots}/{tournament.maxTeams} vagas
             </div>
             {tournament.startsAt && (
               <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
@@ -241,6 +257,10 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
               <TabsContent value="info">
                 <div className="space-y-5">
                   {isFinishedTournament && (
+                    <TournamentPodium title="Podio final" entries={finalPodiumEntries} />
+                  )}
+
+                  {false && isFinishedTournament && (
                     <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
                       <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
                         <Trophy className="h-4 w-4 text-yellow-400" />
@@ -428,6 +448,13 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
               <TabsContent value="teams">
                 <div className="space-y-6">
                   {/* Podium */}
+                  <TournamentPodium
+                    title="Podio"
+                    entries={finalPodiumEntries}
+                    showPendingCopy={!isFinishedTournament}
+                  />
+
+                  {false && (
                   <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
                     <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
                       <Trophy className="h-4 w-4 text-yellow-400" />
@@ -439,14 +466,14 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       {/* 2nd */}
                       <div className="flex flex-col items-center gap-3">
                         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-slate-400/40 bg-slate-400/10 text-lg font-black text-slate-300">
-                          {podiumSecond ? podiumSecond.tag : "?"}
+                          {podiumSecond?.tag ?? "?"}
                         </div>
                         <div className="text-center">
                           <div className="text-sm font-black text-slate-300">
-                            {podiumSecond ? podiumSecond.name : "—"}
+                            {podiumSecond?.name ?? "—"}
                           </div>
                           {podiumSecond && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumSecond.elo} ELO</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{podiumSecond?.elo} ELO</div>
                           )}
                         </div>
                         <div className="flex h-16 w-full items-center justify-center rounded-xl bg-slate-400/10">
@@ -457,14 +484,14 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       {/* 1st — tallest */}
                       <div className="flex flex-col items-center gap-3">
                         <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-yellow-500/60 bg-yellow-500/10 text-xl font-black text-yellow-300 shadow-[0_0_24px_rgba(234,179,8,0.2)]">
-                          {podiumFirst ? podiumFirst.tag : "?"}
+                          {podiumFirst?.tag ?? "?"}
                         </div>
                         <div className="text-center">
                           <div className="text-base font-black text-yellow-300">
-                            {podiumFirst ? podiumFirst.name : "—"}
+                            {podiumFirst?.name ?? "—"}
                           </div>
                           {podiumFirst && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumFirst.elo} ELO</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{podiumFirst?.elo} ELO</div>
                           )}
                         </div>
                         <div className="flex h-24 w-full items-center justify-center rounded-xl bg-yellow-500/10">
@@ -475,14 +502,14 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       {/* 3rd */}
                       <div className="flex flex-col items-center gap-3">
                         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-orange-600/30 bg-orange-600/10 text-lg font-black text-orange-300">
-                          {podiumThird ? podiumThird.tag : "?"}
+                          {podiumThird?.tag ?? "?"}
                         </div>
                         <div className="text-center">
                           <div className="text-sm font-black text-orange-300">
-                            {podiumThird ? podiumThird.name : "-"}
+                            {podiumThird?.name ?? "-"}
                           </div>
                           {podiumThird && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumThird.elo} ELO</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{podiumThird?.elo} ELO</div>
                           )}
                         </div>
                         <div className="flex h-12 w-full items-center justify-center rounded-xl bg-orange-600/10">
@@ -497,6 +524,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       </p>
                     )}
                   </div>
+                  )}
 
                   {/* Registered teams — compact grid, no ranking */}
                   {teams.length > 0 && (
@@ -623,6 +651,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     <div className="mb-1.5 flex items-center justify-between text-xs">
                       <span className="text-[var(--muted-foreground)]">
                         {registered} de {tournament.maxTeams} times
+                        {activeReservationCount > 0 ? ` + ${activeReservationCount} reserva${activeReservationCount === 1 ? "" : "s"}` : ""}
                       </span>
                       <span className={`font-bold ${isFull ? "text-red-400" : "text-[var(--primary)]"}`}>
                         {isFull ? `${registered}/${tournament.maxTeams}` : `${spotsLeft} vagas restantes`}
@@ -642,7 +671,8 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     entryFee={tournament.entryFee ?? 0}
                     canRegister={registrationDisabledReason === null}
                     disabledReason={registrationDisabledReason}
-                    currentTeamName={currentTeam?.name ?? null}
+                    currentTeam={currentTeam}
+                    initialIntent={currentRegistrationIntent}
                   />
 
                   {tournament.checkInRequired && (

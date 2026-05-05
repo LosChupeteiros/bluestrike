@@ -28,8 +28,6 @@ export async function createPixPreference(
   const preference = new Preference(client);
 
   const origin = process.env.PUBLIC_APP_ORIGIN ?? "http://localhost:3000";
-  const isSandbox = (process.env.MP_ACCESS_TOKEN ?? "").startsWith("TEST-");
-
   const result = await preference.create({
     body: {
       items: [
@@ -75,9 +73,11 @@ export async function createPixPreference(
 
 export interface CreatePixPaymentParams {
   registrationId: string;
+  externalReference?: string;
   championshipName: string;
   amount: number;
   payerEmail: string;
+  expirationMinutes?: number;
 }
 
 export interface PixPaymentResult {
@@ -95,6 +95,7 @@ export async function createPixPayment(
   const origin = process.env.PUBLIC_APP_ORIGIN ?? "http://localhost:3000";
 
   const sandbox = isSandboxMode();
+  const expiresInMs = Math.max(1, params.expirationMinutes ?? 10) * 60 * 1000;
 
   const result = await payment.create({
     body: {
@@ -106,9 +107,9 @@ export async function createPixPayment(
         // Em sandbox, first_name "APRO" simula aprovação automática pelo MP
         ...(sandbox ? { first_name: "APRO" } : {}),
       },
-      external_reference: params.registrationId,
+      external_reference: params.externalReference ?? params.registrationId,
       notification_url: `${origin}/api/webhooks/mercadopago?source_news=webhooks`,
-      date_of_expiration: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      date_of_expiration: new Date(Date.now() + expiresInMs).toISOString(),
     },
     requestOptions: {
       idempotencyKey: params.registrationId,
