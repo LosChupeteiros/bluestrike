@@ -48,7 +48,9 @@ export interface MatchzyStatsMatch {
 export interface MatchzyStatsMap {
   matchid: number;
   mapnumber: number;
-  map_name?: string;
+  mapname?: string;
+  start_time?: string | null;
+  end_time?: string | null;
   team1_score?: number;
   team2_score?: number;
   winner?: string;
@@ -183,7 +185,7 @@ export async function saveMatchStats(
   // Upsert each map
   for (const mapRow of stats.maps) {
     const mapNumber = mapRow.mapnumber ?? 0;
-    const mapName = (mapRow.map_name as string | undefined) ?? "unknown";
+    const mapName = (mapRow.mapname as string | undefined) ?? "unknown";
 
     const winnerName = mapRow.winner as string | undefined;
     let mapWinnerId: string | null = null;
