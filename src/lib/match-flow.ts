@@ -123,6 +123,12 @@ export async function applyWalkover(matchId: string, defaultingTeamId: string): 
 
   const { advanceWinnerPublic } = await import("@/lib/matches");
   await advanceWinnerPublic(matchId, winnerId);
+
+  // ELO sem stats (walkover)
+  const { updateEloAfterMatch } = await import("@/lib/elo");
+  await updateEloAfterMatch(matchId, false).catch((err: unknown) =>
+    console.error(`[walkover/elo] Erro ao atualizar ELO para ${matchId}:`, err)
+  );
 }
 
 // ── Veto ──────────────────────────────────────────────────────────────────────

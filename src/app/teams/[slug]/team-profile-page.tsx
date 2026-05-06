@@ -1,23 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Shield, Trophy, UserPlus, Users } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChevronLeft, Shield, Trophy, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getProfilePath } from "@/lib/profile";
 import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 import { getTeamBySlug } from "@/lib/teams";
-import { DeleteTeamButton, EditDescriptionButton, KickMemberButton } from "./team-management-controls";
-
-const ROLE_LABELS: Record<string, string> = {
-  igl: "IGL",
-  awper: "AWPer",
-  "entry-fragger": "Entry Fragger",
-  rifler: "Rifler",
-  lurker: "Lurker",
-  support: "Support",
-  coach: "Coach",
-};
+import { getRecentMatchesForTeam } from "@/lib/matches";
+import { DeleteTeamButton, EditDescriptionButton } from "./team-management-controls";
+import { TeamProfileTabs } from "./team-profile-tabs";
 
 interface TeamProfilePageProps {
   params: Promise<{
@@ -32,6 +22,8 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
   if (!team) {
     notFound();
   }
+
+  const recentMatches = await getRecentMatchesForTeam(team.id, 10);
 
   const starters = team.members?.filter((member) => member.isStarter) ?? [];
   const substitutes = team.members?.filter((member) => !member.isStarter) ?? [];
@@ -97,133 +89,15 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
-            <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
-                  <Users className="h-4 w-4" />
-                  Line principal
-                </div>
-                <Badge variant={starters.length >= 5 ? "open" : "upcoming"}>
-                  {starters.length}/5 titulares
-                </Badge>
-              </div>
-
-              <div className="space-y-3">
-                {starters.map((member) => {
-                  const displayName = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "Jogador";
-                  const role = member.inGameRole ? ROLE_LABELS[member.inGameRole] ?? member.inGameRole : "Sem função";
-                  const isMemberCaptain = member.profileId === team.captainId;
-
-                  const profileHref = member.profile?.publicId
-                    ? getProfilePath(member.profile.publicId)
-                    : null;
-
-                  return (
-                    <div key={member.id} className="flex flex-col gap-3 rounded-xl bg-[var(--secondary)] p-3 sm:flex-row sm:items-center">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        {profileHref ? (
-                          <Link href={profileHref} className="shrink-0">
-                            <Avatar className="h-10 w-10 ring-1 ring-[var(--border)] transition-opacity hover:opacity-80">
-                              <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={displayName} />
-                              <AvatarFallback className="text-xs">{displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                          </Link>
-                        ) : (
-                          <Avatar className="h-10 w-10 shrink-0">
-                            <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={displayName} />
-                            <AvatarFallback className="text-xs">{displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        )}
-
-                        <div className="min-w-0 flex-1">
-                          {profileHref ? (
-                            <Link href={profileHref} className="truncate text-sm font-semibold transition-colors hover:text-[var(--primary)]">
-                              {displayName}
-                            </Link>
-                          ) : (
-                            <div className="truncate text-sm font-semibold">{displayName}</div>
-                          )}
-                          <div className="text-xs text-[var(--muted-foreground)]">{role}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isMemberCaptain && <Badge variant="gold">Capitão</Badge>}
-                        <span className="text-xs font-bold text-[var(--primary)]">{member.profile?.elo ?? 1000} ELO</span>
-                        {isCaptain && !isMemberCaptain && (
-                          <KickMemberButton teamSlug={team.slug} memberId={member.id} displayName={displayName} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {Array.from({ length: Math.max(0, 5 - starters.length) }).map((_, index) => (
-                  <div
-                    key={`starter-empty-${index}`}
-                    className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--border)] px-3 py-4 opacity-60"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-[var(--border)]">
-                      <Users className="h-4 w-4 text-[var(--muted-foreground)]" />
-                    </div>
-                    <span className="text-sm text-[var(--muted-foreground)]">Vaga titular em aberto</span>
-                  </div>
-                ))}
-              </div>
-
-              {substitutes.length > 0 && (
-                <div className="mt-5 border-t border-[var(--border)] pt-5">
-                  <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    Substitutos
-                  </div>
-
-                  <div className="space-y-3">
-                    {substitutes.map((member) => {
-                      const displayName = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "Jogador";
-                      const subProfileHref = member.profile?.publicId
-                        ? getProfilePath(member.profile.publicId)
-                        : null;
-
-                      return (
-                        <div key={member.id} className="flex flex-col gap-3 rounded-xl bg-[var(--secondary)] p-3 sm:flex-row sm:items-center">
-                          <div className="flex min-w-0 flex-1 items-center gap-3">
-                            {subProfileHref ? (
-                              <Link href={subProfileHref} className="shrink-0">
-                                <Avatar className="h-10 w-10 ring-1 ring-[var(--border)] transition-opacity hover:opacity-80">
-                                  <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={displayName} />
-                                  <AvatarFallback className="text-xs">{displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                                </Avatar>
-                              </Link>
-                            ) : (
-                              <Avatar className="h-10 w-10 shrink-0">
-                                <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={displayName} />
-                                <AvatarFallback className="text-xs">{displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                            )}
-                            {subProfileHref ? (
-                              <Link href={subProfileHref} className="truncate text-sm font-semibold transition-colors hover:text-[var(--primary)]">
-                                {displayName}
-                              </Link>
-                            ) : (
-                              <span className="truncate text-sm font-semibold">{displayName}</span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary">Sub</Badge>
-                            <span className="text-xs font-bold text-[var(--primary)]">{member.profile?.elo ?? 1000} ELO</span>
-                            {isCaptain && (
-                              <KickMemberButton teamSlug={team.slug} memberId={member.id} displayName={displayName} />
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </section>
+          <div className="lg:col-span-2">
+            <TeamProfileTabs
+              starters={starters}
+              substitutes={substitutes}
+              isCaptain={isCaptain}
+              captainId={team.captainId}
+              teamSlug={team.slug}
+              recentMatches={recentMatches}
+            />
           </div>
 
           <div className="space-y-5">

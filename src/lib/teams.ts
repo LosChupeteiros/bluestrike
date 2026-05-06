@@ -350,7 +350,7 @@ async function syncRecruitingState(teamId: string) {
   }
 }
 
-async function syncTeamElo(teamId: string) {
+export async function syncTeamElo(teamId: string) {
   const members = await fetchTeamMembers([teamId]);
 
   if (members.length === 0) {

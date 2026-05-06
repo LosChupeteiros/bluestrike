@@ -406,6 +406,14 @@ export default function ProfileShellView({
                                 {match.mapName && <span>·</span>}
                                 <span>{match.tournamentName}</span>
                                 {match.playedAt && <><span>·</span><span>{formatDate(match.playedAt)}</span></>}
+                                {match.eloDelta !== null && (
+                                  <>
+                                    <span>·</span>
+                                    <span className={cn("font-bold tabular-nums", match.eloDelta >= 0 ? "text-green-400" : "text-red-400")}>
+                                      {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} elo
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
 

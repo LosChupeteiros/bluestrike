@@ -781,6 +781,20 @@ export interface RecentMatchSummary {
   playedAt: string | null;
   status: string;
   isWinner: boolean;
+  eloDelta: number | null;
+}
+
+export interface TeamMatchSummary {
+  matchId: string;
+  tournamentId: string | null;
+  tournamentName: string;
+  team1Tag: string;
+  team2Tag: string;
+  mapsWon: number;
+  mapsLost: number;
+  playedAt: string | null;
+  status: string;
+  isWinner: boolean;
 }
 
 export async function getRecentMatchesForProfile(profileId: string, limit = 10): Promise<RecentMatchSummary[]> {
@@ -860,6 +874,16 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
           for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
         }
 
+        // Buscar ELO delta para cada partida
+        const { data: eloRows } = await supabase
+          .from("elo_history")
+          .select("match_id, delta")
+          .eq("profile_id", profileId)
+          .in("match_id", matchRows.map((m) => m.id))
+          .returns<{ match_id: string; delta: number }[]>();
+
+        const eloDeltaByMatchId = new Map((eloRows ?? []).map((r) => [r.match_id, r.delta]));
+
         return matchRows.map((m) => {
           const data = matchIdToData.get(m.id);
           const myTeamName = data?.teamName ?? null;
@@ -877,6 +901,7 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
             playedAt: m.finished_at ?? m.started_at,
             status: m.status,
             isWinner,
+            eloDelta: eloDeltaByMatchId.get(m.id) ?? null,
           };
         });
       }
@@ -955,6 +980,94 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
       playedAt: m.finished_at ?? m.started_at,
       status: m.status,
       isWinner: Boolean(myTeamId && m.winner_id === myTeamId),
+      eloDelta: null,
+    };
+  });
+}
+
+export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promise<TeamMatchSummary[]> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: matchRows } = await supabase
+    .from("matches")
+    .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at")
+    .or(`team1_id.eq.${teamId},team2_id.eq.${teamId}`)
+    .in("status", ["finished", "walkover"])
+    .order("finished_at", { ascending: false })
+    .limit(limit)
+    .returns<{ id: string; tournament_id: string | null; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string; finished_at: string | null; started_at: string | null }[]>();
+
+  if (!matchRows || matchRows.length === 0) return [];
+
+  const teamIds = [...new Set(matchRows.flatMap((m) => [m.team1_id, m.team2_id]).filter(Boolean) as string[])];
+  const teamMap = new Map<string, { tag: string; name: string }>();
+  if (teamIds.length > 0) {
+    const { data: teamRows } = await supabase.from("teams").select("id, tag, name").in("id", teamIds).returns<{ id: string; tag: string; name: string }[]>();
+    for (const t of teamRows ?? []) teamMap.set(t.id, { tag: t.tag, name: t.name });
+  }
+
+  const tournamentIds = [...new Set(matchRows.map((m) => m.tournament_id).filter(Boolean) as string[])];
+  const tournamentMap = new Map<string, string>();
+  if (tournamentIds.length > 0) {
+    const { data: tournRows } = await supabase.from("tournaments").select("id, name").in("id", tournamentIds).returns<{ id: string; name: string }[]>();
+    for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
+  }
+
+  // Aggregate map scores per match for this team
+  const matchIdsArr = matchRows.map((m) => m.id);
+  const { data: statRows } = await supabase
+    .from("matchzy_player_stats")
+    .select("match_id, team_name, map_team1_score, map_team2_score, mapnumber")
+    .in("match_id", matchIdsArr)
+    .returns<{ match_id: string; team_name: string | null; map_team1_score: number | null; map_team2_score: number | null; mapnumber: number }[]>();
+
+  // Determine team name for teamId so we can match map scores
+  const teamName = teamMap.get(teamId)?.name?.toLowerCase() ?? null;
+
+  // Build per-match map win/loss counts
+  // A map is won if the team's side score > opponent side score for that map
+  // We use map_team1_score / map_team2_score alongside team_name to figure out which side the team was on
+  const matchMapStats = new Map<string, { mapsWon: number; mapsLost: number }>();
+
+  if (statRows && statRows.length > 0 && teamName) {
+    // Group rows by match_id + mapnumber to get one row per player per map
+    // We just need one representative row per map to get the scores
+    const seenMapKey = new Set<string>();
+    for (const row of statRows) {
+      const mapKey = `${row.match_id}:${row.mapnumber}`;
+      if (seenMapKey.has(mapKey)) continue;
+      seenMapKey.add(mapKey);
+
+      const rowTeamName = (row.team_name ?? "").toLowerCase();
+      const isTeam1Side = rowTeamName === teamName;
+      // Only count rows where this row's team_name matches our team
+      if (!isTeam1Side) continue;
+
+      const match = matchRows.find((m) => m.id === row.match_id);
+      if (!match) continue;
+
+      const myScore = row.map_team1_score ?? 0;
+      const oppScore = row.map_team2_score ?? 0;
+      const existing = matchMapStats.get(row.match_id) ?? { mapsWon: 0, mapsLost: 0 };
+      if (myScore > oppScore) existing.mapsWon++;
+      else if (oppScore > myScore) existing.mapsLost++;
+      matchMapStats.set(row.match_id, existing);
+    }
+  }
+
+  return matchRows.map((m) => {
+    const stats = matchMapStats.get(m.id);
+    return {
+      matchId: m.id,
+      tournamentId: m.tournament_id,
+      tournamentName: m.tournament_id ? (tournamentMap.get(m.tournament_id) ?? "BlueStrike") : "BlueStrike",
+      team1Tag: m.team1_id ? (teamMap.get(m.team1_id)?.tag ?? "???") : "???",
+      team2Tag: m.team2_id ? (teamMap.get(m.team2_id)?.tag ?? "???") : "???",
+      mapsWon: stats?.mapsWon ?? 0,
+      mapsLost: stats?.mapsLost ?? 0,
+      playedAt: m.finished_at ?? m.started_at,
+      status: m.status,
+      isWinner: m.winner_id === teamId,
     };
   });
 }

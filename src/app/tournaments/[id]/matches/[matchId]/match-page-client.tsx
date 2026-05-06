@@ -1286,7 +1286,7 @@ export default function MatchPageClient({
         const data = await doMatchzyTick();
         if (cancelled || data?.done) return;
         if (data?.fast_polling || data?.maps?.some((m) => Math.max(m.t1, m.t2) >= 11)) fastPolling = true;
-        schedule(fastPolling ? 10_000 : 60_000);
+        schedule(fastPolling ? 10_000 : 30_000);
       }, delay);
     };
 

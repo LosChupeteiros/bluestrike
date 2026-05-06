@@ -546,5 +546,11 @@ export async function processSeriesEnd(matchId: string): Promise<void> {
   );
   await processWebhookResult(match, bracketScores.team1Score, bracketScores.team2Score);
 
+  // Atualizar ELO dos jogadores após a série (não bloqueia o cleanup em caso de erro)
+  const { updateEloAfterMatch } = await import("@/lib/elo");
+  await updateEloAfterMatch(matchId, true).catch((err: unknown) =>
+    console.error(`[matchzy/elo] Erro ao atualizar ELO para ${matchId}:`, err)
+  );
+
   await cleanupMatchServer(matchId);
 }
