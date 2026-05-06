@@ -1,24 +1,23 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { syncTeamElo } from "@/lib/teams";
 
-// K-factor por formato da série
-const K_BY_BO: Record<number, number> = { 1: 32, 3: 40, 5: 48 };
+// K-factor por formato da série — calibrado para ~2 BO3/mês
+const K_BY_BO: Record<number, number> = { 1: 300, 3: 500, 5: 700 };
 
 /**
  * Calcula o delta de ELO de um jogador em uma partida.
  *
- * Fórmula: Elo clássico + modificador de performance individual (K/D da série).
+ * Fórmula: Elo clássico + modificador de K/D + modificador de saldo de rounds.
  *
- * performanceFactor ∈ [-0.4, 0.4]:
- *   KD 2.0 → +0.3 (30% de bônus no delta)
- *   KD 1.0 → 0 (neutro)
- *   KD 0.5 → -0.15 (15% de penalidade no delta)
+ * performanceFactor ∈ [-0.4, 0.4]  — baseado no K/D individual da série
+ * roundFactor       ∈ [-0.2, 0.2]  — baseado no saldo de rounds do time na série
  *
- * O modificador é aplicado sobre |baseDelta| e somado ao delta base,
- * o que significa:
- *   - Vencer com bom KD amplifica o ganho
- *   - Perder com bom KD suaviza a perda
- *   - Perder com KD ruim amplifica a perda
+ * finalDelta = baseDelta + |baseDelta| × (performanceFactor + roundFactor)
+ *
+ * Efeitos combinados (cap total ±0.6 de |baseDelta|):
+ *   - Vencer com bom KD e shutout amplifica o ganho
+ *   - Perder com bom KD e rounds apertados suaviza a perda
+ *   - Perder com KD ruim e rounds esmagadores amplifica a perda
  */
 export function calculateEloDelta(
   playerElo: number,
@@ -26,6 +25,8 @@ export function calculateEloDelta(
   isWinner: boolean,
   seriesKills: number,
   seriesDeaths: number,
+  seriesRoundsWon: number,
+  seriesRoundsLost: number,
   boType: number
 ): number {
   const K = K_BY_BO[boType] ?? K_BY_BO[1]!;
@@ -37,7 +38,12 @@ export function calculateEloDelta(
   const kdRatio = seriesKills / Math.max(seriesDeaths, 1);
   const performanceFactor = Math.max(-0.4, Math.min(0.4, (kdRatio - 1.0) * 0.3));
 
-  const finalDelta = baseDelta + Math.abs(baseDelta) * performanceFactor;
+  const totalRounds = seriesRoundsWon + seriesRoundsLost;
+  const roundFactor = totalRounds > 0
+    ? Math.max(-0.2, Math.min(0.2, ((seriesRoundsWon - seriesRoundsLost) / totalRounds) * 0.4))
+    : 0;
+
+  const finalDelta = baseDelta + Math.abs(baseDelta) * (performanceFactor + roundFactor);
   return Math.round(finalDelta);
 }
 
@@ -52,7 +58,7 @@ interface AggregatedPlayerStat {
  * Idempotente: se já existir registro em elo_history para esse match + profile, não faz nada.
  *
  * @param matchId UUID da partida finalizada
- * @param hasStats Se false (walkover/resultado manual), não aplica modificador de performance
+ * @param hasStats Se false (walkover/resultado manual), não aplica modificadores de performance
  */
 export async function updateEloAfterMatch(matchId: string, hasStats: boolean): Promise<void> {
   const supabase = createSupabaseAdminClient();
@@ -119,18 +125,22 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
   const avgEloTeam1 = avgTeamElo(match.team1_id);
   const avgEloTeam2 = avgTeamElo(match.team2_id);
 
-  // Buscar stats agregados da partida (soma por jogador em todos os mapas)
+  // Buscar stats agregados da partida (soma kills/deaths por jogador; rounds por mapa deduplicados)
   let statsMap = new Map<string, AggregatedPlayerStat>(); // steamid64 → stats
+  let seriesRoundsTeam1 = 0;
+  let seriesRoundsTeam2 = 0;
 
   if (hasStats) {
     const { data: statRows } = await supabase
       .from("matchzy_player_stats")
-      .select("steamid64, kills, deaths")
+      .select("steamid64, kills, deaths, mapnumber, map_team1_score, map_team2_score")
       .eq("match_id", matchId)
-      .returns<{ steamid64: string; kills: number; deaths: number }[]>();
+      .returns<{ steamid64: string; kills: number; deaths: number; mapnumber: number; map_team1_score: number | null; map_team2_score: number | null }[]>();
 
     if (statRows && statRows.length > 0) {
+      const seenMaps = new Set<number>();
       for (const row of statRows) {
+        // Kills/deaths somados por jogador em todos os mapas
         const key = row.steamid64.trim();
         const existing = statsMap.get(key);
         if (existing) {
@@ -138,6 +148,13 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
           existing.deaths += row.deaths ?? 0;
         } else {
           statsMap.set(key, { steamid64: key, kills: row.kills ?? 0, deaths: row.deaths ?? 0 });
+        }
+
+        // Rounds somados uma vez por mapa (qualquer jogador representa o mapa)
+        if (!seenMaps.has(row.mapnumber)) {
+          seenMaps.add(row.mapnumber);
+          seriesRoundsTeam1 += row.map_team1_score ?? 0;
+          seriesRoundsTeam2 += row.map_team2_score ?? 0;
         }
       }
     }
@@ -177,12 +194,13 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
     // Se a partida tem stats mas esse jogador não aparece → não alterar ELO
     if (hasStats && !playerHasStats) continue;
 
-    const kills = playerHasStats ? seriesKills : 0;
-    const deaths = playerHasStats ? seriesDeaths : 0;
+    // Sem stats (walkover): KD neutro (1/1) e rounds 0/0 → fatores = 0 → puro Elo clássico
+    const effectiveKills = playerHasStats ? seriesKills : 1;
+    const effectiveDeaths = playerHasStats ? seriesDeaths : 1;
 
-    // Sem stats (walkover): performanceFactor = 0 → kdRatio = 1 → factor = 0
-    const effectiveKills = playerHasStats ? kills : 1;
-    const effectiveDeaths = playerHasStats ? deaths : 1;
+    const isTeam1 = member.team_id === match.team1_id;
+    const seriesRoundsWon  = playerHasStats ? (isTeam1 ? seriesRoundsTeam1 : seriesRoundsTeam2) : 0;
+    const seriesRoundsLost = playerHasStats ? (isTeam1 ? seriesRoundsTeam2 : seriesRoundsTeam1) : 0;
 
     const delta = calculateEloDelta(
       profile.elo,
@@ -190,6 +208,8 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
       isWinner,
       effectiveKills,
       effectiveDeaths,
+      seriesRoundsWon,
+      seriesRoundsLost,
       boType
     );
 
