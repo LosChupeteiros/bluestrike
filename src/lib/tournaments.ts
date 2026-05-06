@@ -7,7 +7,7 @@ import {
   getEffectiveTournamentStatus,
   isTournamentRegistrationOpen,
 } from "@/lib/tournament-status";
-import { buildSeededSingleEliminationBracket, type BracketSeedTeam } from "@/lib/bracket-generation";
+import { buildSeededSingleEliminationBracket, type BracketMatchDraft, type BracketSeedTeam } from "@/lib/bracket-generation";
 
 export { getEffectiveTournamentStatus, isTournamentRegistrationOpen } from "@/lib/tournament-status";
 
@@ -348,7 +348,12 @@ export async function createTournament(adminProfile: UserProfile, input: CreateT
 
 async function syncTournamentStatus(tournament: Tournament): Promise<Tournament> {
   const effective = getEffectiveTournamentStatus(tournament);
-  if (effective === tournament.status) return tournament;
+  if (effective === tournament.status) {
+    if (effective === "ongoing") {
+      await ensureTournamentBracketGenerated(tournament);
+    }
+    return tournament;
+  }
 
   const { data: transitioned, error } = await createSupabaseAdminClient()
     .from("tournaments")
@@ -393,32 +398,66 @@ async function getBracketSeedTeams(tournament: Tournament): Promise<BracketSeedT
   }));
 }
 
-async function advanceInitialByes(
-  tournamentId: string,
+function applyByeAdvancementsToDrafts(
+  matches: BracketMatchDraft[],
   byeAdvancements: ReturnType<typeof buildSeededSingleEliminationBracket>["byeAdvancements"]
-): Promise<void> {
-  if (byeAdvancements.length === 0) return;
-
-  const supabase = createSupabaseAdminClient();
-
+): BracketMatchDraft[] {
+  const drafts = matches.map((match) => ({ ...match }));
   for (const bye of byeAdvancements) {
-    const { data: nextMatch } = await supabase
-      .from("matches")
-      .select("id, team1_id, team2_id")
-      .eq("tournament_id", tournamentId)
-      .eq("round", bye.round)
-      .eq("match_index", bye.matchIndex)
-      .maybeSingle<{ id: string; team1_id: string | null; team2_id: string | null }>();
-
-    if (!nextMatch) continue;
-
-    const otherTeamAlreadySet = bye.slot === 1 ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
-    const update = bye.slot === 1
-      ? { team1_id: bye.winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
-      : { team2_id: bye.winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
-
-    await supabase.from("matches").update(update).eq("id", nextMatch.id);
+    const target = drafts.find((match) => match.round === bye.round && match.matchIndex === bye.matchIndex);
+    if (!target) continue;
+    if (bye.slot === 1) target.team1Id = bye.winnerId;
+    else target.team2Id = bye.winnerId;
+    target.teamsAssigned = Boolean(target.team1Id && target.team2Id);
   }
+  return drafts;
+}
+
+type ExistingBracketRow = {
+  round: number;
+  match_index: number;
+  team1_id: string | null;
+  team2_id: string | null;
+  winner_id: string | null;
+  bo_type: 1 | 3 | 5;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  dathost_match_id: string | null;
+  matchzy_match_id: number | null;
+};
+
+function hasLockedBracketRow(row: ExistingBracketRow): boolean {
+  return (
+    row.status === "veto" ||
+    row.status === "pre_live" ||
+    row.status === "live" ||
+    row.status === "finished" ||
+    Boolean(row.started_at) ||
+    Boolean(row.finished_at) ||
+    Boolean(row.dathost_match_id) ||
+    Boolean(row.matchzy_match_id)
+  );
+}
+
+function bracketMatchesExpectedShape(
+  existing: ExistingBracketRow[],
+  expected: ReturnType<typeof buildSeededSingleEliminationBracket>["matches"]
+): boolean {
+  if (existing.length !== expected.length) return false;
+
+  const rowsBySlot = new Map(existing.map((row) => [`${row.round}:${row.match_index}`, row]));
+  return expected.every((match) => {
+    const row = rowsBySlot.get(`${match.round}:${match.matchIndex}`);
+    return (
+      row &&
+      row.team1_id === match.team1Id &&
+      row.team2_id === match.team2Id &&
+      row.winner_id === match.winnerId &&
+      row.bo_type === match.boType &&
+      row.status === match.status
+    );
+  });
 }
 
 export async function ensureTournamentBracketGenerated(tournament: Tournament): Promise<boolean> {
@@ -426,16 +465,25 @@ export async function ensureTournamentBracketGenerated(tournament: Tournament): 
   if (seedTeams.length < 2) return false;
 
   const supabase = createSupabaseAdminClient();
-  const { count } = await supabase
+  const { data: existingRows, error: existingError } = await supabase
     .from("matches")
-    .select("*", { count: "exact", head: true })
-    .eq("tournament_id", tournament.id);
+    .select("round, match_index, team1_id, team2_id, winner_id, bo_type, status, started_at, finished_at, dathost_match_id, matchzy_match_id")
+    .eq("tournament_id", tournament.id)
+    .returns<ExistingBracketRow[]>();
 
-  if (count && count > 0) return false;
+  if (existingError) {
+    throw new Error(`Failed to inspect tournament bracket: ${existingError.message}`);
+  }
+
+  const existing = existingRows ?? [];
+  if (existing.some(hasLockedBracketRow)) return false;
 
   const generated = buildSeededSingleEliminationBracket(seedTeams);
+  const expectedMatches = applyByeAdvancementsToDrafts(generated.matches, generated.byeAdvancements);
+  if (bracketMatchesExpectedShape(existing, expectedMatches)) return false;
+
   const assignedAt = new Date().toISOString();
-  const toInsert = generated.matches.map((match) => ({
+  const toInsert = expectedMatches.map((match) => ({
     id: randomUUID(),
     tournament_id: tournament.id,
     team1_id: match.team1Id,
@@ -449,6 +497,17 @@ export async function ensureTournamentBracketGenerated(tournament: Tournament): 
     ...(match.teamsAssigned ? { teams_assigned_at: assignedAt } : {}),
   }));
 
+  if (existing.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("matches")
+      .delete()
+      .eq("tournament_id", tournament.id);
+
+    if (deleteError) {
+      throw new Error(`Failed to reset tournament bracket: ${deleteError.message}`);
+    }
+  }
+
   const { error: insertError } = await supabase
     .from("matches")
     .upsert(toInsert, { onConflict: "tournament_id,round,match_index", ignoreDuplicates: true });
@@ -457,7 +516,6 @@ export async function ensureTournamentBracketGenerated(tournament: Tournament): 
     throw new Error(`Failed to create tournament bracket: ${insertError.message}`);
   }
 
-  await advanceInitialByes(tournament.id, generated.byeAdvancements);
   return true;
 }
 
@@ -465,7 +523,17 @@ export async function ensureTournamentBracketGeneratedById(tournamentId: string)
   const tournament = await getTournamentById(tournamentId);
   if (!tournament) return false;
   if (tournament.status !== "ongoing") return false;
-  return ensureTournamentBracketGenerated(tournament);
+  const generated = await ensureTournamentBracketGenerated(tournament);
+  if (generated) return true;
+
+  const seedTeams = await getBracketSeedTeams(tournament);
+  const expectedCount = buildSeededSingleEliminationBracket(seedTeams).matches.length;
+  const { count } = await createSupabaseAdminClient()
+    .from("matches")
+    .select("*", { count: "exact", head: true })
+    .eq("tournament_id", tournamentId);
+
+  return Boolean(count && count >= expectedCount);
 }
 
 function tournamentRegistrationOpen(tournament: Tournament) {
