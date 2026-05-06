@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
+import { NextResponse } from "next/server";
+import { buildSeededSingleEliminationBracket, type BracketByeAdvancement, type BracketSeedTeam } from "@/lib/bracket-generation";
+import { getCurrentProfile } from "@/lib/profiles";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { advanceWinnerPublic } from "@/lib/matches";
-import { getBracketRoundModel } from "@/lib/bracket-model";
 
 type MatchRow = {
   id: string;
@@ -11,9 +12,10 @@ type MatchRow = {
   team2_id: string | null;
   winner_id: string | null;
   status: string;
-  bo_type: 1 | 3 | 5;
-  teams_assigned_at: string | null;
-  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  dathost_match_id: string | null;
+  matchzy_match_id: number | null;
 };
 
 type RegistrationRow = {
@@ -21,146 +23,161 @@ type RegistrationRow = {
   registered_at: string;
 };
 
-function isFinished(row: MatchRow): boolean {
-  return (row.status === "finished" || row.status === "walkover") && Boolean(row.winner_id);
+type TeamEloRow = {
+  id: string;
+  elo: number | null;
+};
+
+const STARTED_STATUSES = new Set(["veto", "pre_live", "live", "finished"]);
+
+function hasStartedState(row: MatchRow): boolean {
+  return (
+    STARTED_STATUSES.has(row.status) ||
+    Boolean(row.started_at) ||
+    Boolean(row.finished_at) ||
+    Boolean(row.dathost_match_id) ||
+    Boolean(row.matchzy_match_id)
+  );
+}
+
+async function advanceInitialByes(
+  tournamentId: string,
+  byeAdvancements: BracketByeAdvancement[]
+): Promise<void> {
+  if (byeAdvancements.length === 0) return;
+
+  const supabase = createSupabaseAdminClient();
+  for (const bye of byeAdvancements) {
+    const { data: nextMatch } = await supabase
+      .from("matches")
+      .select("id, team1_id, team2_id")
+      .eq("tournament_id", tournamentId)
+      .eq("round", bye.round)
+      .eq("match_index", bye.matchIndex)
+      .maybeSingle<{ id: string; team1_id: string | null; team2_id: string | null }>();
+
+    if (!nextMatch) continue;
+
+    const otherTeamAlreadySet = bye.slot === 1 ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
+    const update = bye.slot === 1
+      ? { team1_id: bye.winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
+      : { team2_id: bye.winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+
+    await supabase.from("matches").update(update).eq("id", nextMatch.id);
+  }
 }
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const currentProfile = await getCurrentProfile();
+  if (!currentProfile?.isAdmin) {
+    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  }
+
   const { id: tournamentId } = await params;
   const supabase = createSupabaseAdminClient();
 
-  const { data: registrations } = await supabase
+  const { data: registrations, error: registrationsError } = await supabase
     .from("tournament_registrations")
     .select("team_id, registered_at")
     .eq("tournament_id", tournamentId)
-    .neq("status", "withdrawn")
+    .eq("status", "confirmed")
     .order("registered_at", { ascending: true })
     .order("team_id", { ascending: true })
     .returns<RegistrationRow[]>();
 
-  const activeTeams = registrations ?? [];
-  const model = getBracketRoundModel(activeTeams.length);
+  if (registrationsError) {
+    return NextResponse.json({ error: registrationsError.message }, { status: 400 });
+  }
 
-  const { data: initialRows } = await supabase
+  const confirmedRegistrations = registrations ?? [];
+  if (confirmedRegistrations.length < 2) {
+    return NextResponse.json({ error: "A bracket precisa de pelo menos 2 times confirmados." }, { status: 400 });
+  }
+
+  const { data: teamRows, error: teamsError } = await supabase
+    .from("teams")
+    .select("id, elo")
+    .in("id", confirmedRegistrations.map((registration) => registration.team_id))
+    .returns<TeamEloRow[]>();
+
+  if (teamsError) {
+    return NextResponse.json({ error: teamsError.message }, { status: 400 });
+  }
+
+  const eloByTeamId = new Map((teamRows ?? []).map((team) => [team.id, team.elo ?? 1000]));
+  const seedTeams: BracketSeedTeam[] = confirmedRegistrations.map((registration) => ({
+    teamId: registration.team_id,
+    registeredAt: registration.registered_at,
+    elo: eloByTeamId.get(registration.team_id) ?? 1000,
+  }));
+
+  const { data: existingRows, error: matchesError } = await supabase
     .from("matches")
-    .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type, teams_assigned_at, created_at")
+    .select("id, round, match_index, team1_id, team2_id, winner_id, status, started_at, finished_at, dathost_match_id, matchzy_match_id")
     .eq("tournament_id", tournamentId)
     .order("round", { ascending: true })
     .order("match_index", { ascending: true })
-    .order("created_at", { ascending: true })
     .returns<MatchRow[]>();
 
-  const rows = initialRows ?? [];
-  const results: string[] = [];
-
-  async function updateRow(row: MatchRow, patch: Partial<MatchRow>) {
-    await supabase.from("matches").update(patch).eq("id", row.id);
-    Object.assign(row, patch);
-    results.push(`updated:${row.id}`);
+  if (matchesError) {
+    return NextResponse.json({ error: matchesError.message }, { status: 400 });
   }
 
-  async function ensureRow(round: number, matchIndex: number, boType: 1 | 3 | 5): Promise<MatchRow> {
-    const existing = rows.find((m) => m.round === round && m.match_index === matchIndex);
-    if (existing) {
-      if (existing.bo_type !== boType) await updateRow(existing, { bo_type: boType });
-      return existing;
-    }
-
-    const { data: created, error } = await supabase
-      .from("matches")
-      .insert({
-        id: randomUUID(),
-        tournament_id: tournamentId,
-        round,
-        match_index: matchIndex,
-        status: "pending",
-        bo_type: boType,
-        webhook_secret: randomUUID(),
-      })
-      .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type, teams_assigned_at, created_at")
-      .single<MatchRow>();
-
-    if (error) throw new Error(`Falha ao criar linha da bracket: ${error.message}`);
-    rows.push(created);
-    results.push(`created:${created.id}`);
-    return created;
+  const rows = existingRows ?? [];
+  const lockedRows = rows.filter(hasStartedState);
+  if (lockedRows.length > 0) {
+    return NextResponse.json(
+      {
+        error: "A bracket ja tem partida iniciada/finalizada ou vinculada a servidor. Correção automática bloqueada.",
+        details: { lockedMatchIds: lockedRows.map((row) => row.id) },
+      },
+      { status: 409 }
+    );
   }
 
-  async function moveRow(row: MatchRow, round: number, matchIndex: number, boType: 1 | 3 | 5) {
-    if (row.round === round && row.match_index === matchIndex && row.bo_type === boType) return;
-    await updateRow(row, { round, match_index: matchIndex, bo_type: boType });
+  const generated = buildSeededSingleEliminationBracket(seedTeams);
+  const assignedAt = new Date().toISOString();
+  const toInsert = generated.matches.map((match) => ({
+    id: randomUUID(),
+    tournament_id: tournamentId,
+    team1_id: match.team1Id,
+    team2_id: match.team2Id,
+    round: match.round,
+    match_index: match.matchIndex,
+    status: match.status,
+    winner_id: match.winnerId,
+    bo_type: match.boType,
+    webhook_secret: randomUUID(),
+    ...(match.teamsAssigned ? { teams_assigned_at: assignedAt } : {}),
+  }));
+
+  const { error: deleteError } = await supabase
+    .from("matches")
+    .delete()
+    .eq("tournament_id", tournamentId);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 400 });
   }
 
-  const maxRound = Math.max(0, ...rows.map((m) => m.round));
-  const brokenFinal = rows.find((m) => m.round === maxRound && m.match_index === 0) ?? null;
-  const brokenThird = rows.find((m) => m.round === maxRound && m.match_index === 1) ?? null;
+  const { error: insertError } = await supabase
+    .from("matches")
+    .upsert(toInsert, { onConflict: "tournament_id,round,match_index", ignoreDuplicates: true });
 
-  if (model.hasThirdPlace && brokenThird) {
-    await moveRow(brokenThird, model.thirdPlaceRound!, 0, 1);
-  } else if (!model.hasThirdPlace && brokenThird && !isFinished(brokenThird)) {
-    await updateRow(brokenThird, { status: "cancelled" });
+  if (insertError) {
+    return NextResponse.json({ error: insertError.message }, { status: 400 });
   }
 
-  if (brokenFinal) {
-    await moveRow(brokenFinal, model.finalRound, 0, 3);
-  }
+  await advanceInitialByes(tournamentId, generated.byeAdvancements);
 
-  const lastNormalRound = model.semifinalRound ?? model.finalRound;
-  for (let round = 1; round <= lastNormalRound; round++) {
-    const expectedMatches = Math.max(1, Math.pow(2, lastNormalRound - round + 1));
-    for (let matchIndex = 0; matchIndex < expectedMatches; matchIndex++) {
-      await ensureRow(round, matchIndex, round === model.finalRound ? 3 : 1);
-    }
-  }
-
-  await ensureRow(model.finalRound, 0, 3);
-  if (model.hasThirdPlace && model.thirdPlaceRound !== null) {
-    await ensureRow(model.thirdPlaceRound, 0, 1);
-  }
-
-  const firstRoundRows = rows
-    .filter((m) => m.round === 1)
-    .sort((a, b) => a.match_index - b.match_index);
-
-  const assigned = new Set(rows.flatMap((m) => [m.team1_id, m.team2_id]).filter(Boolean) as string[]);
-  const remainingTeams = activeTeams.map((r) => r.team_id).filter((teamId) => !assigned.has(teamId));
-  let reseededSlots = 0;
-
-  for (const row of firstRoundRows) {
-    const patch: Partial<MatchRow> = {};
-    if (!row.team1_id && remainingTeams.length > 0) {
-      patch.team1_id = remainingTeams.shift() ?? null;
-      reseededSlots++;
-    }
-    if (!row.team2_id && remainingTeams.length > 0) {
-      patch.team2_id = remainingTeams.shift() ?? null;
-      reseededSlots++;
-    }
-    const team1 = patch.team1_id ?? row.team1_id;
-    const team2 = patch.team2_id ?? row.team2_id;
-    if (team1 && team2 && !row.teams_assigned_at) patch.teams_assigned_at = new Date().toISOString();
-    if (Object.keys(patch).length > 0) await updateRow(row, patch);
-  }
-
-  const finishedRows = rows
-    .filter(isFinished)
-    .sort((a, b) => a.round - b.round || a.match_index - b.match_index);
-
-  let advanced = 0;
-  for (const match of finishedRows) {
-    if (!match.winner_id) continue;
-    await advanceWinnerPublic(match.id, match.winner_id);
-    advanced++;
-  }
-
-  return Response.json({
-    fixed: results.length + advanced + reseededSlots,
+  return NextResponse.json({
+    fixed: rows.length + generated.matches.length,
     details: {
-      changedRows: results.length,
-      advanced,
-      reseededSlots,
-      finalRound: model.finalRound,
-      thirdPlaceRound: model.thirdPlaceRound,
+      removedRows: rows.length,
+      insertedRows: generated.matches.length,
+      byeAdvancements: generated.byeAdvancements.length,
+      finalRound: generated.model.finalRound,
+      thirdPlaceRound: generated.model.thirdPlaceRound,
     },
   });
 }

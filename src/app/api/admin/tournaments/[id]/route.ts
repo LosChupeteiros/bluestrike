@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/profiles";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { ensureTournamentBracketGeneratedById } from "@/lib/tournaments";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -46,5 +47,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true });
+  let bracketGenerated = false;
+  if (body.status === "ongoing") {
+    bracketGenerated = await ensureTournamentBracketGeneratedById(id);
+  }
+
+  return NextResponse.json({ ok: true, bracketGenerated });
 }

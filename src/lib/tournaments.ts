@@ -7,7 +7,7 @@ import {
   getEffectiveTournamentStatus,
   isTournamentRegistrationOpen,
 } from "@/lib/tournament-status";
-import { getBracketRoundModel } from "@/lib/bracket-model";
+import { buildSeededSingleEliminationBracket, type BracketSeedTeam } from "@/lib/bracket-generation";
 
 export { getEffectiveTournamentStatus, isTournamentRegistrationOpen } from "@/lib/tournament-status";
 
@@ -350,153 +350,122 @@ async function syncTournamentStatus(tournament: Tournament): Promise<Tournament>
   const effective = getEffectiveTournamentStatus(tournament);
   if (effective === tournament.status) return tournament;
 
-  await createSupabaseAdminClient()
+  const { data: transitioned, error } = await createSupabaseAdminClient()
     .from("tournaments")
     .update({ status: effective })
-    .eq("id", tournament.id);
+    .eq("id", tournament.id)
+    .eq("status", tournament.status)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    throw new Error(`Falha ao atualizar status do campeonato: ${error.message}`);
+  }
 
   const updated = { ...tournament, status: effective };
 
-  if (effective === "ongoing" && (tournament.status === "open" || tournament.status === "upcoming")) {
-    await generateTournamentBracket(updated);
+  if (
+    transitioned &&
+    effective === "ongoing" &&
+    (tournament.status === "open" || tournament.status === "upcoming")
+  ) {
+    await ensureTournamentBracketGenerated(updated);
   }
 
   return updated;
 }
 
-async function generateTournamentBracket(tournament: Tournament): Promise<void> {
-  const registrations = tournament.registrations ?? [];
-  const confirmedTeamIds = registrations
-    .filter((r) => r.status === "confirmed")
-    .map((r) => r.teamId);
+async function getBracketSeedTeams(tournament: Tournament): Promise<BracketSeedTeam[]> {
+  const confirmedRegistrations = (tournament.registrations ?? []).filter((r) => r.status === "confirmed");
+  const teamsById = new Map(
+    (await getTeamsByIds(
+      confirmedRegistrations
+        .filter((registration) => !registration.team)
+        .map((registration) => registration.teamId),
+      { withMembers: false }
+    )).map((team) => [team.id, team])
+  );
 
-  if (confirmedTeamIds.length < 2) return;
+  return confirmedRegistrations.map((registration) => ({
+    teamId: registration.teamId,
+    registeredAt: registration.registeredAt,
+    elo: registration.team?.elo ?? teamsById.get(registration.teamId)?.elo ?? 1000,
+  }));
+}
+
+async function advanceInitialByes(
+  tournamentId: string,
+  byeAdvancements: ReturnType<typeof buildSeededSingleEliminationBracket>["byeAdvancements"]
+): Promise<void> {
+  if (byeAdvancements.length === 0) return;
 
   const supabase = createSupabaseAdminClient();
 
+  for (const bye of byeAdvancements) {
+    const { data: nextMatch } = await supabase
+      .from("matches")
+      .select("id, team1_id, team2_id")
+      .eq("tournament_id", tournamentId)
+      .eq("round", bye.round)
+      .eq("match_index", bye.matchIndex)
+      .maybeSingle<{ id: string; team1_id: string | null; team2_id: string | null }>();
+
+    if (!nextMatch) continue;
+
+    const otherTeamAlreadySet = bye.slot === 1 ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
+    const update = bye.slot === 1
+      ? { team1_id: bye.winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
+      : { team2_id: bye.winnerId, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
+
+    await supabase.from("matches").update(update).eq("id", nextMatch.id);
+  }
+}
+
+export async function ensureTournamentBracketGenerated(tournament: Tournament): Promise<boolean> {
+  const seedTeams = await getBracketSeedTeams(tournament);
+  if (seedTeams.length < 2) return false;
+
+  const supabase = createSupabaseAdminClient();
   const { count } = await supabase
     .from("matches")
     .select("*", { count: "exact", head: true })
     .eq("tournament_id", tournament.id);
 
-  if (count && count > 0) return;
+  if (count && count > 0) return false;
 
-  const model = getBracketRoundModel(confirmedTeamIds.length);
+  const generated = buildSeededSingleEliminationBracket(seedTeams);
+  const assignedAt = new Date().toISOString();
+  const toInsert = generated.matches.map((match) => ({
+    id: randomUUID(),
+    tournament_id: tournament.id,
+    team1_id: match.team1Id,
+    team2_id: match.team2Id,
+    round: match.round,
+    match_index: match.matchIndex,
+    status: match.status,
+    winner_id: match.winnerId,
+    bo_type: match.boType,
+    webhook_secret: randomUUID(),
+    ...(match.teamsAssigned ? { teams_assigned_at: assignedAt } : {}),
+  }));
 
-  // Shuffle teams
-  const shuffled = [...confirmedTeamIds].sort(() => Math.random() - 0.5);
-  const nextPow2 = Math.pow(2, model.baseRounds);
-  const normalLastRound = model.semifinalRound ?? model.finalRound;
+  const { error: insertError } = await supabase
+    .from("matches")
+    .upsert(toInsert, { onConflict: "tournament_id,round,match_index", ignoreDuplicates: true });
 
-  while (shuffled.length < nextPow2) shuffled.push("");
-
-  type MatchInsert = {
-    tournament_id: string;
-    team1_id: string | null;
-    team2_id: string | null;
-    round: number;
-    match_index: number;
-    status: string;
-    winner_id: string | null;
-    bo_type: number;
-    webhook_secret: string;
-    teams_assigned_at?: string;
-  };
-
-  const toInsert: MatchInsert[] = [];
-
-  for (let round = 1; round <= normalLastRound; round++) {
-    const matchCount = nextPow2 / Math.pow(2, round);
-    for (let idx = 0; idx < matchCount; idx++) {
-      const isFinalRound = round === model.finalRound;
-      if (round === 1) {
-        const t1 = shuffled[idx * 2] || null;
-        const t2 = shuffled[idx * 2 + 1] || null;
-        const isBye = (t1 && !t2) || (!t1 && t2);
-        const bothTeams = t1 && t2 && !isBye;
-        toInsert.push({
-          tournament_id: tournament.id,
-          team1_id: t1,
-          team2_id: t2,
-          round,
-          match_index: idx,
-          status: isBye ? "walkover" : "pending",
-          winner_id: isBye ? (t1 ?? t2) : null,
-          bo_type: isFinalRound ? 3 : 1,
-          webhook_secret: randomUUID(),
-          ...(bothTeams ? { teams_assigned_at: new Date().toISOString() } : {}),
-        });
-      } else {
-        toInsert.push({
-          tournament_id: tournament.id,
-          team1_id: null,
-          team2_id: null,
-          round,
-          match_index: idx,
-          status: "pending",
-          winner_id: null,
-          bo_type: isFinalRound ? 3 : 1,
-          webhook_secret: randomUUID(),
-        });
-      }
-    }
+  if (insertError) {
+    throw new Error(`Failed to create tournament bracket: ${insertError.message}`);
   }
 
-  if (model.hasThirdPlace && model.thirdPlaceRound !== null) {
-    toInsert.push({
-      tournament_id: tournament.id,
-      team1_id: null,
-      team2_id: null,
-      round: model.thirdPlaceRound,
-      match_index: 0,
-      status: "pending",
-      winner_id: null,
-      bo_type: 1,
-      webhook_secret: randomUUID(),
-    });
-  }
+  await advanceInitialByes(tournament.id, generated.byeAdvancements);
+  return true;
+}
 
-  if (model.hasThirdPlace) {
-    toInsert.push({
-      tournament_id: tournament.id,
-      team1_id: null,
-      team2_id: null,
-      round: model.finalRound,
-      match_index: 0,
-      status: "pending",
-      winner_id: null,
-      bo_type: 3,
-      webhook_secret: randomUUID(),
-    });
-  }
-
-  const { error: insertError } = await supabase.from("matches").insert(toInsert);
-  if (insertError) throw new Error(`Failed to create tournament bracket: ${insertError.message}`);
-
-  // Advance byes into the next round
-  for (const m of toInsert) {
-    if (m.status === "walkover" && m.winner_id && m.round === 1) {
-      const nextRound = 2;
-      const nextIndex = Math.floor(m.match_index / 2);
-      const isEvenSlot = m.match_index % 2 === 0;
-
-      const { data: nextMatch } = await supabase
-        .from("matches")
-        .select("id, team1_id, team2_id")
-        .eq("tournament_id", tournament.id)
-        .eq("round", nextRound)
-        .eq("match_index", nextIndex)
-        .maybeSingle<{ id: string; team1_id: string | null; team2_id: string | null }>();
-
-      if (nextMatch) {
-        const otherTeamAlreadySet = isEvenSlot ? Boolean(nextMatch.team2_id) : Boolean(nextMatch.team1_id);
-        const update = isEvenSlot
-          ? { team1_id: m.winner_id, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) }
-          : { team2_id: m.winner_id, ...(otherTeamAlreadySet ? { teams_assigned_at: new Date().toISOString() } : {}) };
-        await supabase.from("matches").update(update).eq("id", nextMatch.id);
-      }
-    }
-  }
+export async function ensureTournamentBracketGeneratedById(tournamentId: string): Promise<boolean> {
+  const tournament = await getTournamentById(tournamentId);
+  if (!tournament) return false;
+  if (tournament.status !== "ongoing") return false;
+  return ensureTournamentBracketGenerated(tournament);
 }
 
 function tournamentRegistrationOpen(tournament: Tournament) {
