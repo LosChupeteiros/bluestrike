@@ -1,7 +1,7 @@
 import type { Team } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getCurrentTeamForProfile, getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
 import { getTournamentById, isTournamentRegistrationOpen } from "@/lib/tournaments";
 
 export const BLUES_STRIKE_PAYMENT_REFERENCE_PREFIX = "bluestrike:";
@@ -15,6 +15,7 @@ export interface TournamentRegistrationIntent {
   tournamentId: string;
   teamId: string;
   captainProfileId: string;
+  rosterProfileIds: string[];
   status: TournamentRegistrationIntentStatus;
   paymentStatus: TournamentRegistrationIntentPaymentStatus;
   paymentAmount: number;
@@ -35,6 +36,7 @@ interface TournamentRegistrationIntentRow {
   tournament_id: string;
   team_id: string;
   captain_profile_id: string;
+  roster_profile_ids: string[];
   status: string;
   payment_status: string;
   payment_amount: number | null;
@@ -56,6 +58,7 @@ function mapIntentRow(row: TournamentRegistrationIntentRow): TournamentRegistrat
     tournamentId: row.tournament_id,
     teamId: row.team_id,
     captainProfileId: row.captain_profile_id,
+    rosterProfileIds: row.roster_profile_ids ?? [],
     status: row.status as TournamentRegistrationIntentStatus,
     paymentStatus: row.payment_status as TournamentRegistrationIntentPaymentStatus,
     paymentAmount: row.payment_amount ?? 0,
@@ -175,10 +178,58 @@ async function getExistingRegistration(tournamentId: string, teamId: string) {
   return data;
 }
 
+async function hasRosterOverlapWithRegistrations(
+  tournamentId: string,
+  excludeTeamId: string,
+  rosterProfileIds: string[]
+): Promise<boolean> {
+  if (rosterProfileIds.length === 0) return false;
+
+  const { data, error } = await createSupabaseAdminClient()
+    .from("tournament_registrations")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .neq("team_id", excludeTeamId)
+    .neq("status", "withdrawn")
+    .overlaps("roster_profile_ids", rosterProfileIds)
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    throw new Error(`Falha ao validar conflito de jogadores: ${error.message}`);
+  }
+
+  return data !== null;
+}
+
+async function hasRosterOverlapWithActiveIntents(
+  tournamentId: string,
+  excludeTeamId: string,
+  rosterProfileIds: string[]
+): Promise<boolean> {
+  if (rosterProfileIds.length === 0) return false;
+
+  const { data, error } = await createSupabaseAdminClient()
+    .from("tournament_registration_intents")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .neq("team_id", excludeTeamId)
+    .in("status", ["pending", "paid"])
+    .gt("expires_at", new Date().toISOString())
+    .overlaps("roster_profile_ids", rosterProfileIds)
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    throw new Error(`Falha ao validar conflito de jogadores: ${error.message}`);
+  }
+
+  return data !== null;
+}
+
 async function validateTeamEligibility(params: {
   tournamentId: string;
   profile: UserProfile;
   team: Team;
+  rosterProfileIds: string[];
   excludeReservationTeamId?: string;
 }) {
   const tournament = await getTournamentById(params.tournamentId);
@@ -195,9 +246,14 @@ async function validateTeamEligibility(params: {
     throw new Error("A inscricao so pode ser feita pelo capitao do time.");
   }
 
-  const starters = params.team.members?.filter((member) => member.isStarter) ?? [];
-  if (starters.length < TEAM_MIN_STARTERS) {
-    throw new Error("Seu time precisa de pelo menos 5 titulares para se inscrever.");
+  if (params.rosterProfileIds.length < TEAM_MIN_STARTERS) {
+    throw new Error("Selecione pelo menos 5 jogadores para participar.");
+  }
+
+  const memberIds = new Set((params.team.members ?? []).map((m) => m.profileId));
+  const allValid = params.rosterProfileIds.every((id) => memberIds.has(id));
+  if (!allValid) {
+    throw new Error("Todos os jogadores selecionados precisam ser membros do time.");
   }
 
   if (tournament.minElo !== null && params.team.elo < tournament.minElo) {
@@ -211,6 +267,15 @@ async function validateTeamEligibility(params: {
   const existingRegistration = await getExistingRegistration(tournament.id, params.team.id);
   if (existingRegistration) {
     throw new Error("Seu time ja esta inscrito nesse campeonato.");
+  }
+
+  const [overlapRegistration, overlapIntent] = await Promise.all([
+    hasRosterOverlapWithRegistrations(tournament.id, params.team.id, params.rosterProfileIds),
+    hasRosterOverlapWithActiveIntents(tournament.id, params.team.id, params.rosterProfileIds),
+  ]);
+
+  if (overlapRegistration || overlapIntent) {
+    throw new Error("Um ou mais jogadores selecionados ja estao inscritos neste campeonato por outro time.");
   }
 
   const activeReservations = await getTournamentActiveReservationCount(
@@ -229,16 +294,19 @@ async function validateTeamEligibility(params: {
 export async function createCurrentCaptainRegistrationIntent(params: {
   currentProfile: UserProfile;
   tournamentId: string;
+  teamId: string;
+  rosterProfileIds: string[];
 }) {
   await expireStaleRegistrationIntents(params.tournamentId);
 
-  const team = await getCurrentTeamForProfile(params.currentProfile.id);
+  const teams = await getTeamsByIds([params.teamId], { withMembers: true });
+  const team = teams[0] ?? null;
   if (!team) {
-    throw new Error("Voce precisa criar um time antes de se inscrever.");
+    throw new Error("Time nao encontrado.");
   }
 
   const existingIntent = await getCurrentTournamentRegistrationIntent(params.tournamentId, params.currentProfile.id);
-  if (existingIntent?.teamId === team.id && isIntentActive(existingIntent)) {
+  if (existingIntent?.teamId === params.teamId && isIntentActive(existingIntent)) {
     return { intent: existingIntent, team };
   }
 
@@ -246,6 +314,7 @@ export async function createCurrentCaptainRegistrationIntent(params: {
     tournamentId: params.tournamentId,
     profile: params.currentProfile,
     team,
+    rosterProfileIds: params.rosterProfileIds,
   });
 
   if ((tournament.entryFee ?? 0) <= 0) {
@@ -262,6 +331,7 @@ export async function createCurrentCaptainRegistrationIntent(params: {
       tournament_id: tournament.id,
       team_id: team.id,
       captain_profile_id: params.currentProfile.id,
+      roster_profile_ids: params.rosterProfileIds,
       payment_amount: tournament.entryFee ?? 0,
       payment_method: "pix",
       payment_reference: paymentReference,
@@ -328,6 +398,7 @@ export async function finalizeBlueStrikeRegistrationIntent(intentId: string, mpP
     tournamentId: intent.tournamentId,
     profile: { id: intent.captainProfileId } as UserProfile,
     team,
+    rosterProfileIds: intent.rosterProfileIds,
     excludeReservationTeamId: intent.teamId,
   }).catch(async (error) => {
     const existingRegistration = await getExistingRegistration(intent.tournamentId, intent.teamId);
@@ -347,6 +418,7 @@ export async function finalizeBlueStrikeRegistrationIntent(intentId: string, mpP
       .insert({
         tournament_id: intent.tournamentId,
         team_id: intent.teamId,
+        roster_profile_ids: intent.rosterProfileIds,
         status: "confirmed",
         payment_status: "paid",
         payment_amount: tournament?.entryFee ?? intent.paymentAmount,

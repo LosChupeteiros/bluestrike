@@ -1,7 +1,7 @@
 import type { Tournament, TournamentRegistration } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getCurrentTeamForProfile, getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
 import { randomUUID } from "crypto";
 import {
   getEffectiveTournamentStatus,
@@ -506,6 +506,8 @@ function tournamentRegistrationOpen(tournament: Tournament) {
 export async function registerCurrentCaptainTeamForTournament(input: {
   currentProfile: UserProfile;
   tournamentId: string;
+  teamId: string;
+  rosterProfileIds: string[];
   paymentConfirmed: boolean;
 }) {
   const tournament = await getTournamentById(input.tournamentId);
@@ -518,20 +520,24 @@ export async function registerCurrentCaptainTeamForTournament(input: {
     throw new Error("As inscricoes desse campeonato nao estao abertas.");
   }
 
-  const team = await getCurrentTeamForProfile(input.currentProfile.id);
+  const teams = await getTeamsByIds([input.teamId], { withMembers: true });
+  const team = teams[0] ?? null;
 
   if (!team) {
-    throw new Error("Voce precisa criar um time antes de se inscrever.");
+    throw new Error("Time nao encontrado.");
   }
 
   if (team.captainId !== input.currentProfile.id) {
     throw new Error("A inscricao so pode ser feita pelo capitao do time.");
   }
 
-  const starters = team.members?.filter((member) => member.isStarter) ?? [];
+  if (input.rosterProfileIds.length < TEAM_MIN_STARTERS) {
+    throw new Error("Selecione pelo menos 5 jogadores para participar.");
+  }
 
-  if (starters.length < TEAM_MIN_STARTERS) {
-    throw new Error("Seu time precisa de pelo menos 5 titulares para se inscrever.");
+  const memberIds = new Set((team.members ?? []).map((m) => m.profileId));
+  if (!input.rosterProfileIds.every((id) => memberIds.has(id))) {
+    throw new Error("Todos os jogadores selecionados precisam ser membros do time.");
   }
 
   if ((tournament.registeredTeamsCount ?? 0) >= tournament.maxTeams) {
@@ -573,6 +579,7 @@ export async function registerCurrentCaptainTeamForTournament(input: {
     .insert({
       tournament_id: tournament.id,
       team_id: team.id,
+      roster_profile_ids: input.rosterProfileIds,
       status: "confirmed",
       payment_status: "paid",
       payment_amount: 0,

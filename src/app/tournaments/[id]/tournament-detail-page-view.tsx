@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCurrentProfile } from "@/lib/profiles";
-import { getCurrentTeamForProfile } from "@/lib/teams";
+import { getCaptainTeamsWithMembers } from "@/lib/teams";
 import { getTournamentById } from "@/lib/tournaments";
 import {
   getCurrentTournamentRegistrationIntent,
@@ -64,8 +64,8 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   // eslint-disable-next-line react-hooks/purity -- Server-rendered timestamp for tournament status copy.
   const nowMs = Date.now();
 
-  const [currentTeam, matches] = await Promise.all([
-    currentProfile ? getCurrentTeamForProfile(currentProfile.id) : Promise.resolve(null),
+  const [captainTeams, matches] = await Promise.all([
+    currentProfile ? getCaptainTeamsWithMembers(currentProfile.id) : Promise.resolve([]),
     effectiveStatus === "ongoing" || effectiveStatus === "finished"
       ? getTournamentMatches(tournament.id)
       : Promise.resolve([]),
@@ -83,9 +83,6 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   const isFinishedTournament = effectiveStatus === "finished";
   const teams =
     tournament.registrations?.map((r) => r.team).filter((t): t is Team => Boolean(t)) ?? [];
-  const currentTeamAlreadyRegistered = Boolean(
-    currentTeam && tournament.registrations?.some((r) => r.teamId === currentTeam.id)
-  );
 
   // Derive podium from match results (no DB registration status required)
   let podiumFirst: Team | null = null;
@@ -123,20 +120,10 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     }
   } else if (!currentProfile) {
     registrationDisabledReason = "Entre com sua Steam para inscrever um time.";
-  } else if (!currentTeam) {
+  } else if (captainTeams.length === 0) {
     registrationDisabledReason = "Crie um time antes de tentar se inscrever.";
-  } else if (currentTeam.captainId !== currentProfile.id) {
-    registrationDisabledReason = "A inscrição precisa ser feita pelo capitão do time.";
-  } else if (currentTeamAlreadyRegistered) {
-    registrationDisabledReason = "Seu time já está inscrito nesse campeonato.";
   } else if (isFull) {
     registrationDisabledReason = "Esse campeonato já lotou.";
-  } else if ((currentTeam.members?.filter((m) => m.isStarter).length ?? 0) < 5) {
-    registrationDisabledReason = "Seu time precisa de 5 titulares para se inscrever.";
-  } else if (tournament.minElo !== null && currentTeam.elo < tournament.minElo) {
-    registrationDisabledReason = `Seu time precisa de pelo menos ${tournament.minElo} ELO médio.`;
-  } else if (tournament.maxElo !== null && currentTeam.elo > tournament.maxElo) {
-    registrationDisabledReason = `Seu time excede o teto de ${tournament.maxElo} ELO médio.`;
   }
 
   const keyDates = [
@@ -671,7 +658,8 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     entryFee={tournament.entryFee ?? 0}
                     canRegister={registrationDisabledReason === null}
                     disabledReason={registrationDisabledReason}
-                    currentTeam={currentTeam}
+                    captainTeams={captainTeams}
+                    registeredTeamIds={(tournament.registrations ?? []).map((r) => r.teamId)}
                     initialIntent={currentRegistrationIntent}
                   />
 

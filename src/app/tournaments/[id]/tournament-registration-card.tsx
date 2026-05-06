@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
+  ChevronRight,
   ClipboardCopy,
   Clock,
   Loader2,
@@ -17,13 +18,14 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { Team } from "@/types";
+import type { Team, TeamMember } from "@/types";
 import type { TournamentRegistrationIntent } from "@/lib/tournament-registration-intents";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 
 const PIX_EXPIRY_MS = 15 * 60 * 1000;
+const MIN_ROSTER = 5;
 
 const TERMS = `1. O capitao confirma que todos os membros do time leram e aceitaram as regras do campeonato.
 
@@ -37,7 +39,7 @@ const TERMS = `1. O capitao confirma que todos os membros do time leram e aceita
 
 6. Ao continuar, o capitao declara ciencia e concordancia com estes termos em nome do time.`;
 
-type FlowStep = "idle" | "confirm" | "payment-summary" | "pix";
+type FlowStep = "idle" | "team-select" | "roster-select" | "confirm" | "payment-summary" | "pix";
 
 interface PixData {
   paymentId: string;
@@ -52,7 +54,8 @@ interface TournamentRegistrationCardProps {
   entryFee: number;
   canRegister: boolean;
   disabledReason: string | null;
-  currentTeam: Team | null;
+  captainTeams: Team[];
+  registeredTeamIds: string[];
   initialIntent: TournamentRegistrationIntent | null;
 }
 
@@ -137,6 +140,21 @@ function TeamMark({ team }: { team: Team }) {
 
   return (
     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)]/25 bg-[var(--primary)]/10 text-sm font-black text-[var(--primary)]">
+      {team.tag}
+    </div>
+  );
+}
+
+function SmallTeamMark({ team }: { team: Team }) {
+  if (team.logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={team.logoUrl} alt={team.name} className="h-8 w-8 rounded-lg object-cover" />
+    );
+  }
+
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--primary)]/25 bg-[var(--primary)]/10 text-xs font-black text-[var(--primary)]">
       {team.tag}
     </div>
   );
@@ -306,11 +324,14 @@ export default function TournamentRegistrationCard({
   entryFee,
   canRegister,
   disabledReason,
-  currentTeam,
+  captainTeams,
+  registeredTeamIds,
   initialIntent,
 }: TournamentRegistrationCardProps) {
   const router = useRouter();
   const [flowStep, setFlowStep] = useState<FlowStep>("idle");
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedRoster, setSelectedRoster] = useState<string[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [intent, setIntent] = useState<TournamentRegistrationIntent | null>(initialIntent);
@@ -320,11 +341,18 @@ export default function TournamentRegistrationCard({
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [pixPaid, setPixPaid] = useState(false);
 
-  const starters = useMemo(
-    () => currentTeam?.members?.filter((member) => member.isStarter).slice(0, 5) ?? [],
-    [currentTeam]
+  const selectedTeam = useMemo(
+    () => captainTeams.find((t) => t.id === selectedTeamId) ?? null,
+    [captainTeams, selectedTeamId]
   );
-  const perPlayer = entryFee > 0 ? Math.ceil(entryFee / Math.max(1, starters.length || 5)) : 0;
+
+  const rosterMembers = useMemo<TeamMember[]>(
+    () => (selectedTeam?.members ?? []).filter((m) => selectedRoster.includes(m.profileId)),
+    [selectedTeam, selectedRoster]
+  );
+
+  const perPlayer = entryFee > 0 ? Math.ceil(entryFee / Math.max(1, rosterMembers.length || MIN_ROSTER)) : 0;
+
   const canResumeIntent = Boolean(
     intent?.status === "pending" &&
     intent.paymentStatus !== "paid" &&
@@ -360,11 +388,48 @@ export default function TournamentRegistrationCard({
     };
   }, [flowStep, intent, pixData, pixPaid, tournamentId]);
 
+  function handleStartRegistration() {
+    if (captainTeams.length === 1) {
+      const team = captainTeams[0]!;
+      const defaultRoster = (team.members ?? [])
+        .filter((m) => m.isStarter)
+        .slice(0, MIN_ROSTER)
+        .map((m) => m.profileId);
+      setSelectedTeamId(team.id);
+      setSelectedRoster(defaultRoster);
+      setFlowStep("roster-select");
+    } else {
+      setSelectedTeamId(null);
+      setSelectedRoster([]);
+      setFlowStep("team-select");
+    }
+  }
+
+  function handleTeamSelect(team: Team) {
+    const defaultRoster = (team.members ?? [])
+      .filter((m) => m.isStarter)
+      .slice(0, MIN_ROSTER)
+      .map((m) => m.profileId);
+    setSelectedTeamId(team.id);
+    setSelectedRoster(defaultRoster);
+    setFlowStep("roster-select");
+  }
+
+  function toggleRosterMember(profileId: string) {
+    setSelectedRoster((prev) =>
+      prev.includes(profileId) ? prev.filter((id) => id !== profileId) : [...prev, profileId]
+    );
+  }
+
   async function registerFreeTournament() {
     const response = await fetch(`/api/tournaments/${tournamentId}/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentConfirmed: true }),
+      body: JSON.stringify({
+        paymentConfirmed: true,
+        teamId: selectedTeamId,
+        rosterProfileIds: selectedRoster,
+      }),
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
@@ -376,6 +441,7 @@ export default function TournamentRegistrationCard({
     const response = await fetch(`/api/tournaments/${tournamentId}/registration-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId: selectedTeamId, rosterProfileIds: selectedRoster }),
     });
     const payload = (await response.json()) as { intent?: TournamentRegistrationIntent; error?: string };
     if (!response.ok || !payload.intent) {
@@ -386,7 +452,7 @@ export default function TournamentRegistrationCard({
   }
 
   async function handleConfirm() {
-    if (!termsAccepted || !currentTeam) return;
+    if (!termsAccepted || !selectedTeam) return;
     setSubmitting(true);
     setFeedback(null);
 
@@ -460,6 +526,12 @@ export default function TournamentRegistrationCard({
       ? "Inscrever meu time"
       : "Confirmar inscricao";
 
+  const previewTeam = captainTeams.length === 1 ? captainTeams[0] : null;
+  const previewStarters = useMemo(
+    () => (previewTeam?.members ?? []).filter((m) => m.isStarter).slice(0, 5),
+    [previewTeam]
+  );
+
   return (
     <>
       <div className="space-y-3">
@@ -475,32 +547,44 @@ export default function TournamentRegistrationCard({
               void handlePixCreate(intent);
               return;
             }
-            if (canRegister) setFlowStep("confirm");
+            if (canRegister) handleStartRegistration();
           }}
         >
           <Trophy className="h-4 w-4" />
           {ctaLabel}
         </Button>
 
-        {currentTeam && (
+        {/* Show single team preview or multi-team hint */}
+        {captainTeams.length > 0 && !canResumeIntent && (
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-3 text-xs">
-            <div className="mb-2 flex items-center gap-2">
-              <TeamMark team={currentTeam} />
-              <div className="min-w-0">
-                <div className="truncate font-bold text-[var(--foreground)]">{currentTeam.name}</div>
-                <div className="text-[var(--muted-foreground)]">{currentTeam.elo} ELO medio</div>
+            {captainTeams.length === 1 && previewTeam ? (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <TeamMark team={previewTeam} />
+                  <div className="min-w-0">
+                    <div className="truncate font-bold text-[var(--foreground)]">{previewTeam.name}</div>
+                    <div className="text-[var(--muted-foreground)]">{previewTeam.elo} ELO medio</div>
+                  </div>
+                </div>
+                <div className="flex -space-x-2">
+                  {previewStarters.map((member) => (
+                    <Avatar key={member.id} className="h-6 w-6 border border-[var(--background)]">
+                      <AvatarImage src={member.profile?.steamAvatarUrl ?? ""} />
+                      <AvatarFallback className="bg-[var(--card)] text-[9px]">
+                        {(member.profile?.steamPersonaName ?? "?").slice(0, 1).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+                <Users className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
+                <span>
+                  Voce tem <span className="font-bold text-[var(--foreground)]">{captainTeams.length} times</span> disponíveis para inscrever.
+                </span>
               </div>
-            </div>
-            <div className="flex -space-x-2">
-              {starters.map((member) => (
-                <Avatar key={member.id} className="h-6 w-6 border border-[var(--background)]">
-                  <AvatarImage src={member.profile?.steamAvatarUrl ?? ""} />
-                  <AvatarFallback className="bg-[var(--card)] text-[9px]">
-                    {(member.profile?.steamPersonaName ?? "?").slice(0, 1).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-            </div>
+            )}
           </div>
         )}
 
@@ -523,6 +607,153 @@ export default function TournamentRegistrationCard({
         )}
       </div>
 
+      {/* ── Step: Team selection ── */}
+      <Modal
+        open={flowStep === "team-select"}
+        onClose={closeModal}
+        title="Escolher time"
+        subtitle="Selecione qual dos seus times vai participar."
+      >
+        <div className="space-y-2 p-5">
+          {captainTeams.map((team) => {
+            const alreadyRegistered = registeredTeamIds.includes(team.id);
+            const memberCount = (team.members ?? []).length;
+            const starterCount = (team.members ?? []).filter((m) => m.isStarter).length;
+            const hasEnoughPlayers = memberCount >= MIN_ROSTER;
+
+            return (
+              <button
+                key={team.id}
+                type="button"
+                disabled={alreadyRegistered}
+                onClick={() => handleTeamSelect(team)}
+                className={`group w-full rounded-xl border p-3 text-left transition-all ${
+                  alreadyRegistered
+                    ? "cursor-not-allowed border-[var(--border)] opacity-40"
+                    : "border-[var(--border)] hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/5"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <SmallTeamMark team={team} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
+                        {team.name}
+                      </span>
+                      {alreadyRegistered && (
+                        <span className="shrink-0 rounded-full bg-green-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-green-400">
+                          Inscrito
+                        </span>
+                      )}
+                      {!hasEnoughPlayers && !alreadyRegistered && (
+                        <span className="shrink-0 rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-orange-400">
+                          Poucos jogadores
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-[var(--muted-foreground)]">
+                      {team.elo} ELO · {starterCount} titular{starterCount !== 1 ? "es" : ""} · {memberCount} no elenco
+                    </div>
+                  </div>
+                  {!alreadyRegistered && (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--primary)]" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
+
+      {/* ── Step: Roster selection ── */}
+      <Modal
+        open={flowStep === "roster-select"}
+        onClose={closeModal}
+        title="Escolher jogadores"
+        subtitle={selectedTeam ? `${selectedTeam.name} · selecione pelo menos ${MIN_ROSTER} jogadores` : undefined}
+      >
+        <div className="space-y-4 p-5">
+          {selectedTeam && (
+            <>
+              <div className="space-y-1.5">
+                {(selectedTeam.members ?? []).map((member) => {
+                  const isSelected = selectedRoster.includes(member.profileId);
+                  const isCaptain = member.profileId === selectedTeam.captainId;
+
+                  return (
+                    <label
+                      key={member.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
+                        isSelected
+                          ? "border-[var(--primary)]/40 bg-[var(--primary)]/8"
+                          : "border-[var(--border)] hover:border-[var(--border)] hover:bg-[var(--secondary)]/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleRosterMember(member.profileId)}
+                        className="h-4 w-4 shrink-0 cursor-pointer rounded accent-cyan-400"
+                      />
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarImage src={member.profile?.steamAvatarUrl ?? ""} />
+                        <AvatarFallback className="bg-[var(--card)] text-[9px]">
+                          {(member.profile?.steamPersonaName ?? "?").slice(0, 1).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold">
+                            {member.profile?.steamPersonaName ?? "Player"}
+                          </span>
+                          {isCaptain && (
+                            <span className="text-[10px] font-black text-[var(--primary)]">C</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[var(--muted-foreground)]">
+                          {member.isStarter ? "Titular" : "Reserva"}{member.inGameRole ? ` · ${member.inGameRole}` : ""}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className={`rounded-xl border px-4 py-2.5 text-xs font-semibold ${
+                selectedRoster.length >= MIN_ROSTER
+                  ? "border-[var(--primary)]/20 bg-[var(--primary)]/5 text-[var(--primary)]"
+                  : "border-orange-500/20 bg-orange-500/5 text-orange-300"
+              }`}>
+                {selectedRoster.length} de {(selectedTeam.members ?? []).length} jogadores selecionados
+                {selectedRoster.length < MIN_ROSTER && ` · selecione mais ${MIN_ROSTER - selectedRoster.length}`}
+              </div>
+
+              {feedback && (
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {feedback}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="gradient"
+                className="w-full gap-2"
+                disabled={selectedRoster.length < MIN_ROSTER}
+                onClick={() => {
+                  setFeedback(null);
+                  setFlowStep("confirm");
+                }}
+              >
+                Continuar
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── Step: Confirm ── */}
       <Modal
         open={flowStep === "confirm"}
         onClose={closeModal}
@@ -530,18 +761,18 @@ export default function TournamentRegistrationCard({
         subtitle="Revise seu time e aceite os termos antes de continuar."
       >
         <div className="space-y-4 p-5">
-          {currentTeam && (
+          {selectedTeam && (
             <div className="rounded-xl border border-[var(--primary)]/20 bg-[var(--secondary)] p-4">
               <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Time BlueStrike</div>
               <div className="flex items-center gap-3">
-                <TeamMark team={currentTeam} />
+                <TeamMark team={selectedTeam} />
                 <div className="min-w-0">
-                  <p className="truncate font-black">{currentTeam.name}</p>
-                  <p className="text-xs text-[var(--muted-foreground)]">{starters.length} titulares selecionados</p>
+                  <p className="truncate font-black">{selectedTeam.name}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{rosterMembers.length} jogadores selecionados</p>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {starters.map((member) => (
+                {rosterMembers.map((member) => (
                   <div key={member.id} className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-2 py-1 text-xs">
                     <Avatar className="h-4 w-4">
                       <AvatarImage src={member.profile?.steamAvatarUrl ?? ""} />
@@ -550,7 +781,7 @@ export default function TournamentRegistrationCard({
                       </AvatarFallback>
                     </Avatar>
                     <span className="max-w-[90px] truncate">{member.profile?.steamPersonaName ?? "Player"}</span>
-                    {member.profileId === currentTeam.captainId && (
+                    {member.profileId === selectedTeam.captainId && (
                       <span className="text-[10px] font-bold text-[var(--primary)]">C</span>
                     )}
                   </div>
@@ -605,6 +836,7 @@ export default function TournamentRegistrationCard({
         </div>
       </Modal>
 
+      {/* ── Step: Payment summary ── */}
       <Modal
         open={flowStep === "payment-summary"}
         onClose={closeModal}
@@ -624,7 +856,7 @@ export default function TournamentRegistrationCard({
               Sugestao da BlueStrike
             </div>
             <div className="mb-3 flex gap-1.5">
-              {starters.map((member) => (
+              {rosterMembers.map((member) => (
                 <div key={member.id} className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg border border-[var(--primary)]/20 bg-[var(--primary)]/10 py-2">
                   <Avatar className="h-7 w-7">
                     <AvatarImage src={member.profile?.steamAvatarUrl ?? ""} />
@@ -640,7 +872,7 @@ export default function TournamentRegistrationCard({
               ))}
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--muted-foreground)]">{starters.length || 5} players x {formatCurrency(perPlayer)}</span>
+              <span className="text-[var(--muted-foreground)]">{rosterMembers.length || MIN_ROSTER} players x {formatCurrency(perPlayer)}</span>
               <span className="font-black">{formatCurrency(entryFee)}</span>
             </div>
           </div>
@@ -665,6 +897,7 @@ export default function TournamentRegistrationCard({
         </div>
       </Modal>
 
+      {/* ── Step: PIX ── */}
       <Modal
         open={flowStep === "pix"}
         onClose={closeModal}

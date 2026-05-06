@@ -8,6 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 const TEAM_PAGE_SIZE = 9;
 const TEAM_MAX_MEMBERS = 6;
 const TEAM_MIN_STARTERS = 5;
+const MAX_TEAMS_PER_PLAYER = 8;
 
 interface TeamRow {
   id: string;
@@ -236,29 +237,38 @@ async function attachMembers(teams: Team[]) {
   }));
 }
 
-async function getProfileActiveTeamMembership(profileId: string) {
+async function countActiveTeamsForProfile(profileId: string): Promise<number> {
   const { data, error } = await createSupabaseAdminClient()
     .from("team_members")
-    .select("id, team_id")
+    .select("team_id")
     .eq("profile_id", profileId)
-    .returns<Array<{ id: string; team_id: string }>>();
+    .returns<Array<{ team_id: string }>>();
 
   if (error) {
-    throw new Error(`Falha ao consultar o time atual do jogador: ${error.message}`);
+    throw new Error(`Falha ao consultar os times do jogador: ${error.message}`);
   }
 
   if (!data || data.length === 0) {
-    return null;
+    return 0;
   }
 
   const teamRows = await fetchTeamRows(data.map((item) => item.team_id));
-  const activeTeam = teamRows.find((team) => team.is_active);
+  return teamRows.filter((team) => team.is_active).length;
+}
 
-  if (!activeTeam) {
-    return null;
+async function isAlreadyMemberOf(profileId: string, teamId: string): Promise<boolean> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("team_members")
+    .select("id")
+    .eq("profile_id", profileId)
+    .eq("team_id", teamId)
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    throw new Error(`Falha ao verificar membros do time: ${error.message}`);
   }
 
-  return data.find((item) => item.team_id === activeTeam.id) ?? null;
+  return data !== null;
 }
 
 async function ensureUniqueTeamIdentity(name: string, tag: string, ignoreTeamId?: string) {
@@ -483,10 +493,10 @@ export async function createTeamForCaptain(captain: UserProfile, input: CreateTe
   }
 
   const normalizedInput = validateCreateTeamInput(input);
-  const currentMembership = await getProfileActiveTeamMembership(captain.id);
+  const teamCount = await countActiveTeamsForProfile(captain.id);
 
-  if (currentMembership) {
-    throw new Error("Voce ja faz parte de um time ativo.");
+  if (teamCount >= MAX_TEAMS_PER_PLAYER) {
+    throw new Error(`Voce ja atingiu o limite de ${MAX_TEAMS_PER_PLAYER} times simultaneos.`);
   }
 
   await ensureUniqueTeamIdentity(normalizedInput.name, normalizedInput.tag);
@@ -546,10 +556,16 @@ export async function joinTeamByCode(profile: UserProfile, code: string, passwor
     throw new Error("Esse time nao esta mais ativo.");
   }
 
-  const currentMembership = await getProfileActiveTeamMembership(profile.id);
+  const alreadyMember = await isAlreadyMemberOf(profile.id, team.id);
 
-  if (currentMembership) {
-    throw new Error("Voce ja faz parte de um time ativo.");
+  if (alreadyMember) {
+    throw new Error("Voce ja faz parte desse time.");
+  }
+
+  const teamCount = await countActiveTeamsForProfile(profile.id);
+
+  if (teamCount >= MAX_TEAMS_PER_PLAYER) {
+    throw new Error(`Voce ja atingiu o limite de ${MAX_TEAMS_PER_PLAYER} times simultaneos.`);
   }
 
   if (!verifyTeamPassword(password?.trim() ?? "", team.passwordHash)) {
@@ -706,6 +722,23 @@ export async function deleteTeam(teamSlug: string, requesterProfileId: string) {
   if (deleteTeamError) {
     throw new Error(`Falha ao excluir time: ${deleteTeamError.message}`);
   }
+}
+
+export async function getCaptainTeamsWithMembers(captainProfileId: string): Promise<Team[]> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("teams")
+    .select("*")
+    .eq("captain_id", captainProfileId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .returns<TeamRow[]>();
+
+  if (error) {
+    throw new Error(`Falha ao buscar times do capitao: ${error.message}`);
+  }
+
+  const teams = (data ?? []).map(mapTeamRow);
+  return attachMembers(teams);
 }
 
 export { TEAM_MAX_MEMBERS, TEAM_MIN_STARTERS, TEAM_PAGE_SIZE };

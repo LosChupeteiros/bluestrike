@@ -17,10 +17,25 @@ export async function POST(request: NextRequest, context: TournamentRegisterRout
 
   try {
     const { id } = await context.params;
-    const body = (await request.json()) as { paymentConfirmed?: boolean };
+    const body = (await request.json()) as {
+      paymentConfirmed?: boolean;
+      teamId?: string;
+      rosterProfileIds?: string[];
+    };
+
+    if (!body.teamId || typeof body.teamId !== "string") {
+      return NextResponse.json({ error: "Selecione um time para inscrever." }, { status: 400 });
+    }
+
+    if (!Array.isArray(body.rosterProfileIds) || body.rosterProfileIds.length === 0) {
+      return NextResponse.json({ error: "Selecione os jogadores que vao participar." }, { status: 400 });
+    }
+
     const payload = await registerCurrentCaptainTeamForTournament({
       currentProfile,
       tournamentId: id,
+      teamId: body.teamId,
+      rosterProfileIds: body.rosterProfileIds,
       paymentConfirmed: Boolean(body.paymentConfirmed),
     });
 
