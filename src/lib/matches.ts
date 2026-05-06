@@ -1017,37 +1017,29 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
   const matchIdsArr = matchRows.map((m) => m.id);
   const { data: statRows } = await supabase
     .from("matchzy_player_stats")
-    .select("match_id, team_name, map_team1_score, map_team2_score, mapnumber")
+    .select("match_id, map_team1_score, map_team2_score, mapnumber")
     .in("match_id", matchIdsArr)
-    .returns<{ match_id: string; team_name: string | null; map_team1_score: number | null; map_team2_score: number | null; mapnumber: number }[]>();
+    .returns<{ match_id: string; map_team1_score: number | null; map_team2_score: number | null; mapnumber: number }[]>();
 
-  // Determine team name for teamId so we can match map scores
-  const teamName = teamMap.get(teamId)?.name?.toLowerCase() ?? null;
-
-  // Build per-match map win/loss counts
-  // A map is won if the team's side score > opponent side score for that map
-  // We use map_team1_score / map_team2_score alongside team_name to figure out which side the team was on
+  // Build per-match map win/loss counts.
+  // map_team1_score / map_team2_score correspond to matches.team1_id / team2_id,
+  // so we can determine our side directly without relying on team_name.
   const matchMapStats = new Map<string, { mapsWon: number; mapsLost: number }>();
 
-  if (statRows && statRows.length > 0 && teamName) {
-    // Group rows by match_id + mapnumber to get one row per player per map
-    // We just need one representative row per map to get the scores
+  if (statRows && statRows.length > 0) {
     const seenMapKey = new Set<string>();
     for (const row of statRows) {
       const mapKey = `${row.match_id}:${row.mapnumber}`;
       if (seenMapKey.has(mapKey)) continue;
       seenMapKey.add(mapKey);
 
-      const rowTeamName = (row.team_name ?? "").toLowerCase();
-      const isTeam1Side = rowTeamName === teamName;
-      // Only count rows where this row's team_name matches our team
-      if (!isTeam1Side) continue;
-
       const match = matchRows.find((m) => m.id === row.match_id);
       if (!match) continue;
 
-      const myScore = row.map_team1_score ?? 0;
-      const oppScore = row.map_team2_score ?? 0;
+      const isTeam1 = match.team1_id === teamId;
+      const myScore = isTeam1 ? (row.map_team1_score ?? 0) : (row.map_team2_score ?? 0);
+      const oppScore = isTeam1 ? (row.map_team2_score ?? 0) : (row.map_team1_score ?? 0);
+
       const existing = matchMapStats.get(row.match_id) ?? { mapsWon: 0, mapsLost: 0 };
       if (myScore > oppScore) existing.mapsWon++;
       else if (oppScore > myScore) existing.mapsLost++;
