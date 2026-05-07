@@ -1001,12 +1001,12 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
 
   const { data: matchRows } = await supabase
     .from("matches")
-    .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at")
+    .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at, bo_type")
     .or(`team1_id.eq.${teamId},team2_id.eq.${teamId}`)
     .in("status", ["finished", "walkover"])
     .order("finished_at", { ascending: false })
     .limit(limit)
-    .returns<{ id: string; tournament_id: string | null; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string; finished_at: string | null; started_at: string | null }[]>();
+    .returns<{ id: string; tournament_id: string | null; team1_id: string | null; team2_id: string | null; winner_id: string | null; status: string; finished_at: string | null; started_at: string | null; bo_type: 1 | 3 | 5 | null }[]>();
 
   if (!matchRows || matchRows.length === 0) return [];
 
@@ -1024,10 +1024,10 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
     for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
   }
 
-  // Round scores per map (e.g. 13-7) come from matchzy_player_stats:
-  // map_team1_score / map_team2_score correspond to matches.team1_id / team2_id.
-  // We pick the lowest mapnumber (first map) so the card mirrors the player profile
-  // and shows real CS2 round scores like 13×7 instead of map win counts.
+  // map_team1_score / map_team2_score in matchzy_player_stats correspond to
+  // matches.team1_id / team2_id, so the score lines up with team1Tag/team2Tag.
+  // BO1 → show round score of the played map (e.g. 13×7).
+  // BO3/BO5 → show map wins (e.g. 2×1).
   const matchIdsArr = matchRows.map((m) => m.id);
   const { data: statRows } = await supabase
     .from("matchzy_player_stats")
@@ -1035,30 +1035,58 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
     .in("match_id", matchIdsArr)
     .returns<{ match_id: string; map_team1_score: number | null; map_team2_score: number | null; mapnumber: number }[]>();
 
-  const matchMapStats = new Map<string, { team1Score: number; team2Score: number; mapnumber: number }>();
+  // For BO1: track the first map's round score per match.
+  const firstMapByMatch = new Map<string, { team1Score: number; team2Score: number; mapnumber: number }>();
+  // For BO3/BO5: track per-map results to count map wins, deduped by mapnumber.
+  const mapsByMatch = new Map<string, Map<number, { t1: number; t2: number }>>();
 
   if (statRows && statRows.length > 0) {
     for (const row of statRows) {
       const t1 = row.map_team1_score ?? 0;
       const t2 = row.map_team2_score ?? 0;
-      const existing = matchMapStats.get(row.match_id);
-      // Keep the first map (lowest mapnumber) — same convention as the player profile.
-      if (!existing || row.mapnumber < existing.mapnumber) {
-        matchMapStats.set(row.match_id, { team1Score: t1, team2Score: t2, mapnumber: row.mapnumber });
+
+      const firstSeen = firstMapByMatch.get(row.match_id);
+      if (!firstSeen || row.mapnumber < firstSeen.mapnumber) {
+        firstMapByMatch.set(row.match_id, { team1Score: t1, team2Score: t2, mapnumber: row.mapnumber });
       }
+
+      let perMap = mapsByMatch.get(row.match_id);
+      if (!perMap) {
+        perMap = new Map();
+        mapsByMatch.set(row.match_id, perMap);
+      }
+      if (!perMap.has(row.mapnumber)) perMap.set(row.mapnumber, { t1, t2 });
     }
   }
 
   return matchRows.map((m) => {
-    const stats = matchMapStats.get(m.id);
+    const isBo1 = (m.bo_type ?? 1) === 1;
+
+    let team1Score = 0;
+    let team2Score = 0;
+
+    if (isBo1) {
+      const first = firstMapByMatch.get(m.id);
+      team1Score = first?.team1Score ?? 0;
+      team2Score = first?.team2Score ?? 0;
+    } else {
+      const perMap = mapsByMatch.get(m.id);
+      if (perMap) {
+        for (const { t1, t2 } of perMap.values()) {
+          if (t1 > t2) team1Score++;
+          else if (t2 > t1) team2Score++;
+        }
+      }
+    }
+
     return {
       matchId: m.id,
       tournamentId: m.tournament_id,
       tournamentName: m.tournament_id ? (tournamentMap.get(m.tournament_id) ?? "BlueStrike") : "BlueStrike",
       team1Tag: m.team1_id ? (teamMap.get(m.team1_id)?.tag ?? "???") : "???",
       team2Tag: m.team2_id ? (teamMap.get(m.team2_id)?.tag ?? "???") : "???",
-      team1Score: stats?.team1Score ?? 0,
-      team2Score: stats?.team2Score ?? 0,
+      team1Score,
+      team2Score,
       playedAt: m.finished_at ?? m.started_at,
       status: m.status,
       isWinner: m.winner_id === teamId,
