@@ -64,13 +64,11 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   // eslint-disable-next-line react-hooks/purity -- Server-rendered timestamp for tournament status copy.
   const nowMs = Date.now();
 
-  const [captainTeams, matches] = await Promise.all([
+  const [captainTeams, matches, activeReservationCount, currentRegistrationIntent] = await Promise.all([
     currentProfile ? getCaptainTeamsWithMembers(currentProfile.id) : Promise.resolve([]),
     effectiveStatus === "ongoing" || effectiveStatus === "finished"
       ? getTournamentMatches(tournament.id)
       : Promise.resolve([]),
-  ]);
-  const [activeReservationCount, currentRegistrationIntent] = await Promise.all([
     getTournamentActiveReservationCount(tournament.id),
     currentProfile ? getCurrentTournamentRegistrationIntent(tournament.id, currentProfile.id) : Promise.resolve(null),
   ]);

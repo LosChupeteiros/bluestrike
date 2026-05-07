@@ -194,9 +194,9 @@ export function TeamProfileTabs({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 font-mono text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
                       <span>{match.team1Tag}</span>
-                      <span className="text-[var(--muted-foreground)]">{match.mapsWon}</span>
+                      <span className="text-[var(--muted-foreground)]">{match.team1Score}</span>
                       <span className="text-[var(--muted-foreground)]">×</span>
-                      <span className="text-[var(--muted-foreground)]">{match.mapsLost}</span>
+                      <span className="text-[var(--muted-foreground)]">{match.team2Score}</span>
                       <span>{match.team2Tag}</span>
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted-foreground)]">

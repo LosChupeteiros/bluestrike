@@ -40,6 +40,7 @@ import { cn, formatDate } from "@/lib/utils";
 import type { RecentMatchSummary } from "@/lib/matches";
 import type { Team } from "@/types";
 import type { FaceitTeam } from "@/lib/faceit";
+import EloTrendChart, { type EloTrendPoint } from "@/components/profile/elo-trend-chart";
 
 interface ProfileShellViewProps {
   profile: UserProfile;
@@ -87,6 +88,21 @@ export default function ProfileShellView({
   const matchesPageSize = 5;
   const matchesTotalPages = Math.max(1, Math.ceil(recentMatches.length / matchesPageSize));
   const visibleRecentMatches = recentMatches.slice((matchesPage - 1) * matchesPageSize, matchesPage * matchesPageSize);
+
+  const eloTrendPoints: EloTrendPoint[] = recentMatches
+    .filter((m) => m.eloAfter !== null && m.eloDelta !== null && m.status === "finished")
+    .slice(0, 5)
+    .map((m) => ({
+      matchId: m.matchId,
+      team1Tag: m.team1Tag,
+      team2Tag: m.team2Tag,
+      team1Score: m.team1Score,
+      team2Score: m.team2Score,
+      eloAfter: m.eloAfter as number,
+      eloDelta: m.eloDelta as number,
+      isWinner: m.isWinner,
+      playedAt: m.playedAt,
+    }));
 
   useEffect(() => {
     setIsEditModalOpen(defaultEditOpen);
@@ -358,6 +374,10 @@ export default function ProfileShellView({
               </div>
               <div className="pt-2.5 text-[1.75rem] font-black leading-none text-purple-400">{stats.hsRate}%</div>
             </div>
+          </div>
+
+          <div className="mb-8">
+            <EloTrendChart points={eloTrendPoints} />
           </div>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">

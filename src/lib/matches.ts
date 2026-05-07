@@ -2,6 +2,7 @@ import type { Match, Team } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getBracketRoundModel } from "@/lib/bracket-model";
+import { createMatchStartNotifications } from "@/lib/notifications";
 import { randomUUID } from "crypto";
 
 interface MatchRow {
@@ -253,6 +254,12 @@ async function advanceWinnerByRoundModel(
     await supabase.from("matches").update(update).eq("id", target.id);
     if (slot === 1) target.team1_id = teamId;
     else target.team2_id = teamId;
+
+    if (otherTeamAlreadySet) {
+      await createMatchStartNotifications(target.id).catch((err) => {
+        console.error(`[assignSlot] notification failed for match ${target.id}:`, err);
+      });
+    }
   }
 
   async function maybeFinishTournament(): Promise<void> {
@@ -782,6 +789,7 @@ export interface RecentMatchSummary {
   status: string;
   isWinner: boolean;
   eloDelta: number | null;
+  eloAfter: number | null;
 }
 
 export interface TeamMatchSummary {
@@ -790,8 +798,8 @@ export interface TeamMatchSummary {
   tournamentName: string;
   team1Tag: string;
   team2Tag: string;
-  mapsWon: number;
-  mapsLost: number;
+  team1Score: number;
+  team2Score: number;
   playedAt: string | null;
   status: string;
   isWinner: boolean;
@@ -874,21 +882,22 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
           for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
         }
 
-        // Buscar ELO delta para cada partida
+        // Buscar ELO delta + valor pós-partida para cada partida
         const { data: eloRows } = await supabase
           .from("elo_history")
-          .select("match_id, delta")
+          .select("match_id, delta, elo_after")
           .eq("profile_id", profileId)
           .in("match_id", matchRows.map((m) => m.id))
-          .returns<{ match_id: string; delta: number }[]>();
+          .returns<{ match_id: string; delta: number; elo_after: number }[]>();
 
-        const eloDeltaByMatchId = new Map((eloRows ?? []).map((r) => [r.match_id, r.delta]));
+        const eloByMatchId = new Map((eloRows ?? []).map((r) => [r.match_id, r] as const));
 
         return matchRows.map((m) => {
           const data = matchIdToData.get(m.id);
           const myTeamName = data?.teamName ?? null;
           const winnerTeam = m.winner_id ? teamMap.get(m.winner_id) : null;
           const isWinner = Boolean(myTeamName && winnerTeam && myTeamName.toLowerCase() === winnerTeam.name.toLowerCase());
+          const eloEntry = eloByMatchId.get(m.id);
           return {
             matchId: m.id,
             tournamentId: m.tournament_id,
@@ -901,7 +910,8 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
             playedAt: m.finished_at ?? m.started_at,
             status: m.status,
             isWinner,
-            eloDelta: eloDeltaByMatchId.get(m.id) ?? null,
+            eloDelta: eloEntry?.delta ?? null,
+            eloAfter: eloEntry?.elo_after ?? null,
           };
         });
       }
@@ -981,6 +991,7 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
       status: m.status,
       isWinner: Boolean(myTeamId && m.winner_id === myTeamId),
       eloDelta: null,
+      eloAfter: null,
     };
   });
 }
@@ -1021,10 +1032,9 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
     .in("match_id", matchIdsArr)
     .returns<{ match_id: string; map_team1_score: number | null; map_team2_score: number | null; mapnumber: number }[]>();
 
-  // Build per-match map win/loss counts.
-  // map_team1_score / map_team2_score correspond to matches.team1_id / team2_id,
-  // so we can determine our side directly without relying on team_name.
-  const matchMapStats = new Map<string, { mapsWon: number; mapsLost: number }>();
+  // Build per-match map win counts for team1 and team2 (always in match-perspective,
+  // so the score lines up positionally with team1Tag/team2Tag in the UI).
+  const matchMapStats = new Map<string, { team1Score: number; team2Score: number }>();
 
   if (statRows && statRows.length > 0) {
     const seenMapKey = new Set<string>();
@@ -1033,16 +1043,12 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
       if (seenMapKey.has(mapKey)) continue;
       seenMapKey.add(mapKey);
 
-      const match = matchRows.find((m) => m.id === row.match_id);
-      if (!match) continue;
+      const t1 = row.map_team1_score ?? 0;
+      const t2 = row.map_team2_score ?? 0;
 
-      const isTeam1 = match.team1_id === teamId;
-      const myScore = isTeam1 ? (row.map_team1_score ?? 0) : (row.map_team2_score ?? 0);
-      const oppScore = isTeam1 ? (row.map_team2_score ?? 0) : (row.map_team1_score ?? 0);
-
-      const existing = matchMapStats.get(row.match_id) ?? { mapsWon: 0, mapsLost: 0 };
-      if (myScore > oppScore) existing.mapsWon++;
-      else if (oppScore > myScore) existing.mapsLost++;
+      const existing = matchMapStats.get(row.match_id) ?? { team1Score: 0, team2Score: 0 };
+      if (t1 > t2) existing.team1Score++;
+      else if (t2 > t1) existing.team2Score++;
       matchMapStats.set(row.match_id, existing);
     }
   }
@@ -1055,8 +1061,8 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
       tournamentName: m.tournament_id ? (tournamentMap.get(m.tournament_id) ?? "BlueStrike") : "BlueStrike",
       team1Tag: m.team1_id ? (teamMap.get(m.team1_id)?.tag ?? "???") : "???",
       team2Tag: m.team2_id ? (teamMap.get(m.team2_id)?.tag ?? "???") : "???",
-      mapsWon: stats?.mapsWon ?? 0,
-      mapsLost: stats?.mapsLost ?? 0,
+      team1Score: stats?.team1Score ?? 0,
+      team2Score: stats?.team2Score ?? 0,
       playedAt: m.finished_at ?? m.started_at,
       status: m.status,
       isWinner: m.winner_id === teamId,

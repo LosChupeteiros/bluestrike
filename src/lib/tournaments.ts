@@ -2,6 +2,7 @@ import type { Tournament, TournamentRegistration } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { createMatchStartNotifications } from "@/lib/notifications";
 import { randomUUID } from "crypto";
 import {
   getEffectiveTournamentStatus,
@@ -514,6 +515,19 @@ export async function ensureTournamentBracketGenerated(tournament: Tournament): 
 
   if (insertError) {
     throw new Error(`Failed to create tournament bracket: ${insertError.message}`);
+  }
+
+  // Notify members of teams in matches that already have both sides set on creation
+  // (typical first round). Idempotent — runs safely even if bracket is regenerated.
+  const matchesToNotify = toInsert.filter((m) => m.team1_id && m.team2_id && m.status === "pending");
+  if (matchesToNotify.length > 0) {
+    await Promise.all(
+      matchesToNotify.map((m) =>
+        createMatchStartNotifications(m.id).catch((err) => {
+          console.error(`[ensureTournamentBracket] notification failed for match ${m.id}:`, err);
+        })
+      )
+    );
   }
 
   return true;

@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import HeaderElo from "./header-elo";
+import NotificationBell from "./notification-bell";
 
 const navLinks = [
   { href: "/live", label: "Ao vivo", badge: null, live: true },
@@ -377,6 +378,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <>
+                <NotificationBell enabled={true} />
                 <Link
                   href={`/profile/${user.publicId}`}
                   prefetch
@@ -474,6 +476,9 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             <div className="pt-2">
               {user ? (
                 <div className="space-y-2">
+                  <div className="flex justify-end">
+                    <NotificationBell enabled={true} />
+                  </div>
                   <Link
                     href={`/profile/${user.publicId}`}
                     prefetch

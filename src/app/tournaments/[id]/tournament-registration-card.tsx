@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -329,6 +329,7 @@ export default function TournamentRegistrationCard({
   initialIntent,
 }: TournamentRegistrationCardProps) {
   const router = useRouter();
+  const [, startRefreshTransition] = useTransition();
   const [flowStep, setFlowStep] = useState<FlowStep>("idle");
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [selectedRoster, setSelectedRoster] = useState<string[]>([]);
@@ -460,7 +461,7 @@ export default function TournamentRegistrationCard({
       if (entryFee <= 0) {
         await registerFreeTournament();
         setFlowStep("idle");
-        router.refresh();
+        startRefreshTransition(() => router.refresh());
         return;
       }
 
@@ -916,7 +917,7 @@ export default function TournamentRegistrationCard({
               setFlowStep("idle");
               setPixData(null);
               setPixPaid(false);
-              router.refresh();
+              startRefreshTransition(() => router.refresh());
             }}
           />
         </div>
