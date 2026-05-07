@@ -1024,7 +1024,10 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
     for (const t of tournRows ?? []) tournamentMap.set(t.id, t.name);
   }
 
-  // Aggregate map scores per match for this team
+  // Round scores per map (e.g. 13-7) come from matchzy_player_stats:
+  // map_team1_score / map_team2_score correspond to matches.team1_id / team2_id.
+  // We pick the lowest mapnumber (first map) so the card mirrors the player profile
+  // and shows real CS2 round scores like 13×7 instead of map win counts.
   const matchIdsArr = matchRows.map((m) => m.id);
   const { data: statRows } = await supabase
     .from("matchzy_player_stats")
@@ -1032,24 +1035,17 @@ export async function getRecentMatchesForTeam(teamId: string, limit = 10): Promi
     .in("match_id", matchIdsArr)
     .returns<{ match_id: string; map_team1_score: number | null; map_team2_score: number | null; mapnumber: number }[]>();
 
-  // Build per-match map win counts for team1 and team2 (always in match-perspective,
-  // so the score lines up positionally with team1Tag/team2Tag in the UI).
-  const matchMapStats = new Map<string, { team1Score: number; team2Score: number }>();
+  const matchMapStats = new Map<string, { team1Score: number; team2Score: number; mapnumber: number }>();
 
   if (statRows && statRows.length > 0) {
-    const seenMapKey = new Set<string>();
     for (const row of statRows) {
-      const mapKey = `${row.match_id}:${row.mapnumber}`;
-      if (seenMapKey.has(mapKey)) continue;
-      seenMapKey.add(mapKey);
-
       const t1 = row.map_team1_score ?? 0;
       const t2 = row.map_team2_score ?? 0;
-
-      const existing = matchMapStats.get(row.match_id) ?? { team1Score: 0, team2Score: 0 };
-      if (t1 > t2) existing.team1Score++;
-      else if (t2 > t1) existing.team2Score++;
-      matchMapStats.set(row.match_id, existing);
+      const existing = matchMapStats.get(row.match_id);
+      // Keep the first map (lowest mapnumber) — same convention as the player profile.
+      if (!existing || row.mapnumber < existing.mapnumber) {
+        matchMapStats.set(row.match_id, { team1Score: t1, team2Score: t2, mapnumber: row.mapnumber });
+      }
     }
   }
 
