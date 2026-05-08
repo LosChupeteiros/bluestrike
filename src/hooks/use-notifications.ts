@@ -89,5 +89,15 @@ export function useNotifications(enabled: boolean) {
     }
   }, []);
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead };
+  const clearAll = useCallback(async () => {
+    setNotifications([]);
+    setUnreadCount(0);
+    try {
+      await fetch("/api/notifications/clear", { method: "DELETE" });
+    } catch (err) {
+      console.error("[useNotifications] clearAll failed:", err);
+    }
+  }, []);
+
+  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, clearAll };
 }

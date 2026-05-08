@@ -94,6 +94,7 @@ export default function ProfileShellView({
     .slice(0, 5)
     .map((m) => ({
       matchId: m.matchId,
+      tournamentId: m.tournamentId,
       team1Tag: m.team1Tag,
       team2Tag: m.team2Tag,
       team1Score: m.team1Score,

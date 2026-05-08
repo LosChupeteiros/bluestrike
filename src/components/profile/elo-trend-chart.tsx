@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export interface EloTrendPoint {
   matchId: string;
+  tournamentId: string | null;
   team1Tag: string;
   team2Tag: string;
   team1Score: number;
@@ -27,6 +28,11 @@ const PAD_X = 48;
 const PAD_TOP = 28;
 const PAD_BOTTOM = 36;
 
+// Tooltip dimensions (in viewBox units, since they live inside foreignObject)
+const TIP_W = 220;
+const TIP_H = 92;
+const TIP_GAP = 14; // distance between circle and tooltip bottom
+
 function formatRelative(iso: string | null): string {
   if (!iso) return "";
   const diff = Date.now() - Date.parse(iso);
@@ -37,6 +43,10 @@ function formatRelative(iso: string | null): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `há ${days}d`;
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+function matchHref(p: EloTrendPoint): string {
+  return p.tournamentId ? `/tournaments/${p.tournamentId}/matches/${p.matchId}` : `/matches/${p.matchId}`;
 }
 
 export default function EloTrendChart({ points }: EloTrendChartProps) {
@@ -98,15 +108,21 @@ export default function EloTrendChart({ points }: EloTrendChartProps) {
     ` L ${xFor(series.length - 1).toFixed(2)} ${(VB_H - PAD_BOTTOM).toFixed(2)} Z`;
 
   const hovered = hoverIdx !== null ? series[hoverIdx] : null;
-  const tooltipX = hoverIdx !== null ? xFor(hoverIdx) : 0;
-  const tooltipY = hoverIdx !== null ? yFor(series[hoverIdx]!.eloAfter) : 0;
-
-  // Convert to percentages for absolute-positioned tooltip overlay
-  const tooltipLeftPct = (tooltipX / VB_W) * 100;
-  const tooltipTopPct = (tooltipY / VB_H) * 100;
 
   const totalDeltaPositive = totalDelta >= 0;
   const wins = series.filter((p) => p.isWinner).length;
+
+  // Tooltip placement (in SVG/viewBox coords). Clamp within bounds and flip below
+  // the point if there isn't room above.
+  let tipX = 0;
+  let tipY = 0;
+  if (hovered && hoverIdx !== null) {
+    const cx = xFor(hoverIdx);
+    const cy = yFor(hovered.eloAfter);
+    tipX = Math.max(4, Math.min(VB_W - TIP_W - 4, cx - TIP_W / 2));
+    const aboveY = cy - TIP_GAP - TIP_H;
+    tipY = aboveY >= 4 ? aboveY : cy + TIP_GAP;
+  }
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-6">
@@ -136,114 +152,114 @@ export default function EloTrendChart({ points }: EloTrendChartProps) {
       </div>
 
       {/* Chart */}
-      <div className="relative">
-        <svg
-          viewBox={`0 0 ${VB_W} ${VB_H}`}
-          role="img"
-          aria-label={`Gráfico das últimas ${series.length} partidas BlueStrike, total ${totalDelta >= 0 ? "+" : ""}${totalDelta} ELO`}
-          className="h-[220px] w-full overflow-visible"
-        >
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00c8ff" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#00c8ff" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id={lineGradId} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#00c8ff" stopOpacity="1" />
-              <stop offset="100%" stopColor="#00c8ff" stopOpacity="0.7" />
-            </linearGradient>
-          </defs>
+      <svg
+        viewBox={`0 0 ${VB_W} ${VB_H}`}
+        role="img"
+        aria-label={`Gráfico das últimas ${series.length} partidas BlueStrike, total ${totalDelta >= 0 ? "+" : ""}${totalDelta} ELO`}
+        className="h-[220px] w-full overflow-visible"
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#00c8ff" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#00c8ff" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id={lineGradId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#00c8ff" stopOpacity="1" />
+            <stop offset="100%" stopColor="#00c8ff" stopOpacity="0.7" />
+          </linearGradient>
+        </defs>
 
-          {/* Subtle horizontal gridlines */}
-          {[0.25, 0.5, 0.75].map((t) => (
-            <line
-              key={t}
-              x1={PAD_X}
-              x2={VB_W - PAD_X}
-              y1={PAD_TOP + innerH * t}
-              y2={PAD_TOP + innerH * t}
-              stroke="#222222"
-              strokeDasharray="2 4"
-              strokeWidth="1"
-            />
-          ))}
-
-          {/* Area */}
-          <path d={areaPath} fill={`url(#${gradId})`} />
-
-          {/* Line with glow + draw-in animation */}
-          <path
-            d={linePath}
-            fill="none"
-            stroke={`url(#${lineGradId})`}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              filter: "drop-shadow(0 0 6px rgba(0, 200, 255, 0.55))",
-              strokeDasharray: 1500,
-              strokeDashoffset: 1500,
-              animation: "elo-line-draw 700ms ease-out forwards",
-            }}
+        {/* Subtle horizontal gridlines */}
+        {[0.25, 0.5, 0.75].map((t) => (
+          <line
+            key={t}
+            x1={PAD_X}
+            x2={VB_W - PAD_X}
+            y1={PAD_TOP + innerH * t}
+            y2={PAD_TOP + innerH * t}
+            stroke="#222222"
+            strokeDasharray="2 4"
+            strokeWidth="1"
           />
+        ))}
 
-          {/* Points */}
-          {series.map((p, i) => {
-            const cx = xFor(i);
-            const cy = yFor(p.eloAfter);
-            const isPositive = p.eloDelta >= 0;
-            const fill = isPositive ? "#22c55e" : "#ef4444";
-            const isHover = hoverIdx === i;
-            return (
-              <g
-                key={p.matchId}
-                onMouseEnter={() => setHoverIdx(i)}
-                onMouseLeave={() => setHoverIdx(null)}
-                onFocus={() => setHoverIdx(i)}
-                onBlur={() => setHoverIdx(null)}
-                tabIndex={0}
-                style={{ cursor: "pointer", outline: "none" }}
-              >
-                {/* Generous hit area */}
-                <circle cx={cx} cy={cy} r={18} fill="transparent" />
-                {/* Outer glow ring on hover */}
-                {isHover && (
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={12}
-                    fill={fill}
-                    opacity={0.25}
-                  />
-                )}
+        {/* Area */}
+        <path d={areaPath} fill={`url(#${gradId})`} />
+
+        {/* Line with glow + draw-in animation */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke={`url(#${lineGradId})`}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            filter: "drop-shadow(0 0 6px rgba(0, 200, 255, 0.55))",
+            strokeDasharray: 1500,
+            strokeDashoffset: 1500,
+            animation: "elo-line-draw 700ms ease-out forwards",
+          }}
+        />
+
+        {/* Points (each wrapped in <a> for navigation) */}
+        {series.map((p, i) => {
+          const cx = xFor(i);
+          const cy = yFor(p.eloAfter);
+          const isPositive = p.eloDelta >= 0;
+          const fill = isPositive ? "#22c55e" : "#ef4444";
+          const isHover = hoverIdx === i;
+          return (
+            <a
+              key={p.matchId}
+              href={matchHref(p)}
+              onMouseEnter={() => setHoverIdx(i)}
+              onMouseLeave={() => setHoverIdx(null)}
+              onFocus={() => setHoverIdx(i)}
+              onBlur={() => setHoverIdx(null)}
+              style={{ cursor: "pointer", outline: "none" }}
+            >
+              {/* Generous hit area */}
+              <circle cx={cx} cy={cy} r={18} fill="transparent" />
+              {/* Outer glow ring on hover */}
+              {isHover && (
                 <circle
                   cx={cx}
                   cy={cy}
-                  r={isHover ? 8 : 6.5}
+                  r={12}
                   fill={fill}
-                  stroke="#0a0a0a"
-                  strokeWidth="2.5"
-                  style={{
-                    filter: `drop-shadow(0 0 ${isHover ? 8 : 5}px ${isPositive ? "rgba(34,197,94,0.65)" : "rgba(239,68,68,0.65)"})`,
-                    transition: "r 120ms ease-out",
-                  }}
+                  opacity={0.25}
                 />
-              </g>
-            );
-          })}
-        </svg>
+              )}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={isHover ? 8 : 6.5}
+                fill={fill}
+                stroke="#0a0a0a"
+                strokeWidth="2.5"
+                style={{
+                  filter: `drop-shadow(0 0 ${isHover ? 8 : 5}px ${isPositive ? "rgba(34,197,94,0.65)" : "rgba(239,68,68,0.65)"})`,
+                  transition: "r 120ms ease-out",
+                }}
+              />
+            </a>
+          );
+        })}
 
-        {/* Tooltip overlay (HTML, positioned by % over SVG) */}
+        {/* Tooltip — lives inside the SVG so it sits exactly on top of the point regardless of how the SVG is scaled. */}
         {hovered && (
-          <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full"
-            style={{
-              left: `${tooltipLeftPct}%`,
-              top: `${tooltipTopPct}%`,
-              marginTop: "-12px",
-            }}
+          <foreignObject
+            x={tipX}
+            y={tipY}
+            width={TIP_W}
+            height={TIP_H}
+            style={{ pointerEvents: "none", overflow: "visible" }}
           >
-            <div className="rounded-xl border border-[var(--primary)]/30 bg-[var(--card)]/95 px-3 py-2 shadow-2xl backdrop-blur-md">
+            <div
+              className="rounded-xl border border-[var(--primary)]/30 bg-[var(--card)]/95 px-3 py-2 shadow-2xl backdrop-blur-md"
+              style={{ width: TIP_W, fontFamily: "inherit" }}
+            >
               <div className="flex items-center gap-1.5 font-mono text-xs font-bold whitespace-nowrap">
                 <span className="text-[var(--foreground)]">{hovered.team1Tag}</span>
                 <span className="text-[var(--muted-foreground)]">{hovered.team1Score}</span>
@@ -277,22 +293,10 @@ export default function EloTrendChart({ points }: EloTrendChartProps) {
                   {formatRelative(hovered.playedAt)}
                 </div>
               )}
-              {/* Arrow */}
-              <div
-                className="absolute left-1/2 -translate-x-1/2"
-                style={{
-                  bottom: "-5px",
-                  width: 0,
-                  height: 0,
-                  borderLeft: "5px solid transparent",
-                  borderRight: "5px solid transparent",
-                  borderTop: "5px solid rgba(0,200,255,0.3)",
-                }}
-              />
             </div>
-          </div>
+          </foreignObject>
         )}
-      </div>
+      </svg>
 
       <style jsx>{`
         @keyframes elo-line-draw {

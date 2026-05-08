@@ -83,19 +83,37 @@ export async function readyUpMatch(
   return { ok: true, bothReady };
 }
 
-// Resolves which map to play from the veto history.
+// Resolves which map to play next, based on veto picks and how many maps have
+// already been started or finished. In BO3/BO5, this advances through the picks
+// in order and falls back to the decider when the picks are exhausted.
 async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapId: string }> {
   const supabase = createSupabaseAdminClient();
-  const { data: vetoRows } = await supabase
-    .from("map_vetoes")
-    .select("action, map_name")
-    .eq("match_id", matchId)
-    .returns<{ action: string; map_name: string }[]>();
+
+  const [{ data: vetoRows }, { data: playedMaps }] = await Promise.all([
+    supabase
+      .from("map_vetoes")
+      .select("action, map_name")
+      .eq("match_id", matchId)
+      .returns<{ action: string; map_name: string }[]>(),
+    supabase
+      .from("match_maps")
+      .select("status")
+      .eq("match_id", matchId)
+      .in("status", ["live", "finished"])
+      .returns<{ status: string }[]>(),
+  ]);
 
   const picks = (vetoRows ?? []).filter((v) => v.action === "pick").map((v) => v.map_name);
   const bans = new Set((vetoRows ?? []).filter((v) => v.action === "ban").map((v) => v.map_name));
   const decider = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name));
-  const mapName = picks[0] ?? decider?.name ?? "Mirage";
+
+  // Full sequence of maps the series will play, in order.
+  const sequence = [...picks];
+  if (decider) sequence.push(decider.name);
+
+  const playedCount = playedMaps?.length ?? 0;
+  const index = Math.min(playedCount, Math.max(0, sequence.length - 1));
+  const mapName = sequence[index] ?? picks[0] ?? decider?.name ?? "Mirage";
   const mapEntry = CS2_MAP_POOL.find((m) => m.name === mapName);
   return { mapName, mapId: mapEntry?.mapId ?? "de_mirage" };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, Check, Swords, Trophy, Info, Mail, ChevronRight } from "lucide-react";
+import { Bell, Check, Swords, Trophy, Info, Mail, ChevronRight, Trash2 } from "lucide-react";
 import { useNotifications, type ClientNotification } from "@/hooks/use-notifications";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ function formatRelative(iso: string): string {
 }
 
 export default function NotificationBell({ enabled }: NotificationBellProps) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(enabled);
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useNotifications(enabled);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -88,8 +88,8 @@ export default function NotificationBell({ enabled }: NotificationBellProps) {
           )}
           style={{ zIndex: 60 }}
         >
-          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-            <div>
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+            <div className="min-w-0">
               <div className="text-sm font-bold">Notificações</div>
               {hasUnread && (
                 <div className="text-[11px] text-[var(--muted-foreground)]">
@@ -97,16 +97,29 @@ export default function NotificationBell({ enabled }: NotificationBellProps) {
                 </div>
               )}
             </div>
-            {hasUnread && (
-              <button
-                type="button"
-                onClick={() => markAllAsRead()}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)] transition-colors hover:bg-[var(--secondary)] hover:text-[var(--primary)]"
-              >
-                <Check className="h-3 w-3" />
-                Marcar todas
-              </button>
-            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {hasUnread && (
+                <button
+                  type="button"
+                  onClick={() => markAllAsRead()}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)] transition-colors hover:bg-[var(--secondary)] hover:text-[var(--primary)]"
+                >
+                  <Check className="h-3 w-3" />
+                  Marcar todas
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => clearAll()}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)] transition-colors hover:bg-[var(--secondary)] hover:text-red-400"
+                  aria-label="Limpar todas as notificações"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Limpar
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="max-h-[420px] overflow-y-auto">

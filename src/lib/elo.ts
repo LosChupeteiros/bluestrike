@@ -1,6 +1,14 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { syncTeamElo } from "@/lib/teams";
 
+function normalizeSteamId(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function normalizePlayerName(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 // K-factor por formato da série — calibrado para ~2 BO3/mês
 const K_BY_BO: Record<number, number> = { 1: 300, 3: 500, 5: 700 };
 
@@ -103,16 +111,13 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
 
   const { data: profileRows } = await supabase
     .from("profiles")
-    .select("id, elo, steam_id")
+    .select("id, elo, steam_id, steam_persona_name")
     .in("id", allProfileIds)
-    .returns<{ id: string; elo: number; steam_id: string | null }[]>();
+    .returns<{ id: string; elo: number; steam_id: string | null; steam_persona_name: string | null }[]>();
 
   if (!profileRows || profileRows.length === 0) return;
 
   const profileById = new Map(profileRows.map((p) => [p.id, p]));
-  const steamIdToProfileId = new Map(
-    profileRows.filter((p) => p.steam_id).map((p) => [p.steam_id!.trim(), p.id])
-  );
 
   // Calcular ELO médio por time (entre os membros atuais)
   function avgTeamElo(teamId: string): number {
@@ -126,28 +131,47 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
   const avgEloTeam2 = avgTeamElo(match.team2_id);
 
   // Buscar stats agregados da partida (soma kills/deaths por jogador; rounds por mapa deduplicados)
-  let statsMap = new Map<string, AggregatedPlayerStat>(); // steamid64 → stats
+  // Indexa por steamid64 e também por player_name (lowercased) para fallback quando o
+  // steamid64 vier corrompido por arredondamento de BIGINT no MySQL do MatchZy.
+  const statsBySteamId = new Map<string, AggregatedPlayerStat>();
+  const statsByName = new Map<string, AggregatedPlayerStat>();
   let seriesRoundsTeam1 = 0;
   let seriesRoundsTeam2 = 0;
 
   if (hasStats) {
     const { data: statRows } = await supabase
       .from("matchzy_player_stats")
-      .select("steamid64, kills, deaths, mapnumber, map_team1_score, map_team2_score")
+      .select("steamid64, player_name, kills, deaths, mapnumber, map_team1_score, map_team2_score")
       .eq("match_id", matchId)
-      .returns<{ steamid64: string; kills: number; deaths: number; mapnumber: number; map_team1_score: number | null; map_team2_score: number | null }[]>();
+      .returns<{ steamid64: string; player_name: string | null; kills: number; deaths: number; mapnumber: number; map_team1_score: number | null; map_team2_score: number | null }[]>();
 
     if (statRows && statRows.length > 0) {
       const seenMaps = new Set<number>();
       for (const row of statRows) {
+        const steamKey = normalizeSteamId(row.steamid64);
+        const nameKey = normalizePlayerName(row.player_name);
+
         // Kills/deaths somados por jogador em todos os mapas
-        const key = row.steamid64.trim();
-        const existing = statsMap.get(key);
-        if (existing) {
-          existing.kills += row.kills ?? 0;
-          existing.deaths += row.deaths ?? 0;
-        } else {
-          statsMap.set(key, { steamid64: key, kills: row.kills ?? 0, deaths: row.deaths ?? 0 });
+        const existingBySteam = steamKey ? statsBySteamId.get(steamKey) : undefined;
+        if (existingBySteam) {
+          existingBySteam.kills += row.kills ?? 0;
+          existingBySteam.deaths += row.deaths ?? 0;
+        } else if (steamKey) {
+          statsBySteamId.set(steamKey, { steamid64: steamKey, kills: row.kills ?? 0, deaths: row.deaths ?? 0 });
+        }
+
+        // Indexa também por nome (mesma referência por jogador)
+        if (nameKey) {
+          const existingByName = statsByName.get(nameKey);
+          if (existingByName) {
+            // Já contabilizado via steamid64 acima — só agrega se ainda não houver row por steam.
+            if (!existingBySteam) {
+              existingByName.kills += row.kills ?? 0;
+              existingByName.deaths += row.deaths ?? 0;
+            }
+          } else {
+            statsByName.set(nameKey, steamKey ? statsBySteamId.get(steamKey)! : { steamid64: steamKey, kills: row.kills ?? 0, deaths: row.deaths ?? 0 });
+          }
         }
 
         // Rounds somados uma vez por mapa (qualquer jogador representa o mapa)
@@ -182,8 +206,14 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
     let seriesDeaths = 0;
     let playerHasStats = false;
 
-    if (hasStats && profile.steam_id) {
-      const stat = statsMap.get(profile.steam_id.trim());
+    if (hasStats) {
+      // Tenta casar por steamid64; se falhar (BIGINT arredondado, etc), tenta player_name.
+      const steamKey = normalizeSteamId(profile.steam_id);
+      let stat = steamKey ? statsBySteamId.get(steamKey) : undefined;
+      if (!stat) {
+        const nameKey = normalizePlayerName(profile.steam_persona_name);
+        if (nameKey) stat = statsByName.get(nameKey);
+      }
       if (stat) {
         seriesKills = stat.kills;
         seriesDeaths = stat.deaths;
@@ -230,7 +260,21 @@ export async function updateEloAfterMatch(matchId: string, hasStats: boolean): P
   }
 
   if (eloHistoryRows.length === 0) {
-    console.log(`[elo] Nenhum jogador com stats para ${matchId}`);
+    if (hasStats) {
+      const expectedIds = profileRows.map((p) => p.steam_id).filter(Boolean);
+      const expectedNames = profileRows.map((p) => p.steam_persona_name).filter(Boolean);
+      const seenIds = [...statsBySteamId.keys()];
+      const seenNames = [...statsByName.keys()];
+      console.warn(
+        `[elo] Match ${matchId}: 0 jogadores casaram com stats. ` +
+        `profiles.steam_id=[${expectedIds.join(",")}] ` +
+        `profiles.steam_persona_name=[${expectedNames.join(",")}] ` +
+        `matchzy.steamid64=[${seenIds.join(",")}] ` +
+        `matchzy.player_name=[${seenNames.join(",")}]`
+      );
+    } else {
+      console.log(`[elo] Nenhum jogador com stats para ${matchId}`);
+    }
     return;
   }
 
