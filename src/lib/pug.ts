@@ -14,7 +14,6 @@ import {
 const MIRROR_SERVER_ID = process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1";
 // Janela em que um jogador é considerado "presente" na sala de espera.
 const PRESENCE_WINDOW_MS = 12_000;
-const PUG_BO_TYPE = 3;
 
 type Side = "a" | "b";
 
@@ -302,7 +301,7 @@ export async function heartbeat(profileId: string): Promise<void> {
 }
 
 // ── Sortear capitães e iniciar o draft (admin) ───────────────────────────────
-export async function startDraft(): Promise<Ok | Err> {
+export async function startDraft(boType: 1 | 3 = 3): Promise<Ok | Err> {
   const supabase = createSupabaseAdminClient();
   const lobby = await getOrCreateActiveLobby(supabase);
   if (lobby.status !== "gathering") {
@@ -339,6 +338,7 @@ export async function startDraft(): Promise<Ok | Err> {
   const firstPick: Side = Math.random() < 0.5 ? "a" : "b";
 
   await supabase.from("pug_lobbies").update({
+    bo_type: boType,
     captain_a: capA.profile_id,
     captain_b: capB.profile_id,
     first_pick: firstPick,
@@ -439,7 +439,7 @@ export async function submitVeto(captainProfileId: string, mapName: string): Pro
     .returns<{ action: string; map_name: string; veto_order: number }[]>();
 
   const done = existing ?? [];
-  const sequence = getVetoSequence(PUG_BO_TYPE);
+  const sequence = getVetoSequence(lobby.bo_type as 1 | 3);
   const currentStep = done.length;
   if (currentStep >= sequence.length) return { ok: false, error: "Veto já finalizado." };
 

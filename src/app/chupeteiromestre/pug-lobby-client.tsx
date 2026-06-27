@@ -11,7 +11,6 @@ import type { PugLobbyState, PugPlayer, PugVeto, PugRole } from "@/lib/pug";
 import { playReadyOne, playReadyBoth, playVeto, playVetoDone, playServerReady } from "@/lib/sounds";
 
 const POLL_MS = 2500;
-const SEQUENCE = getVetoSequence(3);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,7 +136,8 @@ export default function PugLobbyClient() {
     const { lobby, vetoes } = state;
     if (inited.current) {
       if (vetoes.length > prevVetoes.current) {
-        if (vetoes.length >= SEQUENCE.length) playVetoDone(); else playVeto();
+        const seq = getVetoSequence((lobby.boType as 1 | 3) ?? 3);
+        if (vetoes.length >= seq.length) playVetoDone(); else playVeto();
       }
       const readyKey = `${lobby.readyA}|${lobby.readyB}`;
       if (lobby.status === "ready_check" && readyKey !== prevReady.current) {
@@ -209,7 +209,7 @@ export default function PugLobbyClient() {
           )}
         </div>
 
-        <StatusBar status={status} />
+        <StatusBar status={status} boType={lobby.boType} />
 
         {error && (
           <div className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-center text-xs text-red-400">{error}</div>
@@ -217,7 +217,8 @@ export default function PugLobbyClient() {
 
         <div className="mt-5 space-y-5">
           {status === "gathering" && (
-            <Gathering players={players} isAdmin={meState.isAdmin} busy={busy} onStart={() => act("/api/chupeteiromestre/start")} />
+            <Gathering players={players} isAdmin={meState.isAdmin} busy={busy}
+              onStart={(boType) => act("/api/chupeteiromestre/start", { boType })} />
           )}
 
           {(status === "drafting" || status === "ready_check") && (
@@ -236,7 +237,7 @@ export default function PugLobbyClient() {
               <Teams teamA={teamA} teamB={teamB} captainAName={captainAName} captainBName={captainBName} />
               <Veto
                 vetoes={vetoes} isCaptain={meState.isCaptain} meTeam={meState.team}
-                teamName={teamName} busy={busy}
+                teamName={teamName} busy={busy} boType={lobby.boType}
                 onVeto={(mapName) => act("/api/chupeteiromestre/veto", { mapName })}
               />
             </>
@@ -270,24 +271,22 @@ export default function PugLobbyClient() {
 
 // ── Status bar ───────────────────────────────────────────────────────────────
 
-const STEPS: { key: string; label: string }[] = [
-  { key: "gathering", label: "Sala" },
-  { key: "drafting", label: "Draft" },
-  { key: "ready_check", label: "Ready" },
-  { key: "veto", label: "Veto" },
-  { key: "side_pick", label: "Lados" },
-  { key: "live", label: "Servidor" },
-];
-
-function StatusBar({ status }: { status: string }) {
-  const order = ["gathering", "drafting", "ready_check", "veto", "side_pick", "provisioning", "live"];
-  const norm = status === "provisioning" ? "live" : status === "error" ? "live" : status;
-  const activeIdx = order.indexOf(status === "provisioning" ? "live" : status);
+function StatusBar({ status, boType }: { status: string; boType: number }) {
+  const steps = [
+    { key: "gathering", label: "Sala" },
+    { key: "drafting", label: "Draft" },
+    { key: "ready_check", label: "Ready" },
+    { key: "veto", label: "Veto" },
+    ...(boType !== 1 ? [{ key: "side_pick", label: "Lados" }] : []),
+    { key: "live", label: "Servidor" },
+  ];
+  const order = steps.map((s) => s.key);
+  const norm = status === "provisioning" || status === "error" ? "live" : status;
+  const activeIdx = order.indexOf(norm);
   return (
     <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5">
-      {STEPS.map((s, i) => {
-        const idx = order.indexOf(s.key);
-        const done = activeIdx > idx;
+      {steps.map((s, i) => {
+        const done = activeIdx > i;
         const active = norm === s.key;
         return (
           <div key={s.key} className="flex items-center gap-1">
@@ -310,7 +309,8 @@ function StatusBar({ status }: { status: string }) {
 
 function Gathering({
   players, isAdmin, busy, onStart,
-}: { players: PugPlayer[]; isAdmin: boolean; busy: boolean; onStart: () => void }) {
+}: { players: PugPlayer[]; isAdmin: boolean; busy: boolean; onStart: (boType: 1 | 3) => void }) {
+  const [boType, setBoType] = useState<1 | 3>(3);
   const count = players.length;
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
@@ -333,13 +333,27 @@ function Gathering({
 
       <div className="border-t border-[var(--border)] p-4">
         {isAdmin ? (
-          <button
-            type="button" onClick={onStart} disabled={busy || count < 2}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
-            Sortear capitães e começar
-          </button>
+          <>
+            <div className="mb-3 flex items-center justify-center gap-2">
+              {([1, 3] as const).map((t) => (
+                <button key={t} type="button" onClick={() => setBoType(t)}
+                  className={`rounded-full px-5 py-1.5 text-xs font-black uppercase tracking-widest transition-all ${
+                    boType === t
+                      ? "bg-[var(--primary)] text-black shadow"
+                      : "border border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
+                  }`}>
+                  MD{t}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button" onClick={() => onStart(boType)} disabled={busy || count < 2}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
+              Sortear capitães e começar
+            </button>
+          </>
         ) : (
           <p className="text-center text-xs text-[var(--muted-foreground)]">
             Aguardando o administrador iniciar o draft…
@@ -529,14 +543,15 @@ function Teams({
 // ── Veto ─────────────────────────────────────────────────────────────────────
 
 function Veto({
-  vetoes, isCaptain, meTeam, teamName, busy, onVeto,
+  vetoes, isCaptain, meTeam, teamName, busy, boType, onVeto,
 }: {
   vetoes: PugVeto[]; isCaptain: boolean; meTeam: "a" | "b" | null;
-  teamName: (s: "a" | "b") => string; busy: boolean; onVeto: (mapName: string) => void;
+  teamName: (s: "a" | "b") => string; busy: boolean; boType: number; onVeto: (mapName: string) => void;
 }) {
+  const sequence = getVetoSequence((boType as 1 | 3) ?? 3);
   const currentStep = vetoes.length;
-  const isDone = currentStep >= SEQUENCE.length;
-  const slot = isDone ? null : SEQUENCE[currentStep];
+  const isDone = currentStep >= sequence.length;
+  const slot = isDone ? null : sequence[currentStep];
   const expectedTeam: "a" | "b" | null = slot ? (slot.turn === "team1" ? "a" : "b") : null;
   const myTurn = isCaptain && meTeam === expectedTeam && !isDone;
 
@@ -548,13 +563,13 @@ function Veto({
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-2.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Veto — BO3</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Veto — MD{boType}</span>
         <div className="flex items-center gap-1">
-          {SEQUENCE.map((s, i) => {
+          {sequence.map((s, i) => {
             const d = i < vetoes.length; const a = i === currentStep;
             return <div key={i} className={`h-1.5 w-1.5 rounded-full ${d ? (s.action === "ban" ? "bg-red-500" : "bg-[var(--primary)]") : a ? "animate-pulse bg-[var(--primary)]/50" : "bg-[var(--border)]"}`} />;
           })}
-          <span className="ml-1.5 font-mono text-[10px] text-[var(--muted-foreground)]">{currentStep}/{SEQUENCE.length}</span>
+          <span className="ml-1.5 font-mono text-[10px] text-[var(--muted-foreground)]">{currentStep}/{sequence.length}</span>
         </div>
       </div>
 
