@@ -326,6 +326,24 @@ export async function saveMysqlStats(
 
   await supabase.from("matchzy_player_stats").delete().eq("match_id", matchId);
 
+  const { data: matchRow } = await supabase
+    .from("matches")
+    .select("team1_id, team2_id")
+    .eq("id", matchId)
+    .maybeSingle<{ team1_id: string | null; team2_id: string | null }>();
+  const teamIds = [matchRow?.team1_id, matchRow?.team2_id].filter(Boolean) as string[];
+  const { data: teamRows } = teamIds.length
+    ? await supabase.from("teams").select("id, name, tag").in("id", teamIds).returns<{ id: string; name: string; tag: string }[]>()
+    : { data: [] as { id: string; name: string; tag: string }[] };
+
+  const resolveTeamId = (teamName: unknown): string | null => {
+    const normalizedTeam = normalize(String(teamName ?? ""));
+    if (!normalizedTeam) return null;
+    if (matchRow?.team1_id && normalizedTeam === normalize(String(stats.match.team1_name ?? ""))) return matchRow.team1_id;
+    if (matchRow?.team2_id && normalizedTeam === normalize(String(stats.match.team2_name ?? ""))) return matchRow.team2_id;
+    return teamRows?.find((team) => normalizedTeam === normalize(team.name) || normalizedTeam === normalize(team.tag))?.id ?? null;
+  };
+
   // One row per player per map — no profile or team lookup required
   const playerRows = stats.players.map((player) => {
     const mapRow = stats.maps.find((m) => m.mapnumber === player.mapnumber) ?? stats.maps[0] ?? null;
@@ -340,6 +358,7 @@ export async function saveMysqlStats(
       steamid64: String(player.steamid64),
       player_name: (player.name as string | undefined) ?? null,
       team_name: (player.team as string | undefined) ?? null,
+      team_id: resolveTeamId(player.team),
       kills: Number(player.kills ?? 0),
       deaths: Number(player.deaths ?? 0),
       assists: Number(player.assists ?? 0),
@@ -356,15 +375,6 @@ export async function saveMysqlStats(
 
   // Also upsert match_maps so the scoreboard header can show map name + round scores
   if (stats.maps.length > 0) {
-    const { data: matchRow } = await supabase
-      .from("matches")
-      .select("team1_id, team2_id")
-      .eq("id", matchId)
-      .maybeSingle<{ team1_id: string | null; team2_id: string | null }>();
-    const teamIds = [matchRow?.team1_id, matchRow?.team2_id].filter(Boolean) as string[];
-    const { data: teamRows } = teamIds.length
-      ? await supabase.from("teams").select("id, name").in("id", teamIds).returns<{ id: string; name: string }[]>()
-      : { data: [] as { id: string; name: string }[] };
     const team1Name = teamRows?.find((t) => t.id === matchRow?.team1_id)?.name ?? "";
     const team2Name = teamRows?.find((t) => t.id === matchRow?.team2_id)?.name ?? "";
 

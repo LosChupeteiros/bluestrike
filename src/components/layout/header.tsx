@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import HeaderElo from "./header-elo";
 import NotificationBell from "./notification-bell";
+import ThemeToggle from "@/components/theme/theme-toggle";
 
 const navLinks = [
   { href: "/live", label: "Ao vivo", badge: null, live: true },
@@ -57,7 +58,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isActive =
-    pathname.startsWith("/tournaments") || pathname.startsWith("/faceit");
+    pathname.startsWith("/tournaments");
 
   function scheduleClose() {
     closeTimer.current = setTimeout(() => setOpen(false), 300);
@@ -77,10 +78,10 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors select-none",
+          "flex min-h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-[color,background-color,box-shadow] select-none lg:text-sm",
           isActive
-            ? "text-[var(--primary)] bg-[var(--primary)]/10"
-            : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
+            ? "bg-[var(--card)] text-[var(--primary)] shadow-[var(--panel-shadow-soft)]"
+            : "text-[var(--foreground)]/82 hover:bg-[var(--card)]/65 hover:text-[var(--foreground)]"
         )}
       >
         <Trophy className="h-3.5 w-3.5" />
@@ -108,9 +109,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
           <div className="w-3 h-3 bg-[var(--border)] rotate-45 translate-y-1.5 translate-x-0.5" />
         </div>
 
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl shadow-black/60 overflow-hidden">
-          {/* Top accent line */}
-          <div className="h-px bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent" />
+        <div className="overflow-hidden rounded-[1.4rem] border border-[var(--border)] bg-[var(--card)] shadow-[var(--panel-shadow)]">
 
           <div className="p-2 space-y-0.5">
             {/* Header label */}
@@ -158,7 +157,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
 
             {/* FACEIT */}
             <Link
-              href="/faceit"
+              href="/tournaments/faceit"
               prefetch
               onClick={onClose}
               className="group relative flex items-center gap-3 rounded-lg px-3 py-3 transition-all duration-150 hover:bg-[#FF5500]/8 overflow-hidden"
@@ -201,7 +200,7 @@ function MobileCampeonatosSection({
 }) {
   const [open, setOpen] = useState(false);
   const isActive =
-    pathname.startsWith("/tournaments") || pathname.startsWith("/faceit");
+    pathname.startsWith("/tournaments");
 
   return (
     <div>
@@ -237,7 +236,7 @@ function MobileCampeonatosSection({
             onClick={onClose}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              pathname.startsWith("/tournaments")
+              pathname.startsWith("/tournaments") && !pathname.startsWith("/tournaments/faceit")
                 ? "text-[var(--primary)] bg-[var(--primary)]/10"
                 : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
             )}
@@ -256,12 +255,12 @@ function MobileCampeonatosSection({
           </Link>
 
           <Link
-            href="/faceit"
+            href="/tournaments/faceit"
             prefetch
             onClick={onClose}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              pathname.startsWith("/faceit")
+              pathname.startsWith("/tournaments/faceit")
                 ? "text-[#FF5500] bg-[#FF5500]/10"
                 : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
             )}
@@ -290,7 +289,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
   }, []);
 
   useEffect(() => {
-    const routesToPrefetch = ["/", "/tournaments", "/teams", "/players", "/ranking", "/auth/login", "/faceit"];
+    const routesToPrefetch = ["/", "/tournaments", "/tournaments/faceit", "/teams", "/players", "/ranking", "/auth/login"];
 
     if (user) {
       routesToPrefetch.push(`/profile/${user.publicId}`);
@@ -317,33 +316,31 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
   }
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-[var(--background)]/95 backdrop-blur-md border-b border-[var(--border)] shadow-lg"
-          : "bg-transparent"
-      )}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="pointer-events-none fixed inset-x-0 top-3 z-50 md:top-5">
+      <div className="mx-auto w-[calc(100%-1.5rem)] max-w-[1700px] sm:w-[calc(100%-2.5rem)]">
+        <div
+          className={cn(
+            "bs-liquid-nav pointer-events-auto grid h-16 grid-cols-[auto_1fr_auto] items-center gap-3 rounded-full px-2.5 transition-[transform,box-shadow,background-color] duration-500 sm:px-3.5",
+            scrolled && "bs-liquid-nav--scrolled"
+          )}
+        >
           <Link href="/" className="flex items-center gap-2.5 group" onClick={closeMobileMenu}>
-            <div className="relative flex items-center justify-center w-9 h-9 overflow-hidden rounded-lg bg-[var(--primary)] shadow-md group-hover:shadow-[0_0_16px_rgba(0,200,255,0.5)] transition-shadow">
+            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[var(--primary)] shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_24%,transparent)] transition-transform duration-300 group-hover:scale-[1.03]">
               <Image
                 src="/assets/logo/bluestrike_logo_header.png"
                 alt="BlueStrike"
-                width={36}
-                height={36}
-                priority
-                className="relative z-10 h-9 w-9 rounded-lg object-cover"
+                width={40}
+                height={40}
+                loading="eager"
+                className="relative z-10 rounded-full object-cover"
               />
             </div>
-            <span className="text-xl font-black tracking-tight">
+            <span className="hidden text-lg font-black tracking-[-0.045em] sm:inline">
               Blue<span className="text-[var(--primary)]">Strike</span>
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="mx-auto hidden items-center justify-center gap-1.5 md:flex lg:gap-2 xl:gap-3">
             {/* Campeonatos dropdown — before Ao vivo */}
             <CampeonatosMenu pathname={pathname} />
 
@@ -353,10 +350,10 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 href={link.href}
                 prefetch
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex min-h-10 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-[color,background-color,box-shadow] lg:text-sm",
                   pathname === link.href || pathname.startsWith(`${link.href}/`)
-                    ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                    : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
+                    ? "bg-[var(--card)] text-[var(--primary)] shadow-[var(--panel-shadow-soft)]"
+                    : "text-[var(--foreground)]/82 hover:bg-[var(--card)]/65 hover:text-[var(--foreground)]"
                 )}
               >
                 {link.live && (
@@ -375,14 +372,15 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             ))}
           </nav>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden items-center justify-end gap-2 md:flex">
+            <ThemeToggle compact />
             {user ? (
               <>
                 <NotificationBell enabled={true} />
                 <Link
                   href={`/profile/${user.publicId}`}
                   prefetch
-                  className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 transition-all hover:border-[var(--primary)]/40 hover:bg-[var(--secondary)]"
+                  className="group flex min-h-11 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 transition-colors hover:border-[var(--primary)]/40"
                 >
                   <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
                     <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
@@ -392,7 +390,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                   </Avatar>
 
                   <div className="min-w-0">
-                    <div className="max-w-[160px] truncate text-sm font-semibold group-hover:text-[var(--primary)] transition-colors">
+                    <div className="max-w-[110px] truncate text-xs font-semibold transition-colors group-hover:text-[var(--primary)]">
                       {user.displayName}
                     </div>
                     <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
@@ -420,17 +418,17 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             ) : (
               <>
                 <Link href="/auth/login" prefetch>
-                  <Button variant="ghost" size="sm">Entrar</Button>
+                  <Button variant="ghost" size="sm" className="rounded-full px-5">Entrar</Button>
                 </Link>
                 <Link href="/auth/login" prefetch>
-                  <Button size="sm" variant="gradient">Começar agora</Button>
+                  <Button size="sm" variant="gradient" className="rounded-full px-5">Criar conta</Button>
                 </Link>
               </>
             )}
           </div>
 
           <button
-            className="md:hidden p-2 rounded-md hover:bg-[var(--secondary)] transition-colors"
+            className="ml-auto flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] transition-colors hover:text-[var(--primary)] md:hidden"
             onClick={() => setMobileOpen((current) => !current)}
             aria-label="Menu"
           >
@@ -440,8 +438,8 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden border-t border-[var(--border)] bg-[var(--background)]/98 backdrop-blur-md">
-          <div className="px-4 py-4 space-y-1">
+        <div className="bs-liquid-nav pointer-events-auto mx-auto mt-2 w-[calc(100%-1.5rem)] overflow-hidden rounded-[1.5rem] md:hidden">
+          <div className="space-y-1 px-4 py-4">
             {/* Campeonatos accordion — first item */}
             <MobileCampeonatosSection pathname={pathname} onClose={closeMobileMenu} />
 
@@ -474,6 +472,10 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             ))}
 
             <div className="pt-2">
+              <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] px-3 pb-3">
+                <span className="text-xs font-bold text-[var(--muted-foreground)]">Aparência</span>
+                <ThemeToggle />
+              </div>
               {user ? (
                 <div className="space-y-2">
                   <div className="flex justify-end">

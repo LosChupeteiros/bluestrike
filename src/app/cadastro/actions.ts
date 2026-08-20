@@ -32,7 +32,7 @@ export async function saveProfile(
       ...(rawInGameRole != null ? { inGameRole: rawInGameRole.toString() } : {}),
     } as ProfileUpdateInput; // runtime shape matches what profileUpdateSchema.parse() accepts
 
-    const profile = await updateProfile(session.profileId, input);
+    await updateProfile(session.profileId, input);
 
     redirect("/");
   } catch (error) {

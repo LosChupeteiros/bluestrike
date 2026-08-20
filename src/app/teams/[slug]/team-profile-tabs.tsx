@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ChevronRight, Trophy, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KickMemberButton } from "./team-management-controls";
 import { getProfilePath } from "@/lib/profile";
@@ -60,7 +61,7 @@ export function TeamProfileTabs({
             </Badge>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {starters.map((member) => {
               const displayName = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "Jogador";
               const role = member.inGameRole ? (ROLE_LABELS[member.inGameRole] ?? member.inGameRole) : "Sem função";
@@ -68,36 +69,37 @@ export function TeamProfileTabs({
               const profileHref = member.profile?.publicId ? getProfilePath(member.profile.publicId) : null;
 
               return (
-                <div key={member.id} className="flex flex-col gap-3 rounded-xl bg-[var(--secondary)] p-3 sm:flex-row sm:items-center">
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div key={member.id} className="relative flex min-h-[190px] flex-col items-center rounded-xl border border-[var(--border)] bg-black/15 p-4 text-center transition-colors hover:border-[var(--primary)]/35">
+                  <div className="flex min-w-0 flex-1 flex-col items-center gap-3">
                     {profileHref ? (
                       <Link href={profileHref} className="shrink-0">
-                        <Avatar className="h-10 w-10 ring-1 ring-[var(--border)] transition-opacity hover:opacity-80">
+                        <Avatar className="h-16 w-16 ring-1 ring-[var(--border)] transition-opacity hover:opacity-80">
                           <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={displayName} />
                           <AvatarFallback className="text-xs">{displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
                         </Avatar>
                       </Link>
                     ) : (
-                      <Avatar className="h-10 w-10 shrink-0">
+                      <Avatar className="h-16 w-16 shrink-0">
                         <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={displayName} />
                         <AvatarFallback className="text-xs">{displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
                       </Avatar>
                     )}
                     <div className="min-w-0 flex-1">
                       {profileHref ? (
-                        <Link href={profileHref} className="truncate text-sm font-semibold transition-colors hover:text-[var(--primary)]">
+                        <Link href={profileHref} className="block truncate text-sm font-black transition-colors hover:text-[var(--primary)]">
                           {displayName}
                         </Link>
                       ) : (
-                        <div className="truncate text-sm font-semibold">{displayName}</div>
+                        <div className="truncate text-sm font-black">{displayName}</div>
                       )}
                       <div className="text-xs text-[var(--muted-foreground)]">{role}</div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     {isMemberCaptain && <Badge variant="gold">Capitão</Badge>}
-                    <span className="text-xs font-bold text-[var(--primary)]">{member.profile?.elo ?? 1000} ELO</span>
+                    <span className="font-mono text-xs font-black text-[var(--primary)]">{member.profile?.elo ?? 1000} ELO</span>
+                    {member.profile?.faceitLevel ? <span className="inline-flex items-center gap-1 text-[10px] font-black text-[#ff7a00]"><FaceitSkillIcon level={member.profile.faceitLevel} size={16} /> LV {member.profile.faceitLevel}</span> : null}
                     {isCaptain && !isMemberCaptain && (
                       <KickMemberButton teamSlug={teamSlug} memberId={member.id} displayName={displayName} />
                     )}
@@ -109,7 +111,7 @@ export function TeamProfileTabs({
             {Array.from({ length: Math.max(0, 5 - starters.length) }).map((_, index) => (
               <div
                 key={`starter-empty-${index}`}
-                className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--border)] px-3 py-4 opacity-60"
+                className="flex min-h-[190px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--border)] px-3 py-4 text-center opacity-60"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-[var(--border)]">
                   <Users className="h-4 w-4 text-[var(--muted-foreground)]" />
@@ -124,7 +126,7 @@ export function TeamProfileTabs({
               <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                 Substitutos
               </div>
-              <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {substitutes.map((member) => {
                   const displayName = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "Jogador";
                   const subProfileHref = member.profile?.publicId ? getProfilePath(member.profile.publicId) : null;

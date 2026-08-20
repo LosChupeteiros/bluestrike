@@ -143,9 +143,9 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   ];
 
   return (
-    <div className="min-h-screen pb-20 pt-20">
+    <div className="bs-page pb-24 pt-20">
       {/* ── Hero ── */}
-      <div className="relative h-72 overflow-hidden sm:h-80 lg:h-[30rem]">
+      <div className="relative min-h-[390px] overflow-hidden border-b border-[var(--border)] sm:min-h-[430px]">
         {tournament.bannerUrl ? (
           <Image
             src={tournament.bannerUrl}
@@ -153,17 +153,18 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
             fill
             priority
             sizes="100vw"
-            className="object-cover object-center"
+            className="object-cover object-center opacity-30"
             unoptimized
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-black" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#081522] via-[#070d15] to-black" />
         )}
-        <div className="absolute inset-0 grid-bg opacity-50" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-black/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+        <div className="absolute -right-24 top-1/2 h-[430px] w-[430px] -translate-y-1/2 rounded-full border-[74px] border-[var(--primary)]/14" />
+        <div className="absolute right-24 top-1/2 h-[260px] w-[260px] -translate-y-1/2 rounded-full border border-[var(--primary)]/18" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-black/35 to-black/25" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-transparent" />
 
-        <div className="absolute inset-x-0 bottom-0 mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <div className="relative mx-auto flex min-h-[390px] max-w-[1400px] flex-col justify-end px-4 pb-8 pt-28 sm:min-h-[430px] sm:px-6 lg:px-8">
           <nav className="mb-4 flex items-center gap-1.5 text-xs text-white/50">
             <Link href="/" className="transition-colors hover:text-white/80">Inicio</Link>
             <ChevronRight className="h-3 w-3" />
@@ -175,20 +176,20 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <Badge variant={badge.variant} className="mb-3">{badge.label}</Badge>
-              <h1 className="text-3xl font-black tracking-tight drop-shadow-lg sm:text-5xl">
+              <h1 className="max-w-4xl text-4xl font-black tracking-[-0.04em] drop-shadow-lg sm:text-6xl">
                 {tournament.name}
               </h1>
               <p className="mt-2 text-sm text-white/50">Por {tournament.organizerName}</p>
             </div>
 
-            <div className="flex-shrink-0 rounded-2xl border border-yellow-500/30 bg-black/60 px-6 py-4 backdrop-blur-sm">
+            <div className="bs-dark-card flex-shrink-0 border-yellow-500/20 px-6 py-5">
               <div className="flex items-center gap-3">
                 <Trophy className="h-6 w-6 text-yellow-400" />
                 <div>
                   <div className="text-3xl font-black text-yellow-400">
                     {formatCurrency(tournament.prizeTotal)}
                   </div>
-                  <div className="text-xs text-white/40">premiação total</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-yellow-400/60">Premiação total · pagamento em PIX</div>
                 </div>
               </div>
             </div>
@@ -226,12 +227,12 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
       </div>
 
       {/* ── Main layout ── */}
-      <div className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="mx-auto mt-8 max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
           {/* ── Left: Tabs ── */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-8">
             <Tabs defaultValue="info">
-              <TabsList className="mb-6 w-full justify-start border border-[var(--border)] bg-[var(--card)]">
+              <TabsList className="mb-6 h-auto w-full max-w-full justify-start overflow-x-auto border border-[var(--border)] bg-[var(--card)] [&>*]:shrink-0">
                 <TabsTrigger value="info">Informações</TabsTrigger>
                 <TabsTrigger value="teams">Times ({registered})</TabsTrigger>
                 <TabsTrigger value="rules">Regras</TabsTrigger>
@@ -613,7 +614,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
           </div>
 
           {/* ── Right: Sidebar ── */}
-          <div className="space-y-5">
+          <div className="space-y-5 lg:col-span-4">
             <div className="sticky top-24 space-y-5">
               {/* Registration card */}
               <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">

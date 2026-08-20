@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { Activity, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, ArrowUpRight, CalendarDays, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface EloTrendPoint {
@@ -17,294 +17,112 @@ export interface EloTrendPoint {
   playedAt: string | null;
 }
 
-interface EloTrendChartProps {
-  points: EloTrendPoint[];
+interface EloTrendChartProps { points: EloTrendPoint[] }
+
+const VB_W = 780;
+const VB_H = 270;
+const PAD_X = 52;
+const PAD_TOP = 32;
+const PAD_BOTTOM = 42;
+
+function matchHref(point: EloTrendPoint) {
+  return point.tournamentId ? `/tournaments/${point.tournamentId}/matches/${point.matchId}` : `/matches/${point.matchId}`;
 }
 
-// Layout constants (viewBox coordinates)
-const VB_W = 720;
-const VB_H = 220;
-const PAD_X = 48;
-const PAD_TOP = 28;
-const PAD_BOTTOM = 36;
-
-// Tooltip dimensions (in viewBox units, since they live inside foreignObject)
-const TIP_W = 220;
-const TIP_H = 92;
-const TIP_GAP = 14; // distance between circle and tooltip bottom
-
-function formatRelative(iso: string | null): string {
-  if (!iso) return "";
-  const diff = Date.now() - Date.parse(iso);
-  const min = Math.floor(diff / 60_000);
-  if (min < 60) return `há ${Math.max(1, min)} min`;
-  const hours = Math.floor(min / 60);
-  if (hours < 24) return `há ${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `há ${days}d`;
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
-
-function matchHref(p: EloTrendPoint): string {
-  return p.tournamentId ? `/tournaments/${p.tournamentId}/matches/${p.matchId}` : `/matches/${p.matchId}`;
+function shortDate(iso: string | null) {
+  return iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "Partida";
 }
 
 export default function EloTrendChart({ points }: EloTrendChartProps) {
-  const gradId = useId();
-  const lineGradId = useId();
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-
-  // Show last 5 oldest→newest. Input is ordered newest first; reverse and slice.
-  const series = useMemo(() => {
-    const sorted = [...points].reverse(); // oldest first
-    return sorted.slice(-5);
-  }, [points]);
-
-  const totalDelta = useMemo(() => series.reduce((acc, p) => acc + p.eloDelta, 0), [series]);
+  const areaId = useId();
+  const lineId = useId();
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const series = useMemo(() => points.slice(-7), [points]);
+  const totalDelta = useMemo(() => series.reduce((sum, point) => sum + point.eloDelta, 0), [series]);
+  const wins = series.filter((point) => point.isWinner).length;
+  const bestGain = series.reduce((best, point) => Math.max(best, point.eloDelta), 0);
 
   if (series.length < 2) {
     return (
-      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--muted-foreground)]">
-          <Activity className="h-4 w-4 text-[var(--primary)]" />
-          Tendência de ELO
-        </div>
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <Activity className="mb-3 h-10 w-10 text-[var(--muted-foreground)] opacity-30" />
-          <div className="text-sm font-semibold">Histórico em construção</div>
-          <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-            {series.length === 0
-              ? "Jogue 2 partidas BlueStrike para ver sua tendência aqui."
-              : "Jogue mais 1 partida para ativar o gráfico."}
-          </div>
-        </div>
-      </div>
+      <section className="bs-bento-card grid min-h-64 place-items-center overflow-hidden p-8 text-center">
+        <div><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary)]/8 text-[var(--primary)]"><Activity className="h-5 w-5" /></span><h2 className="mt-5 text-xl font-black">Histórico em construção</h2><p className="mt-2 text-sm text-[var(--muted-foreground)]">Jogue duas partidas BlueStrike para ativar a curva de evolução.</p></div>
+      </section>
     );
   }
 
-  // Y-axis range with 10% padding
-  const elos = series.map((p) => p.eloAfter);
+  const startingElo = series[0].eloAfter - series[0].eloDelta;
+  const elos = [startingElo, ...series.map((point) => point.eloAfter)];
   const minElo = Math.min(...elos);
   const maxElo = Math.max(...elos);
-  const range = Math.max(1, maxElo - minElo);
-  const yPad = Math.max(8, range * 0.2);
-  const yMin = minElo - yPad;
-  const yMax = maxElo + yPad;
-
-  const innerW = VB_W - PAD_X * 2;
-  const innerH = VB_H - PAD_TOP - PAD_BOTTOM;
-
-  const xFor = (i: number) =>
-    series.length === 1 ? VB_W / 2 : PAD_X + (innerW * i) / (series.length - 1);
-  const yFor = (elo: number) => PAD_TOP + innerH - ((elo - yMin) / (yMax - yMin)) * innerH;
-
-  const linePath = series
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(2)} ${yFor(p.eloAfter).toFixed(2)}`)
-    .join(" ");
-
-  const areaPath =
-    `M ${xFor(0).toFixed(2)} ${(VB_H - PAD_BOTTOM).toFixed(2)} ` +
-    series.map((p, i) => `L ${xFor(i).toFixed(2)} ${yFor(p.eloAfter).toFixed(2)}`).join(" ") +
-    ` L ${xFor(series.length - 1).toFixed(2)} ${(VB_H - PAD_BOTTOM).toFixed(2)} Z`;
-
-  const hovered = hoverIdx !== null ? series[hoverIdx] : null;
-
-  const totalDeltaPositive = totalDelta >= 0;
-  const wins = series.filter((p) => p.isWinner).length;
-
-  // Tooltip placement (in SVG/viewBox coords). Clamp within bounds and flip below
-  // the point if there isn't room above.
-  let tipX = 0;
-  let tipY = 0;
-  if (hovered && hoverIdx !== null) {
-    const cx = xFor(hoverIdx);
-    const cy = yFor(hovered.eloAfter);
-    tipX = Math.max(4, Math.min(VB_W - TIP_W - 4, cx - TIP_W / 2));
-    const aboveY = cy - TIP_GAP - TIP_H;
-    tipY = aboveY >= 4 ? aboveY : cy + TIP_GAP;
-  }
+  const padding = Math.max(12, (maxElo - minElo) * 0.22);
+  const yMin = minElo - padding;
+  const yMax = maxElo + padding;
+  const innerWidth = VB_W - PAD_X * 2;
+  const innerHeight = VB_H - PAD_TOP - PAD_BOTTOM;
+  const xFor = (index: number) => PAD_X + (innerWidth * index) / Math.max(1, elos.length - 1);
+  const yFor = (elo: number) => PAD_TOP + innerHeight - ((elo - yMin) / (yMax - yMin)) * innerHeight;
+  const linePath = elos.map((elo, index) => `${index === 0 ? "M" : "L"} ${xFor(index)} ${yFor(elo)}`).join(" ");
+  const areaPath = `M ${xFor(0)} ${VB_H - PAD_BOTTOM} ${elos.map((elo, index) => `L ${xFor(index)} ${yFor(elo)}`).join(" ")} L ${xFor(elos.length - 1)} ${VB_H - PAD_BOTTOM} Z`;
+  const positive = totalDelta >= 0;
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-6">
-      {/* Header */}
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--muted-foreground)]">
-            <Activity className="h-4 w-4 text-[var(--primary)]" />
-            Tendência de ELO
+    <section className="bs-bento-card overflow-hidden">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="min-w-0 p-5 sm:p-8">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+            <div><p className="bs-eyebrow"><Activity className="h-4 w-4" /> Evolução competitiva</p><h2 className="mt-3 text-2xl font-black tracking-[-.04em] sm:text-3xl">Histórico de ELO</h2><p className="mt-2 text-sm text-[var(--muted-foreground)]">Cada ponto abre a partida que alterou sua classificação.</p></div>
+            <div className={cn("flex items-center gap-2 rounded-xl border px-4 py-2 font-mono text-base font-black", positive ? "border-green-500/25 bg-green-500/8 text-green-500" : "border-red-500/25 bg-red-500/8 text-red-500")}>
+              {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}{positive ? "+" : ""}{totalDelta} ELO
+            </div>
           </div>
-          <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-            últimas {series.length} partidas BlueStrike · {wins}V {series.length - wins}D
-          </div>
+
+          <svg viewBox={`0 0 ${VB_W} ${VB_H}`} role="img" aria-label={`Evolução nas últimas ${series.length} partidas: ${totalDelta >= 0 ? "+" : ""}${totalDelta} ELO`} className="h-auto min-h-[230px] w-full overflow-visible">
+            <defs>
+              <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity=".28" /><stop offset="100%" stopColor="var(--primary)" stopOpacity="0" /></linearGradient>
+              <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="var(--primary)" stopOpacity=".65" /><stop offset="100%" stopColor="var(--primary)" /></linearGradient>
+            </defs>
+            {[0, .25, .5, .75, 1].map((tick) => <line key={tick} x1={PAD_X} x2={VB_W - PAD_X} y1={PAD_TOP + innerHeight * tick} y2={PAD_TOP + innerHeight * tick} stroke="var(--border)" strokeDasharray="3 7" />)}
+            <path d={areaPath} fill={`url(#${areaId})`} />
+            <path d={linePath} fill="none" stroke={`url(#${lineId})`} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="elo-line" />
+            <circle cx={xFor(0)} cy={yFor(startingElo)} r="5" fill="var(--muted-foreground)" stroke="var(--card)" strokeWidth="3" />
+            {series.map((point, index) => {
+              const x = xFor(index + 1);
+              const y = yFor(point.eloAfter);
+              const active = activeIndex === index;
+              const color = point.eloDelta >= 0 ? "#22c55e" : "#ef4444";
+              return (
+                <a key={point.matchId} href={matchHref(point)} onMouseEnter={() => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} onFocus={() => setActiveIndex(index)} onBlur={() => setActiveIndex(null)} aria-label={`${point.team1Tag} ${point.team1Score} a ${point.team2Score} ${point.team2Tag}, ${point.eloDelta >= 0 ? "+" : ""}${point.eloDelta} ELO`}>
+                  <circle cx={x} cy={y} r="20" fill="transparent" />
+                  {active && <circle cx={x} cy={y} r="13" fill={color} opacity=".18" />}
+                  <circle cx={x} cy={y} r={active ? 8 : 6.5} fill={color} stroke="var(--card)" strokeWidth="3" className="transition-all duration-200" />
+                  {active && <g><rect x={Math.max(4, Math.min(VB_W - 178, x - 89))} y={Math.max(4, y - 68)} width="178" height="48" rx="12" fill="var(--card)" stroke="var(--border)" /><text x={Math.max(4, Math.min(VB_W - 178, x - 89)) + 12} y={Math.max(4, y - 68) + 20} fill="var(--foreground)" fontSize="11" fontWeight="700">{point.team1Tag} {point.team1Score} × {point.team2Score} {point.team2Tag}</text><text x={Math.max(4, Math.min(VB_W - 178, x - 89)) + 12} y={Math.max(4, y - 68) + 37} fill={color} fontSize="10" fontWeight="800">{point.eloDelta >= 0 ? "+" : ""}{point.eloDelta} ELO</text></g>}
+                </a>
+              );
+            })}
+          </svg>
         </div>
-        <div
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-mono text-sm font-black tabular-nums",
-            totalDeltaPositive
-              ? "border-green-500/30 bg-green-500/10 text-green-400"
-              : "border-red-500/30 bg-red-500/10 text-red-400"
-          )}
-        >
-          {totalDeltaPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-          {totalDeltaPositive ? "+" : ""}
-          {totalDelta} ELO
-        </div>
+
+        <aside className="grid border-t border-[var(--border)] bg-[var(--field)] sm:grid-cols-3 lg:grid-cols-1 lg:border-l lg:border-t-0">
+          <TrendMetric icon={Trophy} label="Vitórias" value={`${wins}/${series.length}`} accent="text-emerald-500" />
+          <TrendMetric icon={TrendingUp} label="Melhor ganho" value={`+${bestGain}`} accent="text-[var(--primary)]" />
+          <TrendMetric icon={CalendarDays} label="ELO atual" value={series.at(-1)!.eloAfter.toLocaleString("pt-BR")} accent="text-[var(--foreground)]" />
+        </aside>
       </div>
 
-      {/* Chart */}
-      <svg
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        role="img"
-        aria-label={`Gráfico das últimas ${series.length} partidas BlueStrike, total ${totalDelta >= 0 ? "+" : ""}${totalDelta} ELO`}
-        className="h-[220px] w-full overflow-visible"
-      >
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#00c8ff" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#00c8ff" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id={lineGradId} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#00c8ff" stopOpacity="1" />
-            <stop offset="100%" stopColor="#00c8ff" stopOpacity="0.7" />
-          </linearGradient>
-        </defs>
-
-        {/* Subtle horizontal gridlines */}
-        {[0.25, 0.5, 0.75].map((t) => (
-          <line
-            key={t}
-            x1={PAD_X}
-            x2={VB_W - PAD_X}
-            y1={PAD_TOP + innerH * t}
-            y2={PAD_TOP + innerH * t}
-            stroke="#222222"
-            strokeDasharray="2 4"
-            strokeWidth="1"
-          />
+      <div className="grid border-t border-[var(--border)] sm:grid-cols-2 lg:grid-cols-4">
+        {series.slice(-4).map((point) => (
+          <a key={point.matchId} href={matchHref(point)} className="group flex min-h-20 items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4 transition-colors hover:bg-[var(--primary)]/5 sm:border-r lg:border-b-0">
+            <span><span className="block text-xs font-bold">{point.team1Tag} {point.team1Score} × {point.team2Score} {point.team2Tag}</span><span className="mt-1 block text-[10px] text-[var(--muted-foreground)]">{shortDate(point.playedAt)}</span></span>
+            <span className={cn("flex items-center gap-1 font-mono text-xs font-black", point.eloDelta >= 0 ? "text-green-500" : "text-red-500")}>{point.eloDelta >= 0 ? "+" : ""}{point.eloDelta}<ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></span>
+          </a>
         ))}
+      </div>
 
-        {/* Area */}
-        <path d={areaPath} fill={`url(#${gradId})`} />
-
-        {/* Line with glow + draw-in animation */}
-        <path
-          d={linePath}
-          fill="none"
-          stroke={`url(#${lineGradId})`}
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            filter: "drop-shadow(0 0 6px rgba(0, 200, 255, 0.55))",
-            strokeDasharray: 1500,
-            strokeDashoffset: 1500,
-            animation: "elo-line-draw 700ms ease-out forwards",
-          }}
-        />
-
-        {/* Points (each wrapped in <a> for navigation) */}
-        {series.map((p, i) => {
-          const cx = xFor(i);
-          const cy = yFor(p.eloAfter);
-          const isPositive = p.eloDelta >= 0;
-          const fill = isPositive ? "#22c55e" : "#ef4444";
-          const isHover = hoverIdx === i;
-          return (
-            <a
-              key={p.matchId}
-              href={matchHref(p)}
-              onMouseEnter={() => setHoverIdx(i)}
-              onMouseLeave={() => setHoverIdx(null)}
-              onFocus={() => setHoverIdx(i)}
-              onBlur={() => setHoverIdx(null)}
-              style={{ cursor: "pointer", outline: "none" }}
-            >
-              {/* Generous hit area */}
-              <circle cx={cx} cy={cy} r={18} fill="transparent" />
-              {/* Outer glow ring on hover */}
-              {isHover && (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={12}
-                  fill={fill}
-                  opacity={0.25}
-                />
-              )}
-              <circle
-                cx={cx}
-                cy={cy}
-                r={isHover ? 8 : 6.5}
-                fill={fill}
-                stroke="#0a0a0a"
-                strokeWidth="2.5"
-                style={{
-                  filter: `drop-shadow(0 0 ${isHover ? 8 : 5}px ${isPositive ? "rgba(34,197,94,0.65)" : "rgba(239,68,68,0.65)"})`,
-                  transition: "r 120ms ease-out",
-                }}
-              />
-            </a>
-          );
-        })}
-
-        {/* Tooltip — lives inside the SVG so it sits exactly on top of the point regardless of how the SVG is scaled. */}
-        {hovered && (
-          <foreignObject
-            x={tipX}
-            y={tipY}
-            width={TIP_W}
-            height={TIP_H}
-            style={{ pointerEvents: "none", overflow: "visible" }}
-          >
-            <div
-              className="rounded-xl border border-[var(--primary)]/30 bg-[var(--card)]/95 px-3 py-2 shadow-2xl backdrop-blur-md"
-              style={{ width: TIP_W, fontFamily: "inherit" }}
-            >
-              <div className="flex items-center gap-1.5 font-mono text-xs font-bold whitespace-nowrap">
-                <span className="text-[var(--foreground)]">{hovered.team1Tag}</span>
-                <span className="text-[var(--muted-foreground)]">{hovered.team1Score}</span>
-                <span className="text-[var(--muted-foreground)]">×</span>
-                <span className="text-[var(--muted-foreground)]">{hovered.team2Score}</span>
-                <span className="text-[var(--foreground)]">{hovered.team2Tag}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
-                <span
-                  className={cn(
-                    "font-mono font-black tabular-nums",
-                    hovered.eloDelta >= 0 ? "text-green-400" : "text-red-400"
-                  )}
-                >
-                  {hovered.eloDelta >= 0 ? "+" : ""}
-                  {hovered.eloDelta} ELO
-                </span>
-                <span
-                  className={cn(
-                    "rounded px-1.5 py-0.5 text-[10px] font-black",
-                    hovered.isWinner
-                      ? "bg-green-500/15 text-green-400"
-                      : "bg-red-500/15 text-red-400"
-                  )}
-                >
-                  {hovered.isWinner ? "VITÓRIA" : "DERROTA"}
-                </span>
-              </div>
-              {hovered.playedAt && (
-                <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
-                  {formatRelative(hovered.playedAt)}
-                </div>
-              )}
-            </div>
-          </foreignObject>
-        )}
-      </svg>
-
-      <style jsx>{`
-        @keyframes elo-line-draw {
-          to {
-            stroke-dashoffset: 0;
-          }
-        }
-      `}</style>
-    </div>
+      <style jsx>{`@media (prefers-reduced-motion: no-preference) { .elo-line { stroke-dasharray: 1600; stroke-dashoffset: 1600; animation: elo-line-draw 900ms cubic-bezier(.22,1,.36,1) forwards; } } @keyframes elo-line-draw { to { stroke-dashoffset: 0; } }`}</style>
+    </section>
   );
+}
+
+function TrendMetric({ icon: Icon, label, value, accent }: { icon: typeof Trophy; label: string; value: string; accent: string }) {
+  return <div className="flex min-h-32 flex-col justify-center border-b border-[var(--border)] p-6 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:border-b lg:border-r-0"><Icon className="h-4 w-4 text-[var(--primary)]" /><span className="mt-4 text-[9px] font-black uppercase tracking-[.14em] text-[var(--muted-foreground)]">{label}</span><strong className={cn("mt-2 text-3xl font-black tracking-[-.05em]", accent)}>{value}</strong></div>;
 }

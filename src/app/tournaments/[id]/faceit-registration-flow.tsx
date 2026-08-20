@@ -737,11 +737,14 @@ function PixCheckout({
 
   useEffect(() => {
     if (!qrCode) return;
-    setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
-    const t = setInterval(() =>
-      setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))), 1000
-    );
-    return () => clearInterval(t);
+    const updateCountdown = () =>
+      setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
+    const initialTick = window.setTimeout(updateCountdown, 0);
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => {
+      window.clearTimeout(initialTick);
+      window.clearInterval(timer);
+    };
   }, [qrCode, expiresAt]);
 
   function handleCopy() {

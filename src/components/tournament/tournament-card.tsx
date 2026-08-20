@@ -26,8 +26,8 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
   if (featured) {
     return (
       <Link href={`/tournaments/${tournament.id}`} className="group block">
-        <div className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden card-hover h-full">
-          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-cyan-950 via-slate-900 to-black">
+        <div className="bs-bento-card relative h-full overflow-hidden transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)]/40">
+          <div className="relative h-48 overflow-hidden bg-[#151515]">
             {tournament.bannerUrl && (
               <Image
                 src={tournament.bannerUrl}
@@ -38,8 +38,7 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
                 unoptimized
               />
             )}
-            <div className="absolute inset-0 grid-bg opacity-60" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--card)] via-black/10 to-black/35" />
             {!tournament.bannerUrl && (
               <div className="absolute -top-10 -right-10 w-40 h-40 bg-[var(--primary)]/10 rounded-full blur-3xl" />
             )}
@@ -64,10 +63,10 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
             </h3>
             <p className="text-xs text-[var(--muted-foreground)] mb-4 line-clamp-2">{tournament.description}</p>
 
-            <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-[var(--secondary)] border border-[var(--border)]">
+            <div className="mb-4 flex items-center gap-3 border-y border-yellow-500/15 py-3">
               <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
               <div>
-                <div className="text-xs text-[var(--muted-foreground)]">Premiação Total</div>
+                <div className="text-[9px] font-black uppercase tracking-[0.15em] text-yellow-400/70">Prêmio total no PIX</div>
                 <div className="text-lg font-black text-yellow-400">{formatCurrency(tournament.prizeTotal)}</div>
               </div>
             </div>
@@ -105,8 +104,8 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
 
   return (
     <Link href={`/tournaments/${tournament.id}`} className="group block">
-      <div className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] card-hover">
-        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-cyan-950 to-slate-900 border border-[var(--border)] shrink-0 flex items-center justify-center">
+      <div className="bs-bento-card card-hover flex items-center gap-4 p-4">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[#151515]">
           {tournament.bannerUrl ? (
             <Image
               src={tournament.bannerUrl}

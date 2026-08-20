@@ -1,17 +1,21 @@
-import { getCurrentProfile } from "@/lib/profiles";
+import { getHomeSnapshot } from "@/lib/home";
 import Hero from "@/components/home/hero";
+import FeaturedTournaments from "@/components/home/featured-tournaments";
+import PlatformGrid from "@/components/home/platform-grid";
+import HowItWorks from "@/components/home/how-it-works";
 import RankingPreview from "@/components/home/ranking-preview";
-import SocialProof from "@/components/home/social-proof";
+import HomeMotion from "@/components/home/home-motion";
 
 export default async function HomePage() {
-  const currentProfile = await getCurrentProfile();
-  const isLoggedIn = currentProfile !== null;
+  const snapshot = await getHomeSnapshot();
 
   return (
-    <>
-      <Hero isLoggedIn={isLoggedIn} />
-      <RankingPreview />
-      <SocialProof isLoggedIn={isLoggedIn} />
-    </>
+    <HomeMotion>
+      <Hero />
+      <FeaturedTournaments />
+      <PlatformGrid />
+      <HowItWorks />
+      <RankingPreview players={snapshot.topPlayers} />
+    </HomeMotion>
   );
 }

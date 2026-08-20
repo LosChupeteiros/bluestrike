@@ -17,9 +17,8 @@ export default function LivePlayerSection({ channel }: LivePlayerSectionProps) {
   }
 
   return (
-    <>
-      {/* ── Topo: status + link Twitch ───────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <section aria-label="Transmissão oficial BlueStrike">
+      <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <LiveStatusBadge status={status} />
           <div>
@@ -32,7 +31,7 @@ export default function LivePlayerSection({ channel }: LivePlayerSectionProps) {
           href={`https://twitch.tv/${channel}`}
           target="_blank"
           rel="noreferrer noopener"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-bold transition-all hover:opacity-90 hover:scale-[1.02] active:scale-100 self-start sm:self-auto"
+          className="inline-flex self-start items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all hover:-translate-y-0.5 sm:self-auto"
           style={{
             borderColor: "rgba(145,71,255,0.35)",
             backgroundColor: "rgba(145,71,255,0.10)",
@@ -44,9 +43,8 @@ export default function LivePlayerSection({ channel }: LivePlayerSectionProps) {
         </a>
       </div>
 
-      {/* ── Player ───────────────────────────────────────────────────────── */}
       <div
-        className="rounded-2xl overflow-hidden mb-2"
+        className="relative mb-2 overflow-hidden rounded-[1.75rem] bg-black"
         style={{
           border: status === "live"
             ? "1px solid rgba(239,68,68,0.25)"
@@ -61,11 +59,10 @@ export default function LivePlayerSection({ channel }: LivePlayerSectionProps) {
       </div>
 
       {status === "offline" && (
-        <p className="text-xs text-[var(--muted-foreground)] text-center mb-10">
-          Canal offline — confira a próxima programação abaixo.
+        <p className="mt-4 text-center text-xs text-[var(--muted-foreground)]">
+          Canal offline — consulte abaixo as partidas publicadas na plataforma.
         </p>
       )}
-      {status !== "offline" && <div className="mb-10" />}
-    </>
+    </section>
   );
 }

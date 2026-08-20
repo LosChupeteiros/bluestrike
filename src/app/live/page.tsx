@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Radio, Tv, Trophy } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Radio, ShieldCheck, Trophy } from "lucide-react";
 import LivePlayerSection from "./live-player-section";
 
 export const metadata: Metadata = {
@@ -8,111 +8,83 @@ export const metadata: Metadata = {
   description: "Acompanhe ao vivo os campeonatos BlueStrike de CS2 — partidas, premiações e grandes jogadas em tempo real.",
 };
 
-export const TWITCH_CHANNEL = "gaules"; // altere para o canal real
-
+const TWITCH_CHANNEL = process.env.NEXT_PUBLIC_TWITCH_CHANNEL ?? "gaules";
 
 export default function LivePage() {
   return (
-    <div className="min-h-screen pb-24">
-      {/* Atmospheric background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 grid-bg opacity-20" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(239,68,68,0.07) 0%, transparent 70%)",
-          }}
-        />
+    <div className="bs-page pb-24 pt-28">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 grid-bg opacity-15" />
+        <div className="absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(ellipse_at_top,rgba(239,68,68,0.08),transparent_68%)]" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8">
+      <div className="bs-shell relative z-10">
+        <header className="mb-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="max-w-3xl">
+            <div className="bs-eyebrow mb-4 text-red-400">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              Central ao vivo
+            </div>
+            <h1 className="bs-display max-w-3xl text-5xl sm:text-6xl lg:text-7xl">
+              A transmissão é parte da <span className="text-[var(--primary)]">competição.</span>
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">
+              Partidas oficiais, decisões de mapa e momentos que movimentam o circuito BlueStrike — em um player feito para manter o jogo no centro.
+            </p>
+          </div>
 
-        {/* ── Player + status (client) ─────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[360px]">
+            <div className="bs-panel p-5">
+              <Radio className="mb-6 h-5 w-5 text-red-400" />
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Canal oficial</p>
+              <p className="mt-2 text-lg font-black text-[var(--foreground)]">@{TWITCH_CHANNEL}</p>
+            </div>
+            <div className="bs-panel p-5">
+              <ShieldCheck className="mb-6 h-5 w-5 text-[var(--primary)]" />
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Cobertura</p>
+              <p className="mt-2 text-lg font-black text-[var(--foreground)]">CS2 oficial</p>
+            </div>
+          </div>
+        </header>
+
         <LivePlayerSection channel={TWITCH_CHANNEL} />
 
-        {/* ── Sobre + links ─────────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row gap-6 mb-14">
-          <div className="flex-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-5">
-            <div className="flex items-center gap-2 text-[var(--primary)] text-xs font-bold uppercase tracking-wider mb-3">
-              <Radio className="w-3.5 h-3.5" />
-              Canal oficial
-            </div>
-            <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
-              Acompanhe todos os campeonatos BlueStrike de CS2 ao vivo — fase de grupos,
-              quartas, semifinais e grande final. Narração, análises e premiações em tempo real.
-            </p>
-          </div>
-
-          <div className="sm:w-64 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-5 flex flex-col gap-3">
-            <p className="text-xs text-[var(--muted-foreground)] font-semibold uppercase tracking-wider">Acompanhe também</p>
-            <a
-              href={`https://twitch.tv/${TWITCH_CHANNEL}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all hover:opacity-90 hover:scale-[1.02] active:scale-100"
-              style={{
-                borderColor: "rgba(145,71,255,0.25)",
-                backgroundColor: "rgba(145,71,255,0.07)",
-              }}
-            >
-              <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" fill="#bf94ff" aria-hidden="true">
-                <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z" />
-              </svg>
-              <span className="text-sm font-semibold" style={{ color: "#bf94ff" }}>Twitch</span>
-            </a>
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 transition-colors hover:bg-[var(--primary)]/10"
-            >
-              <Trophy className="w-4 h-4 text-[var(--primary)] shrink-0" />
-              <span className="text-sm font-semibold text-[var(--primary)]">Ver campeonatos</span>
-            </Link>
-          </div>
-        </div>
-
-
-        {/* ── CTA final ────────────────────────────────────────────────────── */}
-        <div
-          className="rounded-2xl border px-8 py-12 text-center relative overflow-hidden"
-          style={{
-            borderColor: "rgba(145,71,255,0.18)",
-            background: "linear-gradient(135deg, rgba(145,71,255,0.06) 0%, rgba(10,10,10,0) 60%)",
-          }}
-        >
-          <div
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 blur-3xl pointer-events-none"
-            style={{ backgroundColor: "rgba(145,71,255,0.10)" }}
-          />
-
-          <div className="relative">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Radio className="w-4 h-4 text-[var(--muted-foreground)]" />
-              <span className="text-sm font-semibold text-[var(--muted-foreground)]">
-                Transmissões toda semana
+        <section className="mt-8 grid gap-5 lg:grid-cols-12">
+          <div className="bs-panel p-6 sm:p-8 lg:col-span-8">
+            <div className="mb-8 flex items-start justify-between gap-6">
+              <div>
+                <div className="bs-eyebrow mb-3"><Trophy className="h-3.5 w-3.5" /> Circuito BlueStrike</div>
+                <h2 className="text-2xl font-black text-[var(--foreground)] sm:text-3xl">Do veto à grande final</h2>
+              </div>
+              <span className="hidden rounded-full border border-[var(--border)] bg-[var(--secondary)] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--muted-foreground)] sm:inline-flex">
+                status automático
               </span>
             </div>
-
-            <h2 className="text-2xl sm:text-3xl font-black text-[var(--foreground)] mb-2">
-              Não perca nenhuma partida
-            </h2>
-            <p className="text-sm text-[var(--muted-foreground)] mb-8 max-w-sm mx-auto">
-              Ative as notificações na Twitch e seja avisado quando os campeonatos estiverem ao vivo.
+            <p className="max-w-2xl text-sm leading-7 text-[var(--muted-foreground)]">
+              O status acima acompanha o canal em tempo real. Quando a transmissão estiver offline, consulte os campeonatos para ver confrontos, horários e chaveamentos publicados pela organização.
             </p>
-
-            <a
-              href={`https://twitch.tv/${TWITCH_CHANNEL}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-black text-white transition-all hover:-translate-y-0.5 active:translate-y-0"
-              style={{ backgroundColor: "#9147ff" }}
-            >
-              <Tv className="w-4 h-4" />
-              Seguir @{TWITCH_CHANNEL}
-            </a>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/tournaments" className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-5 py-3 text-sm font-black text-black transition-transform hover:-translate-y-0.5">
+                Explorar campeonatos <ArrowUpRight className="h-4 w-4" />
+              </Link>
+              <a href={`https://twitch.tv/${TWITCH_CHANNEL}`} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 rounded-xl border border-[#9147ff]/35 bg-[#9147ff]/10 px-5 py-3 text-sm font-black text-[#bf94ff] transition-colors hover:bg-[#9147ff]/15">
+                Abrir na Twitch <ArrowUpRight className="h-4 w-4" />
+              </a>
+            </div>
           </div>
-        </div>
 
+          <aside className="bs-panel p-6 sm:p-8 lg:col-span-4">
+            <CalendarClock className="h-6 w-6 text-[var(--primary)]" />
+            <p className="mt-8 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--primary)]">Próximas partidas</p>
+            <h2 className="mt-3 text-2xl font-black text-[var(--foreground)]">Agenda baseada nos dados reais.</h2>
+            <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
+              Os horários exibidos na plataforma vêm dos campeonatos e partidas cadastrados no BlueStrike.
+            </p>
+            <Link href="/matches" className="mt-8 inline-flex items-center gap-2 text-sm font-black text-[var(--primary)]">
+              Ver central de partidas <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </aside>
+        </section>
       </div>
     </div>
   );

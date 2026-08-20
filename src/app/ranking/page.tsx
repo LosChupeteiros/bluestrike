@@ -1,496 +1,220 @@
-import { Construction, Crown, Medal, TrendingUp, Zap, Activity, Target, Flame } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { mockRanking } from "@/data/mock";
-import { listFaceitRanking, type FaceitRankingEntry } from "@/lib/profiles";
-import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
-import { cn } from "@/lib/utils";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Activity, ChevronLeft, ChevronRight, Crown, Flame, Medal, Target, TrendingUp, Users, Zap } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
+import { getProfilePath, IN_GAME_ROLES, type UserProfile } from "@/lib/profile";
+import { listFaceitRanking, listPublicProfiles, type FaceitRankingEntry } from "@/lib/profiles";
 
 export const metadata: Metadata = { title: "Ranking Global" };
-export const revalidate = 1800; // ISR: rebuilt a cada 30 min, sem chamar FACEIT a cada request
+export const revalidate = 1800;
 
-// ─── BlueStrike side ────────────────────────────────────────────────────────
+const ROLE_LABELS = Object.fromEntries(IN_GAME_ROLES.map((role) => [role.value, role.label]));
+const PAGE_SIZE = 20;
 
-function BsPositionBadge({ pos }: { pos: number }) {
-  if (pos === 1) return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-yellow-500/40 bg-yellow-500/20">
-      <Crown className="h-4 w-4 text-yellow-400" />
-    </div>
-  );
-  if (pos === 2) return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-400/40 bg-gray-500/20">
-      <Medal className="h-4 w-4 text-gray-300" />
-    </div>
-  );
-  if (pos === 3) return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-400/40 bg-orange-500/20">
-      <Medal className="h-4 w-4 text-orange-400" />
-    </div>
-  );
+interface RankingPageProps {
+  searchParams: Promise<{ bsPage?: string | string[]; faceitPage?: string | string[] }>;
+}
+
+function pageParam(value?: string | string[]) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return Math.max(1, Number.parseInt(raw ?? "1", 10) || 1);
+}
+
+function rankingHref(bsPage: number, faceitPage: number) {
+  const params = new URLSearchParams();
+  if (bsPage > 1) params.set("bsPage", String(bsPage));
+  if (faceitPage > 1) params.set("faceitPage", String(faceitPage));
+  return params.size ? `/ranking?${params}` : "/ranking";
+}
+
+function RankingPagination({ page, totalPages, previousHref, nextHref }: { page: number; totalPages: number; previousHref: string; nextHref: string }) {
+  if (totalPages <= 1) return null;
   return (
-    <div className="flex h-8 w-8 items-center justify-center text-sm font-bold text-[var(--muted-foreground)]">
-      #{pos}
+    <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-4 text-xs">
+      <span className="text-[var(--muted-foreground)]">Página {page} de {totalPages}</span>
+      <div className="flex items-center gap-2">
+        {page > 1 ? <Link aria-label="Página anterior" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] hover:border-[var(--primary)]/45 hover:text-[var(--primary)]" href={previousHref}><ChevronLeft className="h-4 w-4" /></Link> : <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] opacity-35"><ChevronLeft className="h-4 w-4" /></span>}
+        {page < totalPages ? <Link aria-label="Próxima página" className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] hover:border-[var(--primary)]/45 hover:text-[var(--primary)]" href={nextHref}><ChevronRight className="h-4 w-4" /></Link> : <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] opacity-35"><ChevronRight className="h-4 w-4" /></span>}
+      </div>
     </div>
   );
 }
 
-function BluestrikeRanking() {
+function PositionBadge({ position }: { position: number }) {
+  if (position === 1) return <span className="flex h-8 w-8 items-center justify-center rounded-full border border-yellow-500/35 bg-yellow-500/10"><Crown className="h-4 w-4 text-yellow-400" /></span>;
+  if (position === 2) return <span className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-400/30 bg-slate-400/10"><Medal className="h-4 w-4 text-slate-300" /></span>;
+  if (position === 3) return <span className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-700/35 bg-orange-700/10"><Medal className="h-4 w-4 text-orange-500" /></span>;
+  return <span className="flex h-8 w-8 items-center justify-center font-mono text-xs font-black text-[var(--muted-foreground)]">#{position}</span>;
+}
+
+function ProfileAvatar({ profile, size = "h-12 w-12" }: { profile: UserProfile; size?: string }) {
   return (
-    <div className="relative flex h-full flex-col">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
-            <TrendingUp className="h-4 w-4" />
-            BlueStrike ELO
-          </div>
-          <h2 className="text-2xl font-black tracking-tight">Ranking Interno</h2>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Baseado em ELO de torneios na plataforma
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5 rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/10 px-3 py-1">
-          <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
-          <span className="text-xs font-bold text-[var(--primary)]">BETA</span>
-        </div>
-      </div>
+    <Avatar className={`${size} border border-white/10 bg-[var(--secondary)]`}>
+      <AvatarImage alt={profile.steamPersonaName} src={profile.faceitAvatar ?? profile.steamAvatarUrl ?? undefined} />
+      <AvatarFallback className="font-black text-[var(--primary)]">{profile.steamPersonaName.slice(0, 1).toUpperCase()}</AvatarFallback>
+    </Avatar>
+  );
+}
 
-      {/* Podium */}
-      <div className="mb-6 grid max-w-sm grid-cols-3 gap-3 mx-auto">
-        {[mockRanking[1], mockRanking[0], mockRanking[2]].map((entry, i) => {
-          const heights = ["h-24", "h-32", "h-20"];
-          const order = ["order-1", "order-2", "order-3"];
-          return (
-            <div key={entry.profileId} className={cn("flex flex-col items-center", order[i])}>
-              <Avatar className={cn(
-                "mb-1.5 ring-2",
-                entry.position === 1 ? "h-14 w-14 ring-yellow-400/60" :
-                entry.position === 2 ? "h-12 w-12 ring-gray-400/40" :
-                "h-10 w-10 ring-orange-400/40"
-              )}>
-                <AvatarImage src={entry.avatarUrl ?? undefined} />
-                <AvatarFallback className="text-xs">{entry.nickname[0]}</AvatarFallback>
-              </Avatar>
-              <div className="mb-0.5 w-full truncate px-1 text-center text-xs font-bold">{entry.nickname}</div>
-              <div className="mb-2 text-xs font-black text-[var(--primary)]">{entry.elo.toLocaleString()}</div>
-              <div className={cn(
-                "flex w-full items-center justify-center rounded-t-lg border",
-                heights[i],
-                entry.position === 1 ? "border-yellow-500/30 bg-yellow-500/10" :
-                entry.position === 2 ? "border-gray-500/30 bg-gray-500/10" :
-                "border-orange-500/30 bg-orange-500/10"
-              )}>
-                <BsPositionBadge pos={entry.position} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+function BlueStrikePodium({ players }: { players: UserProfile[] }) {
+  const top = players.slice(0, 3);
+  if (top.length === 0) return null;
+  const ordered = top.length === 3 ? [top[1], top[0], top[2]] : top;
 
-      {/* Table */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
-        <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 border-b border-[var(--border)] bg-[var(--secondary)] px-4 py-2.5">
-          <div className="w-8 text-center text-xs text-[var(--muted-foreground)]">#</div>
-          <div className="text-xs text-[var(--muted-foreground)]">Jogador</div>
-          <div className="hidden text-center text-xs text-[var(--muted-foreground)] sm:block w-12">K/D</div>
-          <div className="w-16 text-right text-xs text-[var(--muted-foreground)]">ELO</div>
-        </div>
-        {mockRanking.map((entry) => (
-          <div
-            key={entry.profileId}
-            className={cn(
-              "grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 border-b border-[var(--border)] px-4 py-3 last:border-0",
-              entry.position === 1 && "bg-gradient-to-r from-yellow-500/5 to-transparent",
-              entry.position === 2 && "bg-gradient-to-r from-gray-500/5 to-transparent",
-              entry.position === 3 && "bg-gradient-to-r from-orange-500/5 to-transparent",
-            )}
+  return (
+    <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      {ordered.map((profile) => {
+        const actualPosition = top.findIndex((entry) => entry.id === profile.id) + 1;
+        return (
+          <Link
+            className={`group relative flex min-h-[228px] flex-col justify-center overflow-hidden rounded-xl border bg-[var(--card)] p-5 text-center transition hover:-translate-y-1 ${actualPosition === 1 ? "border-[var(--primary)]/60 sm:-translate-y-2" : "border-[var(--border)]"}`}
+            href={getProfilePath(profile.publicId)}
+            key={profile.id}
           >
-            <BsPositionBadge pos={entry.position} />
-            <div className="flex min-w-0 items-center gap-2.5">
-              <Avatar className="h-8 w-8 shrink-0">
-                <AvatarImage src={entry.avatarUrl ?? undefined} />
-                <AvatarFallback className="text-xs">{entry.nickname[0]}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-bold">{entry.nickname}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">{entry.wins}V · {entry.tournamentsPlayed} torneios</div>
-              </div>
-            </div>
-            <div className="hidden w-12 text-center text-sm font-semibold sm:block">{entry.kdRatio.toFixed(2)}</div>
-            <div className="w-16 text-right text-sm font-black text-[var(--primary)]">{entry.elo.toLocaleString()}</div>
-          </div>
+            <span className="absolute -left-1 top-1 font-mono text-7xl font-black text-white/[0.025]">{actualPosition}</span>
+            <div className="relative mx-auto mb-3 w-fit"><ProfileAvatar profile={profile} size={actualPosition === 1 ? "h-16 w-16" : "h-14 w-14"} /><span className="absolute -bottom-2 -right-2"><PositionBadge position={actualPosition} /></span></div>
+            <strong className="block truncate text-sm group-hover:text-[var(--primary)]">{profile.steamPersonaName}</strong>
+            <span className="mt-1 block text-[9px] uppercase tracking-[0.15em] text-[var(--muted-foreground)]">BlueStrike ELO</span>
+            <span className="mt-1 block font-mono text-xl font-black text-[var(--primary)]">{profile.elo.toLocaleString("pt-BR")}</span>
+            {profile.faceitElo != null && <span className="mt-2 block font-mono text-xs font-bold text-[#ff7a00]">FACEIT {profile.faceitElo.toLocaleString("pt-BR")}</span>}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function BlueStrikeTable({ players, firstPosition }: { players: UserProfile[]; firstPosition: number }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+      <div className="hidden grid-cols-[48px_1.5fr_.8fr_.8fr_.7fr_.55fr] gap-3 border-b border-[var(--border)] px-4 py-3 text-[9px] font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)] sm:grid">
+        <span>Pos.</span><span>Jogador</span><span>Função</span><span>BlueStrike</span><span>FACEIT</span><span>K/D</span>
+      </div>
+      <div className="divide-y divide-[var(--border)]">
+        {players.map((profile, index) => (
+          <Link className="group grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-3.5 hover:bg-white/[0.025] sm:grid-cols-[48px_1.5fr_.8fr_.8fr_.7fr_.55fr]" href={getProfilePath(profile.publicId)} key={profile.id}>
+            <PositionBadge position={firstPosition + index} />
+            <span className="flex min-w-0 items-center gap-2.5"><ProfileAvatar profile={profile} size="h-9 w-9" /><strong className="truncate text-sm group-hover:text-[var(--primary)]">{profile.steamPersonaName}</strong></span>
+            <span className="hidden text-xs text-[var(--muted-foreground)] sm:block">{profile.inGameRole ? ROLE_LABELS[profile.inGameRole] : "Flex"}</span>
+            <span className="hidden font-mono text-sm font-black text-[var(--primary)] sm:block">{profile.elo.toLocaleString("pt-BR")}</span>
+            <span className="hidden font-mono text-sm font-black text-[#ff7a00] sm:block">{profile.faceitElo?.toLocaleString("pt-BR") ?? "—"}</span>
+            <span className="font-mono text-xs font-bold">{profile.faceitKdRatio?.toFixed(2) ?? "—"}</span>
+          </Link>
         ))}
       </div>
-
-      {/* Dev overlay */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-[var(--background)]/80 backdrop-blur-[3px]">
-        <div className="mx-auto max-w-xs rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-2xl">
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-yellow-500/30 bg-yellow-500/10">
-              <Construction className="h-7 w-7 text-yellow-400" />
-            </div>
-          </div>
-          <div className="mb-1 text-xs font-bold uppercase tracking-widest text-yellow-400">Em Desenvolvimento</div>
-          <h3 className="mb-2 text-lg font-black text-[var(--foreground)]">Ranking BlueStrike</h3>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            O sistema de ELO interno está sendo calibrado. Em breve cada partida na plataforma vai contar para o ranking.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }
 
-// ─── FACEIT side ─────────────────────────────────────────────────────────────
-
-function FaceitPositionBadge({ pos }: { pos: number }) {
-  if (pos === 1) return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-yellow-500/50 bg-yellow-500/15 shadow-[0_0_12px_rgba(234,179,8,0.2)]">
-      <Crown className="h-4 w-4 text-yellow-400" />
-    </div>
-  );
-  if (pos === 2) return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-400/40 bg-slate-500/15">
-      <Medal className="h-4 w-4 text-slate-300" />
-    </div>
-  );
-  if (pos === 3) return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-500/40 bg-orange-500/15">
-      <Medal className="h-4 w-4 text-orange-400" />
-    </div>
-  );
+function BlueStrikeRanking({ podiumPlayers, players, total, page, totalPages, faceitPage }: { podiumPlayers: UserProfile[]; players: UserProfile[]; total: number; page: number; totalPages: number; faceitPage: number }) {
   return (
-    <div className="flex h-8 w-8 items-center justify-center text-sm font-bold tabular-nums text-[var(--muted-foreground)]">
-      #{pos}
-    </div>
+    <section className="h-full">
+      <div className="mb-6 flex min-h-[8.5rem] items-start justify-between gap-4">
+        <div><p className="bs-eyebrow"><TrendingUp className="h-4 w-4" /> BlueStrike ELO</p><h2 className="mt-2 text-2xl font-black tracking-tight">Ranking interno</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">Performance registrada nas competições da plataforma.</p></div>
+        <span className="rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/8 px-3 py-1.5 text-xs font-black text-[var(--primary)]">{total} ativos</span>
+      </div>
+      <BlueStrikePodium players={podiumPlayers} />
+      <BlueStrikeTable firstPosition={(page - 1) * PAGE_SIZE + 1} players={players} />
+      <RankingPagination page={page} totalPages={totalPages} previousHref={rankingHref(page - 1, faceitPage)} nextHref={rankingHref(page + 1, faceitPage)} />
+    </section>
   );
 }
 
-function StatBadge({ icon: Icon, label, value, accent = false }: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
+function FaceitAvatar({ entry, size = "h-10 w-10" }: { entry: FaceitRankingEntry; size?: string }) {
   return (
-    <div className={cn(
-      "flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5",
-      accent ? "border-[#FF5500]/20 bg-[#FF5500]/8" : "border-[var(--border)] bg-[var(--secondary)]"
-    )}>
-      <Icon className={cn("h-3 w-3", accent ? "text-[#FF5500]" : "text-[var(--muted-foreground)]")} />
-      <div className={cn("text-xs font-black tabular-nums leading-none", accent ? "text-[#FF5500]" : "text-[var(--foreground)]")}>
-        {value}
-      </div>
-      <div className="text-[10px] leading-none text-[var(--muted-foreground)]">{label}</div>
+    <div className="relative shrink-0">
+      <Avatar className={`${size} border border-[#ff7a00]/25 bg-[#ff7a00]/10`}>
+        <AvatarImage alt={entry.faceitNickname} src={entry.faceitAvatar ?? entry.avatar ?? undefined} />
+        <AvatarFallback className="font-black text-[#ff7a00]">{entry.faceitNickname.slice(0, 1).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <span className="absolute -bottom-1.5 -right-1.5"><FaceitSkillIcon level={entry.faceitLevel} size={18} /></span>
     </div>
-  );
-}
-
-function MiniStat({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-2 text-center">
-      <div className="text-xs font-black tabular-nums leading-none" style={color ? { color } : undefined}>
-        {value}
-      </div>
-      <div className="mt-0.5 text-[10px] leading-none text-[var(--muted-foreground)]">{label}</div>
-    </div>
-  );
-}
-
-const PODIUM_CONFIG = {
-  1: {
-    border: "border-yellow-400",
-    bg: "from-yellow-500/10 to-[var(--card)]",
-    glow: "shadow-[0_0_12px_2px_rgba(253,224,71,0.35)]",
-    ring: "ring-yellow-400/65",
-    icon: <Crown className="h-3.5 w-3.5 text-yellow-400" />,
-    label: "#1",
-    labelColor: "text-yellow-400",
-    scale: "scale-[1.06] z-10",
-  },
-  2: {
-    border: "border-sky-400",
-    bg: "from-sky-400/10 to-[var(--card)]",
-    glow: "shadow-[0_0_10px_1px_rgba(56,189,248,0.18)]",
-    ring: "ring-sky-400/50",
-    icon: <Medal className="h-3.5 w-3.5 text-sky-300" />,
-    label: "#2",
-    labelColor: "text-sky-300",
-    scale: "",
-  },
-  3: {
-    border: "border-orange-400",
-    bg: "from-orange-500/10 to-[var(--card)]",
-    glow: "shadow-[0_0_10px_1px_rgba(249,115,22,0.18)]",
-    ring: "ring-orange-400/45",
-    icon: <Medal className="h-3.5 w-3.5 text-orange-400" />,
-    label: "#3",
-    labelColor: "text-orange-400",
-    scale: "",
-  },
-} as const;
-
-function FaceitPodiumCard({ entry }: { entry: FaceitRankingEntry }) {
-  const cfg = PODIUM_CONFIG[entry.position as 1 | 2 | 3] ?? PODIUM_CONFIG[3];
-
-  return (
-    <Link href={`/profile/${entry.publicId}`} className={cn("group block transition-transform", cfg.scale)}>
-      <div className={cn(
-        "rounded-xl border bg-gradient-to-b p-4 transition-all group-hover:brightness-110",
-        cfg.border, cfg.bg, cfg.glow
-      )}>
-        {/* Position badge */}
-        <div className="mb-3 flex items-center justify-center gap-1">
-          {cfg.icon}
-          <span className={cn("text-xs font-bold", cfg.labelColor)}>{cfg.label}</span>
-        </div>
-
-        {/* Avatar — img tag evita o quadrado preto do Avatar component */}
-        <div className={cn("mx-auto mb-2 h-14 w-14 overflow-hidden rounded-full ring-2", cfg.ring)}>
-          {entry.faceitAvatar ?? entry.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={(entry.faceitAvatar ?? entry.avatar)!}
-              alt={entry.faceitNickname}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-[#FF5500]/15 font-black text-sm" style={{ color: "#FF5500" }}>
-              {entry.faceitNickname[0].toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        {/* Level icon */}
-        <div className="mb-1 flex justify-center">
-          <FaceitSkillIcon level={entry.faceitLevel} size={22} />
-        </div>
-
-        {/* Nickname */}
-        <div className="mb-0.5 truncate text-center text-xs font-bold transition-colors group-hover:text-[#FF5500]">
-          {entry.faceitNickname}
-        </div>
-
-        {/* ELO */}
-        <div className="mb-3 text-center font-mono text-sm font-black" style={{ color: "#FF5500" }}>
-          {entry.faceitElo.toLocaleString()}
-        </div>
-
-        {/* Stats 2×2 */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <MiniStat label="KDR" value={entry.faceitKdRatio?.toFixed(2) ?? "—"} />
-          <MiniStat label="Win Rate %" value={entry.faceitWinRate != null ? `${entry.faceitWinRate}%` : "—"} color="#4ade80" />
-          <MiniStat label="Partidas" value={entry.faceitMatches?.toLocaleString() ?? "—"} />
-          <MiniStat label=">Streak" value={entry.faceitWinStreak != null ? String(entry.faceitWinStreak) : "—"} color="#FF5500" />
-        </div>
-      </div>
-    </Link>
   );
 }
 
 function FaceitPodium({ players }: { players: FaceitRankingEntry[] }) {
   const top = players.slice(0, 3);
-  if (top.length === 0) return null;
-
+  if (!top.length) return null;
+  const ordered = top.length === 3 ? [top[1], top[0], top[2]] : top;
   return (
-    <div className={cn(
-      "mb-4 grid gap-5",
-      top.length === 1 ? "mx-auto max-w-[200px] grid-cols-1" :
-      top.length === 2 ? "mx-auto max-w-sm grid-cols-2" :
-      "grid-cols-3"
-    )}>
-      {(top.length === 3 ? [top[1], top[0], top[2]] : top).map((entry) => (
-        <FaceitPodiumCard key={entry.id} entry={entry} />
-      ))}
-    </div>
-  );
-}
-
-function FaceitTable({ players }: { players: FaceitRankingEntry[] }) {
-  const rest = players.slice(3);
-  if (rest.length === 0) return null;
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
-      {/* Header */}
-      <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 border-b border-[var(--border)] bg-[var(--secondary)] px-4 py-2.5">
-        <div className="w-8 text-center text-xs text-[var(--muted-foreground)]">#</div>
-        <div className="text-xs text-[var(--muted-foreground)]">Jogador</div>
-        <div className="hidden w-14 text-center text-xs text-[var(--muted-foreground)] md:block">K/D</div>
-        <div className="hidden w-12 text-center text-xs text-[var(--muted-foreground)] lg:block">&gt;Streak</div>
-        <div className="hidden w-14 text-center text-xs text-[var(--muted-foreground)] md:block">Win%</div>
-        <div className="w-20 text-right text-xs text-[var(--muted-foreground)]">ELO</div>
-      </div>
-
-      {rest.map((entry) => (
-        <Link
-          key={entry.id}
-          href={`/profile/${entry.publicId}`}
-          className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3 border-b border-[var(--border)] px-4 py-3 last:border-0 transition-colors hover:bg-[var(--secondary)]/60"
-        >
-          <FaceitPositionBadge pos={entry.position} />
-
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="relative shrink-0">
-              <div className="h-9 w-9 overflow-hidden rounded-full">
-                {entry.faceitAvatar ?? entry.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={(entry.faceitAvatar ?? entry.avatar)!} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-[#FF5500]/15 text-xs font-black" style={{ color: "#FF5500" }}>
-                    {entry.faceitNickname[0].toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="absolute -bottom-1.5 -right-1.5">
-                <FaceitSkillIcon level={entry.faceitLevel} size={20} />
-              </div>
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-bold">{entry.faceitNickname}</div>
-              {entry.faceitMatches != null && (
-                <div className="text-xs text-[var(--muted-foreground)]">{entry.faceitMatches.toLocaleString()} partidas</div>
-              )}
-            </div>
-          </div>
-
-          <div className="hidden w-14 text-center text-sm font-semibold md:block">
-            {entry.faceitKdRatio != null ? entry.faceitKdRatio.toFixed(2) : "—"}
-          </div>
-
-          <div className="hidden w-12 text-center lg:block">
-            {entry.faceitWinStreak != null ? (
-              <span className="inline-flex items-center gap-0.5 rounded-md bg-[#FF5500]/10 px-1.5 py-0.5 text-xs font-black text-[#FF5500]">
-                <Flame className="h-3 w-3" />
-                {entry.faceitWinStreak}
-              </span>
-            ) : "—"}
-          </div>
-
-          <div className="hidden w-14 text-center text-sm font-semibold text-green-400 md:block">
-            {entry.faceitWinRate != null ? `${entry.faceitWinRate}%` : "—"}
-          </div>
-
-          <div className="w-20 text-right">
-            <div className="font-mono text-sm font-black" style={{ color: "#FF5500" }}>
-              {entry.faceitElo.toLocaleString()}
-            </div>
-            <div className="text-xs text-[var(--muted-foreground)]">Lv.{entry.faceitLevel}</div>
-          </div>
+    <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      {ordered.map((entry) => (
+        <Link className={`group relative flex min-h-[228px] flex-col justify-center overflow-hidden rounded-xl border bg-[var(--card)] p-5 text-center transition hover:-translate-y-1 ${entry.position === 1 ? "border-[#ff7a00]/55 sm:-translate-y-2" : "border-[var(--border)]"}`} href={getProfilePath(entry.publicId)} key={entry.id}>
+          <span className="absolute -left-1 top-1 font-mono text-7xl font-black text-[var(--foreground)]/[0.035]">{entry.position}</span>
+          <div className="relative mx-auto mb-3 w-fit"><FaceitAvatar entry={entry} size={entry.position === 1 ? "h-16 w-16" : "h-14 w-14"} /><span className="absolute -bottom-2 -right-2"><PositionBadge position={entry.position} /></span></div>
+          <strong className="block truncate text-sm group-hover:text-[#ff7a00]">{entry.faceitNickname}</strong>
+          <span className="mt-1 block text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">FACEIT ELO</span>
+          <span className="mt-1 block font-mono text-xl font-black text-[#ff7a00]">{entry.faceitElo.toLocaleString("pt-BR")}</span>
         </Link>
       ))}
     </div>
   );
 }
 
-function FaceitEmptyState() {
+function FaceitTable({ players }: { players: FaceitRankingEntry[] }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#FF5500]/20 py-20 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#FF5500]/20 bg-[#FF5500]/10">
-        <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" aria-hidden="true">
-          <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500" />
-        </svg>
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+      <div className="hidden grid-cols-[48px_1.4fr_.8fr_.7fr_.6fr] gap-3 border-b border-[var(--border)] px-4 py-3 text-[9px] font-black uppercase tracking-[0.14em] text-[var(--muted-foreground)] sm:grid"><span>Pos.</span><span>Jogador</span><span>FACEIT ELO</span><span>Win rate</span><span>Streak</span></div>
+      <div className="divide-y divide-[var(--border)]">
+        {players.map((entry) => (
+          <Link className="group grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-3.5 hover:bg-white/[0.025] sm:grid-cols-[48px_1.4fr_.8fr_.7fr_.6fr]" href={getProfilePath(entry.publicId)} key={entry.id}>
+            <PositionBadge position={entry.position} />
+            <span className="flex min-w-0 items-center gap-3"><FaceitAvatar entry={entry} /><span className="min-w-0"><strong className="block truncate text-sm group-hover:text-[#ff7a00]">{entry.faceitNickname}</strong><small className="text-[10px] text-[var(--muted-foreground)]">Level {entry.faceitLevel}</small></span></span>
+            <span className="hidden font-mono text-sm font-black text-[#ff7a00] sm:block">{entry.faceitElo.toLocaleString("pt-BR")}</span>
+            <span className="hidden text-sm font-bold text-emerald-400 sm:block">{entry.faceitWinRate != null ? `${entry.faceitWinRate}%` : "—"}</span>
+            <span className="inline-flex items-center gap-1 font-mono text-xs font-black text-[#ff7a00]"><Flame className="h-3 w-3" /> {entry.faceitWinStreak ?? "—"}</span>
+          </Link>
+        ))}
       </div>
-      <h3 className="mb-2 text-lg font-black">Nenhum jogador conectado</h3>
-      <p className="max-w-xs text-sm text-[var(--muted-foreground)]">
-        Conecte sua conta FACEIT no perfil para aparecer nesse ranking.
-      </p>
     </div>
   );
 }
 
-function FaceitRankingPanel({ players }: { players: FaceitRankingEntry[] }) {
-  const syncedAt = players[0]?.faceitStatsSyncedAt;
-
+function FaceitRanking({ podiumPlayers, players, total, page, totalPages, blueStrikePage }: { podiumPlayers: FaceitRankingEntry[]; players: FaceitRankingEntry[]; total: number; page: number; totalPages: number; blueStrikePage: number }) {
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
-              <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500" />
-            </svg>
-            <span className="text-sm font-semibold" style={{ color: "#FF5500" }}>FACEIT</span>
-          </div>
-          <h2 className="text-2xl font-black tracking-tight">Ranking FACEIT</h2>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Jogadores da comunidade ordenados por ELO CS2
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-1.5 rounded-full border border-[#FF5500]/20 bg-[#FF5500]/10 px-3 py-1">
-            <Activity className="h-3 w-3" style={{ color: "#FF5500" }} />
-            <span className="text-xs font-bold" style={{ color: "#FF5500" }}>
-              {players.length} jogadores
-            </span>
-          </div>
-          {syncedAt && (
-            <span className="text-xs text-[var(--muted-foreground)]">
-              sync {new Date(syncedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-            </span>
-          )}
-        </div>
+    <section className="h-full">
+      <div className="mb-6 flex min-h-[8.5rem] items-start justify-between gap-4">
+        <div><p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[#ff7a00]"><Activity className="h-4 w-4" /> FACEIT</p><h2 className="mt-2 text-2xl font-black tracking-tight">Ranking conectado</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">Classificação externa dos jogadores BlueStrike vinculados.</p></div>
+        <span className="rounded-full border border-[#ff7a00]/20 bg-[#ff7a00]/8 px-3 py-1.5 text-xs font-black text-[#ff7a00]">{total} conectados</span>
       </div>
-
-      {players.length === 0 ? (
-        <FaceitEmptyState />
-      ) : (
-        <>
-          <FaceitPodium players={players} />
-          <FaceitTable players={players} />
-          {players.length > 0 && players.length < 4 && (
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-dashed border-[#FF5500]/20 px-5 py-4">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#FF5500]/20 bg-[#FF5500]/10">
-                <Zap className="h-4 w-4" style={{ color: "#FF5500" }} />
-              </div>
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Conecte sua conta FACEIT no perfil e apareça no ranking da comunidade.
-              </p>
-            </div>
-          )}
-
-          <p className="mt-4 text-center text-xs text-[var(--muted-foreground)]">
-            Estatísticas atualizadas a cada 30 min · Conecte sua FACEIT no perfil para entrar no ranking
-          </p>
-        </>
-      )}
-    </div>
+      {players.length ? <><FaceitPodium players={podiumPlayers} /><FaceitTable players={players} /><RankingPagination page={page} totalPages={totalPages} previousHref={rankingHref(blueStrikePage, page - 1)} nextHref={rankingHref(blueStrikePage, page + 1)} /></> : <div className="rounded-2xl border border-dashed border-[#ff7a00]/20 p-16 text-center"><Zap className="mx-auto h-8 w-8 text-[#ff7a00]" /><h3 className="mt-4 font-black">Nenhuma conta conectada</h3></div>}
+    </section>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default async function RankingPage() {
-  const faceitPlayers = await listFaceitRanking(50);
+export default async function RankingPage({ searchParams }: RankingPageProps) {
+  const query = await searchParams;
+  const requestedBlueStrikePage = pageParam(query.bsPage);
+  const requestedFaceitPage = pageParam(query.faceitPage);
+  const [blueStrikeResult, blueStrikePodium, allFaceitPlayers] = await Promise.all([
+    listPublicProfiles({ page: requestedBlueStrikePage, pageSize: PAGE_SIZE }),
+    listPublicProfiles({ page: 1, pageSize: 3 }),
+    listFaceitRanking(500),
+  ]);
+  const blueStrikePage = Math.min(requestedBlueStrikePage, blueStrikeResult.totalPages);
+  const faceitTotalPages = Math.max(1, Math.ceil(allFaceitPlayers.length / PAGE_SIZE));
+  const faceitPage = Math.min(requestedFaceitPage, faceitTotalPages);
+  const faceitPlayers = allFaceitPlayers.slice((faceitPage - 1) * PAGE_SIZE, faceitPage * PAGE_SIZE);
 
   return (
-    <div className="min-h-screen pb-20 pt-24">
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-        {/* Page header */}
-        <div className="mb-10 text-center">
-          <div className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-[var(--primary)]">
-            <TrendingUp className="h-4 w-4" />
-            Ranking Global
+    <div className="bs-page pb-24 pt-28">
+      <div className="bs-shell">
+        <header className="grid gap-8 border-b border-[var(--border)] pb-12 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <p className="bs-eyebrow"><Target className="h-4 w-4" /> Ranking global</p>
+            <h1 className="bs-display mt-4">Os melhores da <span className="text-[var(--primary)]">comunidade</span></h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">Duas leituras complementares: a evolução competitiva dentro da BlueStrike e o desempenho conectado na FACEIT.</p>
           </div>
-          <h1 className="text-4xl font-black tracking-tight">Os Melhores da Comunidade</h1>
-          <p className="mt-2 text-[var(--muted-foreground)]">
-            Ranking BlueStrike interno + classificação FACEIT da comunidade.
-          </p>
-        </div>
+          <div className="bs-inset grid grid-cols-2 gap-3 p-3 lg:col-span-5">
+            <div className="bs-bento-card p-5"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)] text-[var(--primary)]"><Users className="h-5 w-5" /></span><strong className="mt-6 block font-mono text-3xl">{blueStrikeResult.total}</strong><span className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Jogadores ranqueados</span></div>
+            <div className="bs-bento-card p-5"><span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#ff7a00]/20 bg-[#ff7a00]/8 text-[#ff7a00]"><Activity className="h-5 w-5" /></span><strong className="mt-6 block font-mono text-3xl">{allFaceitPlayers.length}</strong><span className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">FACEIT conectados</span></div>
+          </div>
+        </header>
 
-        {/* Split layout */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-6 lg:divide-x lg:divide-[var(--border)]">
-          {/* Left — BlueStrike */}
-          <div className="lg:pr-6">
-            <BluestrikeRanking />
-          </div>
-
-          {/* Right — FACEIT */}
-          <div className="lg:pl-6">
-            <FaceitRankingPanel players={faceitPlayers} />
-          </div>
+        <div className="bs-inset mt-10 grid gap-3 p-3 lg:grid-cols-2">
+          <div className="bs-bento-card min-w-0 p-4 sm:p-6"><BlueStrikeRanking faceitPage={faceitPage} page={blueStrikePage} players={blueStrikeResult.profiles} podiumPlayers={blueStrikePodium.profiles} total={blueStrikeResult.total} totalPages={blueStrikeResult.totalPages} /></div>
+          <div className="bs-bento-card min-w-0 p-4 sm:p-6"><FaceitRanking blueStrikePage={blueStrikePage} page={faceitPage} players={faceitPlayers} podiumPlayers={allFaceitPlayers.slice(0, 3)} total={allFaceitPlayers.length} totalPages={faceitTotalPages} /></div>
         </div>
       </div>
     </div>
