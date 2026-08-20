@@ -120,7 +120,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
     <form onSubmit={handleSubmit}>
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="bs-form-card p-6 sm:p-7">
             <div className="mb-6">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
                 <Shield className="h-4 w-4" />
@@ -174,13 +174,13 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
             )}
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="bs-form-card p-6 sm:p-7">
             <div className="mb-5">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
                 <Users className="h-4 w-4" />
                 Sobre o time
               </div>
-              <h2 className="text-xl font-black tracking-tight">Apresentacao</h2>
+              <h2 className="text-xl font-black tracking-tight">Apresentação</h2>
             </div>
 
             <Textarea
@@ -195,7 +195,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
             </p>
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="bs-form-card p-6 sm:p-7">
             <div className="mb-5">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
                 <Lock className="h-4 w-4" />
@@ -252,7 +252,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
             )}
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="bs-form-card p-6 sm:p-7">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-black tracking-tight">Tudo pronto?</h2>
@@ -275,7 +275,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
         </div>
 
         <div className="space-y-5">
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="bs-form-card p-6">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
               <Info className="h-4 w-4" />
               Como funciona
@@ -317,7 +317,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
             </ol>
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <section className="bs-form-card p-6">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
               <Users className="h-4 w-4" />
               Resumo

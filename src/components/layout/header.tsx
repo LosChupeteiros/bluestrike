@@ -77,11 +77,13 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
       {/* Trigger button */}
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
         className={cn(
-          "flex min-h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-[color,background-color,box-shadow] select-none lg:text-sm",
+          "flex min-h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-[color,background-color] select-none lg:text-sm",
           isActive
-            ? "bg-[var(--card)] text-[var(--primary)] shadow-[var(--panel-shadow-soft)]"
-            : "text-[var(--foreground)]/82 hover:bg-[var(--card)]/65 hover:text-[var(--foreground)]"
+            ? "bg-[var(--primary)]/8 text-[var(--primary)]"
+            : "text-[var(--foreground)]/84 hover:bg-white/[0.055] hover:text-[var(--foreground)]"
         )}
       >
         <Trophy className="h-3.5 w-3.5" />
@@ -104,12 +106,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
             : "opacity-0 -translate-y-2 pointer-events-none"
         )}
       >
-        {/* Arrow */}
-        <div className="ml-5 w-3 h-1.5 overflow-hidden">
-          <div className="w-3 h-3 bg-[var(--border)] rotate-45 translate-y-1.5 translate-x-0.5" />
-        </div>
-
-        <div className="overflow-hidden rounded-[1.4rem] border border-[var(--border)] bg-[var(--card)] shadow-[var(--panel-shadow)]">
+        <div className="bs-liquid-popover overflow-hidden rounded-[1.4rem]">
 
           <div className="p-2 space-y-0.5">
             {/* Header label */}
@@ -352,8 +349,8 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 className={cn(
                   "flex min-h-10 items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-[color,background-color,box-shadow] lg:text-sm",
                   pathname === link.href || pathname.startsWith(`${link.href}/`)
-                    ? "bg-[var(--card)] text-[var(--primary)] shadow-[var(--panel-shadow-soft)]"
-                    : "text-[var(--foreground)]/82 hover:bg-[var(--card)]/65 hover:text-[var(--foreground)]"
+                    ? "bg-[var(--primary)]/8 text-[var(--primary)]"
+                    : "text-[var(--foreground)]/84 hover:bg-white/[0.055] hover:text-[var(--foreground)]"
                 )}
               >
                 {link.live && (
@@ -380,7 +377,8 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 <Link
                   href={`/profile/${user.publicId}`}
                   prefetch
-                  className="group flex min-h-11 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 transition-colors hover:border-[var(--primary)]/40"
+                  aria-label={`Abrir perfil de ${user.displayName}`}
+                  className="bs-liquid-control group flex min-h-11 items-center gap-2 rounded-full px-2.5 py-1.5 transition-[border-color,background-color]"
                 >
                   <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
                     <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
@@ -398,15 +396,15 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 </Link>
 
                 {user.isAdmin && (
-                  <Link href="/admin" prefetch>
-                    <Button variant="outline" size="sm" className="gap-2">
+                  <Button asChild variant="ghost" size="sm" className="bs-liquid-control gap-2 rounded-full px-4">
+                    <Link href="/admin" prefetch>
                       <Shield className="w-4 h-4" />
                       Admin
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 )}
 
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="rounded-full px-4 text-[var(--foreground)]/72 hover:text-[var(--foreground)]">
                   <a href="/api/auth/logout">Sair</a>
                 </Button>
               </>
@@ -428,7 +426,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
           </div>
 
           <button
-            className="ml-auto flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] transition-colors hover:text-[var(--primary)] md:hidden"
+            className="bs-liquid-control ml-auto flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:text-[var(--primary)] md:hidden"
             onClick={() => setMobileOpen((current) => !current)}
             aria-label="Menu"
           >
@@ -438,7 +436,10 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
       </div>
 
       {mobileOpen && (
-        <div className="bs-liquid-nav pointer-events-auto mx-auto mt-2 w-[calc(100%-1.5rem)] overflow-hidden rounded-[1.5rem] md:hidden">
+        <div
+          className="bs-liquid-nav pointer-events-auto mx-auto mt-2 w-[calc(100%-1.5rem)] rounded-[1.5rem] md:hidden"
+          style={{ overflow: "hidden" }}
+        >
           <div className="space-y-1 px-4 py-4">
             {/* Campeonatos accordion — first item */}
             <MobileCampeonatosSection pathname={pathname} onClose={closeMobileMenu} />
@@ -485,7 +486,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                     href={`/profile/${user.publicId}`}
                     prefetch
                     onClick={closeMobileMenu}
-                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-3"
+                    className="bs-liquid-control flex items-center gap-3 rounded-2xl px-3 py-3"
                   >
                     <Avatar className="h-10 w-10 ring-1 ring-[var(--primary)]/20">
                       <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />

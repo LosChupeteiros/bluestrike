@@ -110,7 +110,7 @@ Uso correto das cores:
 
 - ciano e a cor de autoridade da marca: CTA principal, foco, destaque, links ativos, ELO, estados importantes
 - amarelo/ouro e reservado para premio, podio, conquista, campeao
-- verde e reservado para sucesso, inscricao aberta, check-in, confirmacao
+- verde e reservado para sucesso, Inscrição aberta, check-in, confirmacao
 - laranja e reservado para "em breve", aquecimento, energia secundaria
 - vermelho e reservado para alerta, ao vivo, erro, banimento, lotado
 - roxo existe hoje como acento pontual, mas NAO e identidade principal da marca
@@ -388,7 +388,7 @@ Mas por enquanto devo preservar a clareza da base atual e evitar complexidade an
 Ao criar funcionalidades novas, lembrar sempre das regras de dominio do README:
 
 - autenticacao obrigatoria para competir
-- inscricao por time, nao individual
+- Inscrição por time, nao individual
 - time com pelo menos 5 jogadores
 - check-in pode ser obrigatorio
 - ELO e ranking sao parte central da plataforma

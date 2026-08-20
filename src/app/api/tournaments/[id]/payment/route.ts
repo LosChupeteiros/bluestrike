@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
   const intent = await getTournamentRegistrationIntentById(intentId);
   if (!intent || intent.tournamentId !== tournamentId || intent.captainProfileId !== currentProfile.id) {
-    return NextResponse.json({ error: "Reserva de inscricao nao encontrada." }, { status: 404 });
+    return NextResponse.json({ error: "Reserva de Inscrição nao encontrada." }, { status: 404 });
   }
 
   if (intent.paymentStatus === "paid" || intent.status === "paid") {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const payment = await getPaymentById(paymentId);
     if (payment.external_reference !== getBlueStrikePaymentExternalReference(intent.id)) {
-      return NextResponse.json({ error: "Pagamento nao pertence a essa inscricao." }, { status: 409 });
+      return NextResponse.json({ error: "Pagamento nao pertence a essa Inscrição." }, { status: 409 });
     }
 
     if (payment.status !== "approved") {

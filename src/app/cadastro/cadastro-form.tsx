@@ -92,7 +92,7 @@ export default function CadastroForm({ profile, isWelcome }: CadastroFormProps) 
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 sm:px-6">
+    <div className="mx-auto w-[min(calc(100%-2rem),56rem)]">
       <Link
         href={`/profile/${profile.publicId}`}
         className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
@@ -114,7 +114,7 @@ export default function CadastroForm({ profile, isWelcome }: CadastroFormProps) 
       )}
 
       {/* Steam account confirmation */}
-      <div className="mb-6 flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+      <div className="bs-form-card mb-6 flex items-center gap-4 p-5 sm:p-6">
         <Avatar className="h-14 w-14 shrink-0 ring-2 ring-[var(--primary)]/30">
           <AvatarImage src={profile.steamAvatarUrl ?? undefined} alt={profile.steamPersonaName} />
           <AvatarFallback className="text-lg font-black">
@@ -133,7 +133,7 @@ export default function CadastroForm({ profile, isWelcome }: CadastroFormProps) 
       </div>
 
       {/* Registration form */}
-      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+      <div className="bs-command-card p-6 sm:p-8">
         <div className="mb-6">
           <h1 className="text-2xl font-black tracking-tight">Cadastro competitivo</h1>
           <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted-foreground)]">

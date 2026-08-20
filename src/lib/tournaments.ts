@@ -171,7 +171,7 @@ function validateTournamentInput(input: CreateTournamentInput) {
   }
 
   if (registrationStarts && registrationEnds && Date.parse(registrationStarts) > Date.parse(registrationEnds)) {
-    throw new Error("A janela de inscricao esta invalida.");
+    throw new Error("A janela de Inscrição esta invalida.");
   }
 
   if (startsAt && endsAt && Date.parse(startsAt) > Date.parse(endsAt)) {
@@ -579,7 +579,7 @@ export async function registerCurrentCaptainTeamForTournament(input: {
   }
 
   if (team.captainId !== input.currentProfile.id) {
-    throw new Error("A inscricao so pode ser feita pelo capitao do time.");
+    throw new Error("A Inscrição so pode ser feita pelo capitao do time.");
   }
 
   if (input.rosterProfileIds.length < TEAM_MIN_STARTERS) {
@@ -612,7 +612,7 @@ export async function registerCurrentCaptainTeamForTournament(input: {
     .maybeSingle<{ id: string }>();
 
   if (existingError) {
-    throw new Error(`Falha ao validar a inscricao atual do time: ${existingError.message}`);
+    throw new Error(`Falha ao validar a Inscrição atual do time: ${existingError.message}`);
   }
 
   if (existingRegistration) {
@@ -620,7 +620,7 @@ export async function registerCurrentCaptainTeamForTournament(input: {
   }
 
   if ((tournament.entryFee ?? 0) > 0) {
-    throw new Error("Use o pagamento PIX para confirmar a inscricao desse campeonato.");
+    throw new Error("Use o pagamento PIX para confirmar a Inscrição desse campeonato.");
   }
 
   const paymentReference = `FREE-${tournament.id.slice(0, 8).toUpperCase()}-${team.id.slice(0, 6).toUpperCase()}`;

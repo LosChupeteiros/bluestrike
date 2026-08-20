@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
   const intent = await getTournamentRegistrationIntentById(intentId);
   if (!intent || intent.tournamentId !== tournamentId || intent.captainProfileId !== currentProfile.id) {
-    return NextResponse.json({ error: "Reserva de inscricao nao encontrada." }, { status: 404 });
+    return NextResponse.json({ error: "Reserva de Inscrição nao encontrada." }, { status: 404 });
   }
 
   if (intent.paymentStatus === "paid" || intent.status === "paid") {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 
   if (intent.status !== "pending" || Date.parse(intent.expiresAt) <= Date.now()) {
-    return NextResponse.json({ error: "Essa reserva expirou. Inicie a inscricao novamente." }, { status: 410 });
+    return NextResponse.json({ error: "Essa reserva expirou. Inicie a Inscrição novamente." }, { status: 410 });
   }
 
   if (intent.pixQrCode && intent.pixQrCodeBase64 && intent.pixExpiresAt && Date.parse(intent.pixExpiresAt) > Date.now()) {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 
   if ((tournament.entryFee ?? 0) <= 0) {
-    return NextResponse.json({ error: "Este campeonato nao possui taxa de inscricao." }, { status: 422 });
+    return NextResponse.json({ error: "Este campeonato nao possui taxa de Inscrição." }, { status: 422 });
   }
 
   try {

@@ -6,6 +6,8 @@
    Do instead: read the relevant guide under `node_modules/next/dist/docs/` before framework edits, then run focused lint, TypeScript, build, and representative desktop/mobile browser QA.
 2. **[2026-08-20] Preserve user-owned worktree changes**
    Do instead: use `apply_patch` for hand edits, inspect overlapping diffs, and never reset unrelated files.
+3. **[2026-08-20] Some legacy source files carry a UTF-8 BOM**
+   Do instead: when `apply_patch` cannot match the first import despite identical visible text, anchor after the first line or replace the file with separate delete/add patches; one patch cannot delete and add the same path.
 
 ## Product guardrails
 

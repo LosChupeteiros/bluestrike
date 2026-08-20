@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const registration = await getRegistrationById(externalReference);
     if (!registration) {
-      console.warn("[mp-webhook] Inscricao nao encontrada:", externalReference);
+      console.warn("[mp-webhook] Inscrição nao encontrada:", externalReference);
       return NextResponse.json({ ok: true });
     }
 

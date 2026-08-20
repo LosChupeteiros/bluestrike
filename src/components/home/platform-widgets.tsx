@@ -5,7 +5,36 @@ import Image from "next/image";
 import { Check, CircleDollarSign, LoaderCircle, Radio, Server, ShieldCheck, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function usePhase(total: number, interval: number, completedPhase = total - 1) {
+function useInViewOnce<T extends HTMLElement>() {
+  const ref = React.useRef<T | null>(null);
+  const [inView, setInView] = React.useState(false);
+
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node || inView) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setInView(true);
+        observer.disconnect();
+      },
+      { threshold: 0.22, rootMargin: "0px 0px -10% 0px" }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [inView]);
+
+  return [ref, inView] as const;
+}
+
+function usePhase(total: number, interval: number, completedPhase = total - 1, enabled = true) {
   const [phase, setPhase] = React.useState(0);
 
   React.useEffect(() => {
@@ -13,9 +42,14 @@ function usePhase(total: number, interval: number, completedPhase = total - 1) {
       setPhase(completedPhase);
       return;
     }
+    if (!enabled) {
+      setPhase(0);
+      return;
+    }
+    setPhase(0);
     const timer = window.setInterval(() => setPhase((current) => (current + 1) % total), interval);
     return () => window.clearInterval(timer);
-  }, [completedPhase, interval, total]);
+  }, [completedPhase, enabled, interval, total]);
 
   return phase;
 }
@@ -141,8 +175,9 @@ function PixSentNode({ active }: { active: boolean }) {
 }
 
 export function CompetitionPayoutFlow() {
+  const [flowRef, flowInView] = useInViewOnce<HTMLDivElement>();
   // 9–12 keep the completed state on screen before the narrative restarts.
-  const phase = usePhase(13, 1050, 9);
+  const phase = usePhase(13, 1050, 9, flowInView);
   const bracketConnected = phase >= 4;
   const champion = phase >= 6;
   const prizeReleased = phase >= 7;
@@ -150,7 +185,7 @@ export function CompetitionPayoutFlow() {
   const paid = phase >= 9;
 
   return (
-    <div className="relative overflow-hidden rounded-[1.75rem] bg-[#0f1011] p-5 sm:p-7 lg:p-8">
+    <div ref={flowRef} className="relative overflow-hidden rounded-[1.75rem] bg-[#0f1011] p-5 sm:p-7 lg:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">
@@ -262,15 +297,25 @@ const maps = [
 ];
 
 export function MapVeto() {
+  const [vetoRef, vetoInView] = useInViewOnce<HTMLDivElement>();
+
   return (
-    <div className="w-full">
+    <div ref={vetoRef} className="w-full">
       <div className="mb-6 flex items-center justify-between gap-4">
         <span><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-400">Veto de mapas</span><strong className="mt-1 block text-xl tracking-[-0.035em]">Mirage foi escolhido.</strong></span>
         <span className="rounded-full border border-green-500/22 bg-green-500/8 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-green-500">Pronto</span>
       </div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
-        {maps.map((map) => (
-          <div key={map.name} className={cn("relative min-h-36 overflow-hidden rounded-2xl border", map.state === "pick" ? "border-green-500/48" : "border-[var(--border)]")}>
+        {maps.map((map, index) => (
+          <div
+            key={map.name}
+            className={cn(
+              "relative min-h-48 overflow-hidden rounded-2xl border transition-[opacity,transform,border-color,box-shadow] duration-700 ease-[var(--ease-out-quint)] lg:min-h-56",
+              vetoInView ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0",
+              map.state === "pick" ? "border-green-500/48 shadow-[0_16px_30px_rgba(34,197,94,.09)]" : "border-[var(--border)]"
+            )}
+            style={{ transitionDelay: vetoInView ? `${index * 85}ms` : "0ms" }}
+          >
             <Image src={map.image} alt="" fill sizes="160px" className={cn("object-cover transition-[filter,opacity] duration-500", map.state === "pick" ? "opacity-90 saturate-110" : "opacity-42 saturate-75")} />
             <span className={cn("absolute inset-0", map.state === "pick" ? "bg-black/12" : "bg-black/48")} />
             {map.state === "ban" && <span className="absolute left-1/2 top-1/2 h-px w-[145%] -translate-x-1/2 -translate-y-1/2 -rotate-[58deg] bg-red-400/78" />}
