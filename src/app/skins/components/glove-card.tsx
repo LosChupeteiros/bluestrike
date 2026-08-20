@@ -48,8 +48,8 @@ export function GloveCard({ gloveCatalog, currentGlove, currentSkins, team }: Gl
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden transition-colors hover:border-[var(--primary)]/30 w-full max-w-[200px]">
-      <div className="relative aspect-[4/3] bg-[var(--secondary)] flex items-center justify-center p-3">
+    <div className="flex w-full flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[#080d15] transition duration-300 hover:-translate-y-0.5 hover:border-[var(--primary)]/30">
+      <div className="relative aspect-[4/3] bg-[var(--secondary)] flex items-center justify-center p-4">
         {isPending && (
           <div className="absolute inset-0 bg-[var(--background)]/60 flex items-center justify-center z-10">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
@@ -69,7 +69,7 @@ export function GloveCard({ gloveCatalog, currentGlove, currentSkins, team }: Gl
         )}
       </div>
 
-      <div className="p-2 flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2 border-t border-[var(--border)] p-3">
         <p className="text-[10px] font-bold text-[var(--primary)]">Luvas</p>
 
         <select

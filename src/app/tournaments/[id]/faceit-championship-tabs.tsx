@@ -10,10 +10,8 @@ import {
   Loader2,
   Radio,
   RefreshCw,
-  Shield,
   Trophy,
   Users,
-  Zap,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCurrency } from "@/lib/utils";

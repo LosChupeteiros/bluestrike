@@ -57,7 +57,7 @@ export default function TournamentsCarousel({ items }: TournamentsCarouselProps)
   if (!useCarousel) {
     return (
       <div className={`grid gap-5 ${items.length === 1 ? "grid-cols-1 max-w-md" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
-        {items.map((item, i) => (
+        {items.map((item) => (
           <div key={item.source === "faceit" ? `faceit-${item.championship.id}` : item.tournament.id}>
             {renderCard(item)}
           </div>

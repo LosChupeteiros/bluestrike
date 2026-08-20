@@ -41,14 +41,23 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
+      data-theme="dark"
       data-scroll-behavior="smooth"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('bluestrike-theme');var t=s==='light'||s==='dark'?s:(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}catch(e){}})()`,
+          }}
+        />
+      </head>
+      <body className="min-h-full flex flex-col bg-[var(--canvas)] text-[var(--foreground)]">
         <Suspense fallback={<Header user={null} authState="loading" />}>
           <HeaderWithUser />
         </Suspense>
-        <main className="flex-1">{children}</main>
+        <main className="relative flex-1">{children}</main>
         <Footer />
       </body>
     </html>

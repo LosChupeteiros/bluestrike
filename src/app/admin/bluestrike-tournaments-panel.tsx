@@ -159,12 +159,25 @@ function TournamentRow({ tournament: t }: TournamentRowProps) {
 
   useEffect(() => {
     if (open && tab === "podium" && !podium && !podiumLoading) {
-      setPodiumLoading(true);
-      fetch(`/api/admin/tournaments/${t.id}/podium`)
-        .then((r) => r.json())
-        .then((d: PodiumData) => setPodium(d))
-        .catch(() => {})
-        .finally(() => setPodiumLoading(false));
+      const controller = new AbortController();
+      let active = true;
+      const loadPodium = async () => {
+        setPodiumLoading(true);
+        try {
+          const response = await fetch(`/api/admin/tournaments/${t.id}/podium`, { signal: controller.signal });
+          const data = await response.json() as PodiumData;
+          if (active) setPodium(data);
+        } catch {
+          // A troca de aba/modal cancela esta leitura silenciosamente.
+        } finally {
+          if (active) setPodiumLoading(false);
+        }
+      };
+      void loadPodium();
+      return () => {
+        active = false;
+        controller.abort();
+      };
     }
   }, [open, tab, podium, podiumLoading, t.id]);
 

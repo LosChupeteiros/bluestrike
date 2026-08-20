@@ -53,12 +53,16 @@ interface TeamListOptions {
 }
 
 function mapTeamRow(row: TeamRow): Team {
+  const publicDescription = row.description
+    ?.replace(/\s*•\s*DEMO:BLUESTRIKE_VOLUME_2026_08.*$/i, "")
+    .trim() || null;
+
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     tag: row.tag,
-    description: row.description,
+    description: publicDescription,
     logoUrl: row.logo_url,
     bannerUrl: row.banner_url,
     joinCode: row.join_code,

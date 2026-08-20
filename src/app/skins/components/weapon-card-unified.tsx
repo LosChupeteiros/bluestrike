@@ -36,8 +36,8 @@ export function WeaponCardUnified({
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden transition-colors hover:border-[var(--primary)]/30">
-      <div className="relative aspect-[4/3] bg-[var(--secondary)] flex items-center justify-center p-3">
+    <div className="group flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[#080d15] transition duration-300 hover:-translate-y-0.5 hover:border-[var(--primary)]/35">
+      <div className="relative aspect-[16/11] bg-[var(--secondary)] flex items-center justify-center p-4">
         {isPending && (
           <div className="absolute inset-0 bg-[var(--background)]/60 flex items-center justify-center z-10">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
@@ -53,13 +53,13 @@ export function WeaponCardUnified({
         />
       </div>
 
-      <div className="p-2 flex flex-col gap-1.5">
-        <p className="text-[10px] font-bold truncate text-[var(--primary)]" title={activeSkin.paintName}>
+      <div className="flex flex-col gap-2 border-t border-[var(--border)] p-3">
+        <p className="truncate text-xs font-black text-[var(--primary)]" title={activeSkin.paintName}>
           {activeSkin.paintName}
         </p>
 
         <select
-          className="w-full rounded border border-[var(--border)] bg-[var(--secondary)] px-2 py-1 text-[10px] text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
+          className="w-full rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-2 py-2 text-[10px] text-[var(--foreground)] transition-colors focus:border-[var(--primary)]/60 focus:outline-none"
           value={activePaintId}
           onChange={handleChange}
           disabled={isPending}

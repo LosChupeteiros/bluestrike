@@ -625,7 +625,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
 
   const { data: rawStatRows } = await supabase
     .from("matchzy_player_stats")
-    .select("mapnumber, mapname, steamid64, player_name, team_name, kills, deaths, assists, damage, head_shot_kills, map_team1_score, map_team2_score")
+    .select("mapnumber, mapname, steamid64, player_name, team_name, team_id, kills, deaths, assists, damage, head_shot_kills, map_team1_score, map_team2_score")
     .eq("match_id", matchId)
     .returns<{
       mapnumber: number;
@@ -633,6 +633,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
       steamid64: string;
       player_name: string | null;
       team_name: string | null;
+      team_id: string | null;
       kills: number;
       deaths: number;
       assists: number;
@@ -661,7 +662,7 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
       return {
         profileId: profile?.id ?? null,
         profilePublicId: profile?.public_id ?? null,
-        teamId: null,
+        teamId: s.team_id,
         teamName: s.team_name,
         mapNumber: s.mapnumber,
         mapName: s.mapname,

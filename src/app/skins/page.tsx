@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { CloudCog, Gamepad2, Sparkles, Zap } from "lucide-react";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getWeaponPaintsPool } from "@/lib/weaponpaints/mysql";
 import { getCurrentSkins, getCurrentKnife, getCurrentGlove, getCurrentMusic } from "@/lib/weaponpaints/queries";
@@ -123,20 +124,29 @@ export default async function SkinsPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
+    <div className="bs-page pb-24 pt-28">
+      <div className="bs-shell">
 
-        <div className="mb-8 flex flex-col gap-1">
-          <h1 className="text-3xl font-black tracking-tight">Skins</h1>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            Escolha suas skins para cada lado. São aplicadas automaticamente quando você entra no servidor.
-          </p>
-        </div>
+        <header className="bs-bento-card relative mb-8 overflow-hidden rounded-[1.75rem] p-6 sm:p-8">
+          <div className="pointer-events-none absolute -right-24 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full border-[52px] border-[var(--primary)]/8" />
+          <div className="relative grid gap-8 lg:grid-cols-12 lg:items-end">
+            <div className="lg:col-span-7">
+              <p className="bs-eyebrow"><Sparkles className="h-4 w-4" /> Loadout</p>
+              <h1 className="bs-display mt-4">Seu inventário. <span className="text-[var(--primary)]">Suas regras.</span></h1>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted-foreground)]">Monte kits CT e TR, ajuste faca, luva, música, wear e seed. O servidor sincroniza tudo quando você entra.</p>
+            </div>
+            <div className="bs-inset grid gap-3 p-3 sm:grid-cols-3 lg:col-span-5">
+              <div className="bs-dark-card p-4"><Gamepad2 className="h-4 w-4 text-[#7b96ff]" /><strong className="mt-5 block font-mono text-2xl">CT</strong><span className="text-[9px] uppercase tracking-[0.14em] text-white/45">Kit dedicado</span></div>
+              <div className="bs-dark-card p-4"><Zap className="h-4 w-4 text-[#fb923c]" /><strong className="mt-5 block font-mono text-2xl">TR</strong><span className="text-[9px] uppercase tracking-[0.14em] text-white/45">Kit dedicado</span></div>
+              <div className="bs-dark-card p-4"><CloudCog className="h-4 w-4 text-[var(--primary)]" /><strong className="mt-5 block font-mono text-2xl">{weaponEntries.length}</strong><span className="text-[9px] uppercase tracking-[0.14em] text-white/45">Armas sincronizadas</span></div>
+            </div>
+          </div>
+        </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 rounded-xl border border-[var(--border)] overflow-hidden">
+        <div className="bs-bento-card grid grid-cols-1 overflow-hidden lg:grid-cols-2">
 
           {/* ── CT side ── */}
-          <div className="border-b border-[var(--border)] lg:border-b-0 lg:border-r p-5 space-y-5">
+          <div className="space-y-5 border-b border-[var(--border)] p-5 sm:p-6 lg:border-b-0 lg:border-r">
             <div className="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
               <CTLogo />
               <div>
@@ -145,6 +155,7 @@ export default async function SkinsPage() {
               </div>
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
             <div>
               <SectionLabel>Faca</SectionLabel>
               <KnifeCard
@@ -170,10 +181,11 @@ export default async function SkinsPage() {
               <SectionLabel>Kit de Música</SectionLabel>
               <MusicCard musicList={musicList} currentMusicId={musicCT} team={3} />
             </div>
+            </div>
           </div>
 
           {/* ── T side ── */}
-          <div className="p-5 space-y-5">
+          <div className="space-y-5 p-5 sm:p-6">
             <div className="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
               <TLogo />
               <div>
@@ -182,6 +194,7 @@ export default async function SkinsPage() {
               </div>
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
             <div>
               <SectionLabel>Faca</SectionLabel>
               <KnifeCard
@@ -207,17 +220,18 @@ export default async function SkinsPage() {
               <SectionLabel>Kit de Música</SectionLabel>
               <MusicCard musicList={musicList} currentMusicId={musicT} team={2} />
             </div>
+            </div>
           </div>
 
         </div>
 
         {/* ── Armas (unificado — aplica em ambos os lados) ── */}
-        <div className="mt-4 rounded-xl border border-[var(--border)] p-5 space-y-3">
+        <div className="bs-bento-card mt-6 space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
             <p className="text-base font-black tracking-tight">Armas</p>
             <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-widest">CT &amp; TR</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
             {weaponEntries.map(({ defindex, defaultSkin, availableSkins }) => (
               <WeaponCardUnified
                 key={defindex}

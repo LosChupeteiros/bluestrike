@@ -236,6 +236,11 @@ interface PlayersListOptions {
   page?: number;
   pageSize?: number;
   query?: string;
+  role?: UserProfile["inGameRole"];
+  minElo?: number;
+  maxElo?: number;
+  minFaceitLevel?: number;
+  maxFaceitLevel?: number;
 }
 
 export async function listPublicProfiles(options: PlayersListOptions = {}) {
@@ -256,6 +261,26 @@ export async function listPublicProfiles(options: PlayersListOptions = {}) {
     dbQuery = dbQuery.or(
       `steam_persona_name.ilike.%${escaped}%,faceit_nickname.ilike.%${escaped}%`
     );
+  }
+
+  if (options.role) {
+    dbQuery = dbQuery.eq("in_game_role", options.role);
+  }
+
+  if (Number.isFinite(options.minElo)) {
+    dbQuery = dbQuery.gte("elo", options.minElo as number);
+  }
+
+  if (Number.isFinite(options.maxElo)) {
+    dbQuery = dbQuery.lte("elo", options.maxElo as number);
+  }
+
+  if (Number.isFinite(options.minFaceitLevel)) {
+    dbQuery = dbQuery.gte("faceit_level", options.minFaceitLevel as number);
+  }
+
+  if (Number.isFinite(options.maxFaceitLevel)) {
+    dbQuery = dbQuery.lte("faceit_level", options.maxFaceitLevel as number);
   }
 
   const { data, count, error } = await dbQuery.range(from, to).returns<ProfileRow[]>();

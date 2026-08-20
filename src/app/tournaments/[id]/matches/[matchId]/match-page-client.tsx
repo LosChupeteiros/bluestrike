@@ -119,6 +119,14 @@ function SmallAvatar({ nickname, avatarUrl }: { nickname: string; avatarUrl: str
   );
 }
 
+function TeamHeroMark({ tag, logoUrl, winner }: { tag: string; logoUrl: string | null | undefined; winner: boolean }) {
+  return (
+    <div className={`relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-[1.45rem] border bg-[#090d12]/92 text-2xl font-black shadow-[0_18px_48px_rgba(0,0,0,.32)] transition-all sm:h-28 sm:w-28 sm:text-3xl ${winner ? "border-emerald-400/70 text-emerald-300 shadow-[0_18px_52px_rgba(16,185,129,.16)]" : "border-white/14 text-[#00c8ff]"}`}>
+      {logoUrl ? <Image src={logoUrl} alt={tag} fill sizes="112px" className="object-contain p-4" unoptimized /> : tag}
+    </div>
+  );
+}
+
 function FactionLogo({ side, className = "h-8 w-8" }: { side: "ct" | "t"; className?: string }) {
   return (
     <span
@@ -1320,13 +1328,13 @@ export default function MatchPageClient({
   }, [detail.matchMaps, isFinished, selectedMapNumber]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
 
       {/* ── Hero: badges + teams + players ── */}
-      <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-        <div className="relative px-5 py-6">
-          <div className="absolute inset-0 grid-bg opacity-10" />
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-950/60 via-slate-900/40 to-black/70" />
+      <div className="overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#080a0c] text-white shadow-[0_28px_90px_rgba(0,0,0,0.28)]">
+        <div className="relative px-4 py-8 sm:px-7 sm:py-10">
+          <div className="absolute inset-0 grid-bg opacity-[.07]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(0,200,255,.13),transparent_34%),linear-gradient(135deg,#092330_0%,#0a0d10_52%,#050607_100%)]" />
           <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-transparent" />
           <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--primary)]/20 to-transparent" />
 
@@ -1334,7 +1342,7 @@ export default function MatchPageClient({
             {/* Centered status badges */}
             <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
               <Badge variant={displayStatusVariant}>
-                {isMatchLive && <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />}
+                {isMatchLive && <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />}
                 {displayStatusLabel}
               </Badge>
               <Badge variant="secondary">{roundLabel}</Badge>
@@ -1342,10 +1350,10 @@ export default function MatchPageClient({
             </div>
 
             {/* 5-col: [players] [team1] [score/VS] [team2] [players] */}
-            <div className="grid grid-cols-[5fr_7fr_96px_7fr_5fr] items-center gap-x-2">
+            <div className="grid grid-cols-[1fr_72px_1fr] items-center gap-x-2 md:grid-cols-[5fr_7fr_96px_7fr_5fr]">
 
               {/* Col 1 — Team 1 players: avatar → nick, left-aligned */}
-              <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="hidden min-w-0 flex-col gap-1.5 md:flex">
                 {team1Members.map((m) => (
                   <div key={m.profileId} className="flex min-w-0 items-center gap-1.5">
                     <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
@@ -1356,14 +1364,10 @@ export default function MatchPageClient({
 
               {/* Col 2 — Team 1 info, centered */}
               <div className="flex flex-col items-center gap-2">
-                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
-                  isFinished && winner?.id === match.team1Id
-                    ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
-                    : "border-[var(--border)] text-[var(--primary)]"
-                }`}>{t1Tag}</div>
+                <TeamHeroMark tag={t1Tag} logoUrl={match.team1?.logoUrl} winner={isFinished && winner?.id === match.team1Id} />
                 <div className="text-center">
-                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
-                  {match.team1 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team1.elo} ELO</div>}
+                  <div className={`text-base font-black leading-tight sm:text-lg ${isFinished && winner?.id === match.team1Id ? "text-emerald-300" : "text-white"}`}>{t1Name}</div>
+                  {match.team1 && <div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/42">{match.team1.elo} ELO</div>}
                   {isFinished && (
                     <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team1Id ? "" : "invisible"}`}>
                       <Crown className="h-3 w-3" /> Vencedor
@@ -1397,11 +1401,11 @@ export default function MatchPageClient({
                     {showScore ? (
                       <div className="flex flex-col items-center gap-1">
                         <div className="flex items-baseline gap-1.5 tabular-nums">
-                          <span className={`text-4xl font-black leading-none ${dispT1! > dispT2! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
+                          <span className={`text-4xl font-black leading-none ${dispT1! > dispT2! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-white/52" : "text-white"}`}>
                             {dispT1}
                           </span>
-                          <span className="text-xl font-black text-[var(--muted-foreground)]/30">:</span>
-                          <span className={`text-4xl font-black leading-none ${dispT2! > dispT1! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
+                          <span className="text-xl font-black text-white/22">:</span>
+                          <span className={`text-4xl font-black leading-none ${dispT2! > dispT1! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-white/52" : "text-white"}`}>
                             {dispT2}
                           </span>
                         </div>
@@ -1410,8 +1414,8 @@ export default function MatchPageClient({
                         )}
                         {isLiveStatus && (
                           <div className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.9)]" />
-                            <span className="text-[8px] font-bold text-green-400">AO VIVO</span>
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.9)]" />
+                            <span className="text-[8px] font-bold text-red-400">AO VIVO</span>
                           </div>
                         )}
                       </div>
@@ -1424,14 +1428,10 @@ export default function MatchPageClient({
 
               {/* Col 4 — Team 2 info, centered */}
               <div className="flex flex-col items-center gap-2">
-                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
-                  isFinished && winner?.id === match.team2Id
-                    ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
-                    : "border-[var(--border)] text-[var(--primary)]"
-                }`}>{t2Tag}</div>
+                <TeamHeroMark tag={t2Tag} logoUrl={match.team2?.logoUrl} winner={isFinished && winner?.id === match.team2Id} />
                 <div className="text-center">
-                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
-                  {match.team2 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team2.elo} ELO</div>}
+                  <div className={`text-base font-black leading-tight sm:text-lg ${isFinished && winner?.id === match.team2Id ? "text-emerald-300" : "text-white"}`}>{t2Name}</div>
+                  {match.team2 && <div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/42">{match.team2.elo} ELO</div>}
                   {isFinished && (
                     <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team2Id ? "" : "invisible"}`}>
                       <Crown className="h-3 w-3" /> Vencedor
@@ -1441,7 +1441,7 @@ export default function MatchPageClient({
               </div>
 
               {/* Col 5 — Team 2 players: nick → avatar, right-aligned */}
-              <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="hidden min-w-0 flex-col gap-1.5 md:flex">
                 {team2Members.map((m) => (
                   <div key={m.profileId} className="flex min-w-0 items-center justify-end gap-1.5">
                     <span className="truncate text-[11px] font-bold text-white">{m.nickname}</span>
@@ -1454,7 +1454,7 @@ export default function MatchPageClient({
         </div>
 
         {isFinished && winner && (
-          <div className="border-t border-[var(--border)] px-5 py-3">
+          <div className="border-t border-white/10 bg-black/24 px-5 py-3">
             <div className="flex items-center gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3">
               <Trophy className="h-4 w-4 shrink-0 text-yellow-400" />
               <div>

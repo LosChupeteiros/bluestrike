@@ -20,11 +20,13 @@ export function EditDescriptionButton({ teamSlug, currentDescription }: EditDesc
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const focusTimer = window.setTimeout(() => {
       setValue(currentDescription ?? "");
       setFeedback(null);
-      setTimeout(() => textareaRef.current?.focus(), 50);
-    }
+      textareaRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(focusTimer);
   }, [open, currentDescription]);
 
   useEffect(() => {
