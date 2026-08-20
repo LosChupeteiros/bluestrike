@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
-  Trophy, Crown, Swords, Clock, Check, Copy, Wifi,
+  Swords, Clock, Check, Copy, Wifi,
   Loader2, AlertTriangle, Server, X, Star, Eye, EyeOff,
   ChevronDown, ChevronUp, Terminal, Lock, Ban, Flag, PowerOff, RefreshCw,
 } from "lucide-react";
@@ -180,7 +180,7 @@ function ReadyPanel({
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
       <div className="border-b border-[var(--border)] bg-[var(--secondary)]/40 px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">{title}</div>
+        <div className="tick text-strike">{title}</div>
         <div className="text-[10px] text-[var(--muted-foreground)]">{subtitle}</div>
       </div>
 
@@ -189,45 +189,45 @@ function ReadyPanel({
         <div className="flex flex-col items-center gap-2">
           <div className={`relative flex h-12 w-12 items-center justify-center rounded-xl border-2 text-base font-black transition-all ${
             displayReady1
-              ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_16px_rgba(34,197,94,0.2)]"
+              ? "border-gain bg-gain/12 text-gain"
               : "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"
           }`}>
             {team1Tag}
             {displayReady1 && (
-              <div className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500">
+              <div className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-gain">
                 <Check className="h-2.5 w-2.5 text-white" />
               </div>
             )}
           </div>
           <div className="text-center">
             <div className="text-xs font-bold text-[var(--foreground)] truncate max-w-[90px]">{team1Name}</div>
-            <div className={`text-[10px] font-semibold ${displayReady1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+            <div className={`text-[10px] font-semibold ${displayReady1 ? "text-gain" : "text-[var(--muted-foreground)]"}`}>
               {displayReady1 ? "✓ READY" : "Aguardando"}
             </div>
           </div>
         </div>
 
         <div className="flex items-center justify-center">
-          <Swords className={`h-5 w-5 transition-all ${bothReady ? "text-[var(--primary)] drop-shadow-[0_0_6px_var(--primary)]" : "text-[var(--muted-foreground)]"}`} />
+          <Swords className={`h-5 w-5 transition-all ${bothReady ? "text-[var(--primary)] " : "text-[var(--muted-foreground)]"}`} />
         </div>
 
         {/* Team 2 */}
         <div className="flex flex-col items-center gap-2">
           <div className={`relative flex h-12 w-12 items-center justify-center rounded-xl border-2 text-base font-black transition-all ${
             displayReady2
-              ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_16px_rgba(34,197,94,0.2)]"
+              ? "border-gain bg-gain/12 text-gain"
               : "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"
           }`}>
             {team2Tag}
             {displayReady2 && (
-              <div className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500">
+              <div className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-gain">
                 <Check className="h-2.5 w-2.5 text-white" />
               </div>
             )}
           </div>
           <div className="text-center">
             <div className="text-xs font-bold text-[var(--foreground)] truncate max-w-[90px]">{team2Name}</div>
-            <div className={`text-[10px] font-semibold ${displayReady2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+            <div className={`text-[10px] font-semibold ${displayReady2 ? "text-gain" : "text-[var(--muted-foreground)]"}`}>
               {displayReady2 ? "✓ READY" : "Aguardando"}
             </div>
           </div>
@@ -237,14 +237,14 @@ function ReadyPanel({
       {isCaptain && !myReady && !bothReady && (
         <div className="border-t border-[var(--border)] px-5 py-3">
           <button type="button" onClick={ready} disabled={loading}
-            className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-black transition-all hover:brightness-110 active:scale-95 disabled:opacity-50">
+            className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-bold text-strike-ink transition-all hover:brightness-110 active:scale-95 disabled:opacity-50">
             {loading ? <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> : "Confirmar Ready"}
           </button>
-          {error && <p className="mt-1.5 text-center text-[10px] text-red-400">{error}</p>}
+          {error && <p className="mt-1.5 text-center text-[10px] text-loss">{error}</p>}
         </div>
       )}
       {isCaptain && myReady && !bothReady && (
-        <div className="border-t border-[var(--border)] px-5 py-2.5 text-center text-[10px] text-green-400">
+        <div className="border-t border-[var(--border)] px-5 py-2.5 text-center text-[10px] text-gain">
           <Check className="mr-1 inline h-3 w-3" />Confirmado. Aguardando adversário…
         </div>
       )}
@@ -331,7 +331,7 @@ function VetoPanel({
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
       {/* Header bar */}
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-2.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+        <span className="tick">
           Veto — {boType === 1 ? "BO1" : boType === 3 ? "BO3" : "BO5"}
         </span>
         <div className="flex items-center gap-1">
@@ -353,7 +353,7 @@ function VetoPanel({
 
       {/* Who's vetoing */}
       {isVetoActive && !isDone && activeTeamName && (
-        <div className="flex items-center gap-3 border-b border-[var(--border)] bg-gradient-to-r from-[var(--primary)]/5 to-transparent px-5 py-3.5">
+        <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-3.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 text-sm font-black text-[var(--primary)]">
             {activeTeamTag}
           </div>
@@ -361,7 +361,7 @@ function VetoPanel({
             <div className="text-base font-black text-[var(--foreground)]">{activeTeamName}</div>
             <div className="text-[11px] text-[var(--muted-foreground)]">
               está escolhendo um mapa para{" "}
-              <span className={`font-bold ${currentSlot?.action === "ban" ? "text-red-400" : "text-[var(--primary)]"}`}>
+              <span className={`font-bold ${currentSlot?.action === "ban" ? "text-loss" : "text-[var(--primary)]"}`}>
                 {currentSlot?.action === "ban" ? "vetar" : "pick"}
               </span>
             </div>
@@ -404,7 +404,7 @@ function VetoPanel({
               onClick={() => isSelectable && submitVeto(map.name)}
               className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
                 isBanned ? "border-red-900/30 opacity-25"
-                : isPicked || isDecider ? "border-[var(--primary)] shadow-[0_0_12px_rgba(0,200,255,0.18)]"
+                : isPicked || isDecider ? "border-[var(--primary)]"
                 : isSelectable ? "cursor-pointer border-[var(--border)] hover:border-[var(--primary)]/60 hover:scale-[1.03]"
                 : "cursor-default border-[var(--border)]"
               }`}
@@ -416,7 +416,7 @@ function VetoPanel({
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
                 {isBanned && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                    <X className="h-6 w-6 text-red-500 drop-shadow-lg" />
+                    <X className="h-6 w-6 text-loss" />
                   </div>
                 )}
                 {(isPicked || isDecider) && (
@@ -425,8 +425,8 @@ function VetoPanel({
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1">
-                  <div className="text-[9px] font-black uppercase tracking-wide text-white drop-shadow">{map.name}</div>
-                  {isBanned && <div className="text-[8px] font-bold text-red-400">VETADO</div>}
+                  <div className="font-display text-[10px] font-bold text-ink">{map.name}</div>
+                  {isBanned && <div className="text-[8px] font-bold text-loss">VETADO</div>}
                   {isPicked && <div className="text-[8px] font-bold text-[var(--primary)]">ESCOLHIDO</div>}
                   {isDecider && <div className="text-[8px] font-bold text-[var(--primary)]">SOBRA</div>}
                 </div>
@@ -437,7 +437,7 @@ function VetoPanel({
       </div>
 
       {error && (
-        <div className="mx-3 mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-400">{error}</div>
+        <div className="mx-3 mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-loss">{error}</div>
       )}
     </div>
   );
@@ -488,7 +488,7 @@ function SideSelectionPanel({
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--primary)]/25 bg-[var(--card)]">
       <div className="border-b border-[var(--border)] bg-[var(--primary)]/5 px-5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Escolha de lados</div>
+        <div className="tick text-strike">Escolha de lados</div>
         <div className="text-[11px] text-[var(--muted-foreground)]">O adversário de cada pick escolhe se começa CT ou TR.</div>
       </div>
       <div className="grid gap-3 p-4 md:grid-cols-2">
@@ -506,7 +506,7 @@ function SideSelectionPanel({
             }`}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Mapa {pick.vetoOrder}</div>
+                  <div className="tick">Mapa {pick.vetoOrder}</div>
                   <div className="truncate text-base font-black text-[var(--foreground)]">{pick.mapName}</div>
                 </div>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-black/30 text-xs font-black text-[var(--primary)]">
@@ -518,7 +518,7 @@ function SideSelectionPanel({
                 <span className="font-bold text-[var(--foreground)]">{chooserName}</span>.
               </div>
               {pick.pickedSide ? (
-                <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs font-black text-green-300">
+                <div className="flex items-center gap-2 rounded-lg border border-gain/25 bg-gain/12 px-3 py-2 text-xs font-black text-gain">
                   <FactionLogo side={pick.pickedSide} className="h-6 w-6" />
                   {chooserTag} começa {pick.pickedSide.toUpperCase()}
                 </div>
@@ -546,7 +546,7 @@ function SideSelectionPanel({
           );
         })}
       </div>
-      {error && <div className="border-t border-[var(--border)] px-5 py-3 text-xs text-red-400">{error}</div>}
+      {error && <div className="border-t border-[var(--border)] px-5 py-3 text-xs text-loss">{error}</div>}
     </div>
   );
 }
@@ -650,7 +650,7 @@ function PostVetoPanel({
 
         {/* ── LEFT: Confirm ready ── */}
         <div className="flex flex-col gap-4 p-5">
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">
+          <div className="tick text-strike">
             {isFinishedMatch ? "Placar" : isTerminated ? "Status" : isCancelledMatch ? "Status" : "Confirmar início"}
           </div>
 
@@ -660,28 +660,24 @@ function PostVetoPanel({
               <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
                 <div className="grid grid-cols-[1fr_40px_1fr] items-center gap-3 w-full">
                   <div className="flex flex-col items-center gap-1">
-                    <div className={`text-4xl font-black tabular-nums leading-none ${team1Score > team2Score ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                    <div className={`tabular text-4xl font-bold leading-none ${team1Score > team2Score ? "text-ink" : "text-ink-3"}`}>
                       {team1Score}
                     </div>
                     <div className="text-[10px] font-bold text-[var(--muted-foreground)] truncate max-w-[72px] text-center">{team1Tag}</div>
                     {team1Score > team2Score && (
-                      <div className="flex items-center gap-0.5 text-[9px] font-bold text-green-400">
-                        <Crown className="h-2.5 w-2.5" /> Vencedor
-                      </div>
+                      <div className="font-display text-[11px] font-bold text-strike">Vencedor</div>
                     )}
                   </div>
                   <div className="flex items-center justify-center">
                     <span className="text-lg font-black text-[var(--border)]">×</span>
                   </div>
                   <div className="flex flex-col items-center gap-1">
-                    <div className={`text-4xl font-black tabular-nums leading-none ${team2Score > team1Score ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                    <div className={`tabular text-4xl font-bold leading-none ${team2Score > team1Score ? "text-ink" : "text-ink-3"}`}>
                       {team2Score}
                     </div>
                     <div className="text-[10px] font-bold text-[var(--muted-foreground)] truncate max-w-[72px] text-center">{team2Tag}</div>
                     {team2Score > team1Score && (
-                      <div className="flex items-center gap-0.5 text-[9px] font-bold text-green-400">
-                        <Crown className="h-2.5 w-2.5" /> Vencedor
-                      </div>
+                      <div className="font-display text-[11px] font-bold text-strike">Vencedor</div>
                     )}
                   </div>
                 </div>
@@ -691,11 +687,11 @@ function PostVetoPanel({
               </div>
             ) : isTerminated ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/10">
-                  <PowerOff className="h-6 w-6 text-orange-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-faceit/30 bg-faceit/10">
+                  <PowerOff className="h-6 w-6 text-faceit" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-bold text-orange-400">Servidor encerrado</div>
+                  <div className="text-sm font-bold text-faceit">Servidor encerrado</div>
                   <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">O servidor CS2 foi finalizado.</div>
                 </div>
               </div>
@@ -715,14 +711,14 @@ function PostVetoPanel({
               {/* Team ready indicators — uses optimistic displayReady values */}
               <div className="grid grid-cols-[1fr_28px_1fr] items-center gap-2">
                 <div className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-300 ${
-                  displayReady1 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
+                  displayReady1 ? "border-gain/40 bg-gain/[0.07]" : "border-[var(--border)] bg-[var(--secondary)]/40"
                 }`}>
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-black transition-all duration-300 ${
-                    displayReady1 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
+                    displayReady1 ? "border-gain bg-gain/12 text-gain" : "border-[var(--border)] text-[var(--foreground)]"
                   }`}>
                     {displayReady1 ? <Check className="h-4 w-4" /> : team1Tag}
                   </div>
-                  <div className={`text-[10px] font-bold transition-colors ${displayReady1 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                  <div className={`text-[10px] font-bold transition-colors ${displayReady1 ? "text-gain" : "text-[var(--muted-foreground)]"}`}>
                     {displayReady1 ? "READY" : "Aguardando"}
                   </div>
                 </div>
@@ -732,14 +728,14 @@ function PostVetoPanel({
                 </div>
 
                 <div className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-all duration-300 ${
-                  displayReady2 ? "border-green-500/40 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.08)]" : "border-[var(--border)] bg-[var(--secondary)]/40"
+                  displayReady2 ? "border-gain/40 bg-gain/[0.07]" : "border-[var(--border)] bg-[var(--secondary)]/40"
                 }`}>
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-black transition-all duration-300 ${
-                    displayReady2 ? "border-green-500 bg-green-500/10 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]" : "border-[var(--border)] text-[var(--foreground)]"
+                    displayReady2 ? "border-gain bg-gain/12 text-gain" : "border-[var(--border)] text-[var(--foreground)]"
                   }`}>
                     {displayReady2 ? <Check className="h-4 w-4" /> : team2Tag}
                   </div>
-                  <div className={`text-[10px] font-bold transition-colors ${displayReady2 ? "text-green-400" : "text-[var(--muted-foreground)]"}`}>
+                  <div className={`text-[10px] font-bold transition-colors ${displayReady2 ? "text-gain" : "text-[var(--muted-foreground)]"}`}>
                     {displayReady2 ? "READY" : "Aguardando"}
                   </div>
                 </div>
@@ -747,25 +743,25 @@ function PostVetoPanel({
 
               {isCaptain && !myReady && (
                 <button type="button" onClick={confirmReady} disabled={readyLoading}
-                  className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-black shadow-[0_0_16px_rgba(0,200,255,0.2)] transition-all hover:brightness-110 hover:shadow-[0_0_24px_rgba(0,200,255,0.3)] active:scale-[0.98] disabled:opacity-50">
+                  className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-bold text-strike-ink transition-all hover:brightness-110 hover: active:scale-[0.98] disabled:opacity-50">
                   {readyLoading ? <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> : "Confirmar Ready"}
                 </button>
               )}
               {isCaptain && myReady && !bothReady && (
-                <div className="flex items-center justify-center gap-1.5 rounded-xl border border-green-500/20 bg-green-500/5 py-2.5 text-[10px] text-green-400">
+                <div className="flex items-center justify-center gap-1.5 rounded-xl border border-gain/25 bg-gain/[0.07] py-2.5 text-[10px] text-gain">
                   <Check className="h-3 w-3" /> Confirmado. Aguardando adversário…
                 </div>
               )}
-              {readyError && <p className="text-center text-[10px] text-red-400">{readyError}</p>}
+              {readyError && <p className="text-center text-[10px] text-loss">{readyError}</p>}
             </>
           ) : (
             /* Both confirmed — steady green state */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-500 bg-green-500/10 shadow-[0_0_24px_rgba(34,197,94,0.2)]">
-                <Check className="h-6 w-6 text-green-400" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-gain bg-gain/12">
+                <Check className="h-6 w-6 text-gain" />
               </div>
               <div className="text-center">
-                <div className="text-sm font-bold text-green-400">Ambos confirmados</div>
+                <div className="text-sm font-bold text-gain">Ambos confirmados</div>
                 <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">Iniciando servidor CS2…</div>
               </div>
             </div>
@@ -775,11 +771,11 @@ function PostVetoPanel({
         {/* ── RIGHT: Server / Connect ── */}
         <div className="flex flex-col gap-4 p-5">
           <div className="flex items-center justify-between">
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Servidor</div>
+            <div className="tick text-strike">Servidor</div>
             {isServerLive && (
               <div className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.9)]" />
-                <span className="text-[10px] font-bold text-green-400">Ao vivo</span>
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-gain" />
+                <span className="text-[10px] font-bold text-gain">Ao vivo</span>
               </div>
             )}
           </div>
@@ -811,7 +807,7 @@ function PostVetoPanel({
           /* ── Error ── */
             <div className="flex flex-1 flex-col gap-3">
               <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-loss" />
                 <div>
                   <div className="text-xs font-bold text-red-300">Falha ao alocar servidor</div>
                   <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">Ocorreu um erro ao iniciar o CS2.</div>
@@ -824,9 +820,9 @@ function PostVetoPanel({
                   {retrying ? "Procurando…" : "Tentar novamente"}
                 </button>
               )}
-              {retryError && <p className="text-center text-[10px] text-red-400">{retryError}</p>}
+              {retryError && <p className="text-center text-[10px] text-loss">{retryError}</p>}
               <a href={waUrl} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl border border-green-600/25 bg-green-600/8 py-2.5 text-xs font-semibold text-green-400 transition-all hover:bg-green-600/14">
+                className="flex items-center justify-center gap-2 rounded-xl border border-gain/25 bg-gain/[0.08] py-2.5 text-xs font-semibold text-gain transition-all hover:bg-gain/[0.14]">
                 Chamar administrador
               </a>
             </div>
@@ -835,11 +831,11 @@ function PostVetoPanel({
             /* ── Loading / provisioning OR terminal no-server ── */
             isTerminated ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/10">
-                  <PowerOff className="h-6 w-6 text-orange-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-faceit/30 bg-faceit/10">
+                  <PowerOff className="h-6 w-6 text-faceit" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-bold text-orange-400">Servidor encerrado</div>
+                  <div className="text-sm font-bold text-faceit">Servidor encerrado</div>
                   <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">O servidor CS2 foi finalizado.</div>
                 </div>
               </div>
@@ -911,12 +907,12 @@ function PostVetoPanel({
               {isPlayer ? (
                 <>
                   <a href={steamUrl}
-                    className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black shadow-[0_0_20px_rgba(0,200,255,0.25)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgba(0,200,255,0.35)] active:scale-[0.98]">
+                    className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black transition-all hover:brightness-110 hover: active:scale-[0.98]">
                     <Wifi className="h-4 w-4" /> Entrar no servidor
                   </a>
                   <div>
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Comando CS2</span>
+                      <span className="tick">Comando CS2</span>
                       <button type="button" onClick={() => setRevealed((v) => !v)}
                         className="flex items-center gap-1 text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
                         {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
@@ -929,7 +925,7 @@ function PostVetoPanel({
                       </code>
                       <button type="button" onClick={copyCmd} title="Copiar"
                         className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
-                        {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? <Check className="h-3.5 w-3.5 text-gain" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </div>
@@ -974,15 +970,15 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
   const apiCount = logs.filter((l) => l.method !== "WEBHOOK").length;
 
   function statusColor(code: number | null) {
-    if (!code) return "text-red-400";
-    if (code >= 200 && code < 300) return "text-green-400";
-    if (code >= 400) return "text-red-400";
+    if (!code) return "text-loss";
+    if (code >= 200 && code < 300) return "text-gain";
+    if (code >= 400) return "text-loss";
     return "text-yellow-400";
   }
   function methodColor(method: string) {
     if (method === "WEBHOOK") return "text-purple-400";
     if (method === "GET") return "text-blue-400";
-    if (method === "POST") return "text-green-400";
+    if (method === "POST") return "text-gain";
     return "text-yellow-400";
   }
   function pathOf(url: string) {
@@ -997,7 +993,7 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
         className="flex w-full items-center justify-between border-b border-[var(--border)] px-5 py-3">
         <div className="flex items-center gap-2">
           <Terminal className="h-3.5 w-3.5 text-[var(--primary)]" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Console</span>
+          <span className="tick text-strike">Console</span>
           {apiCount > 0 && (
             <span className="rounded-full bg-[var(--primary)]/10 px-1.5 py-0.5 text-[9px] font-mono text-[var(--primary)]">{apiCount} API</span>
           )}
@@ -1028,7 +1024,7 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
                   {!isWebhook && log.response_status && (
                     <span className={`w-9 text-right font-bold ${statusColor(log.response_status)}`}>{log.response_status}</span>
                   )}
-                  {log.error_message && <span className="text-red-400">✗</span>}
+                  {log.error_message && <span className="text-loss">✗</span>}
                   <span className="w-16 text-right text-[9px] text-[#555]">
                     {new Date(log.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </span>
@@ -1058,8 +1054,8 @@ function DathostLogsPanel({ matchId }: { matchId: string }) {
                     )}
                     {log.error_message && (
                       <div>
-                        <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest text-red-400/60">Erro</div>
-                        <div className="rounded bg-red-500/10 px-2 py-1.5 text-[10px] text-red-400">{log.error_message}</div>
+                        <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest text-loss/60">Erro</div>
+                        <div className="rounded bg-red-500/10 px-2 py-1.5 text-[10px] text-loss">{log.error_message}</div>
                       </div>
                     )}
                   </div>
@@ -1083,8 +1079,8 @@ function DeadlinePanel({ teamsAssignedAt }: { teamsAssignedAt: string | null }) 
   if (msLeft <= 0) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3">
-        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" />
-        <p className="text-[11px] text-red-400/90">Prazo de 1 hora expirado. Times sujeitos a penalidades.</p>
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-loss" />
+        <p className="text-[11px] text-loss/90">Prazo de 1 hora expirado. Times sujeitos a penalidades.</p>
       </div>
     );
   }
@@ -1117,21 +1113,21 @@ function ScoreboardTeam({
   const sorted = [...players].sort((a, b) => b.score - a.score || b.kills - a.kills);
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-      <div className={`flex items-center justify-between border-b px-5 py-3 ${isWinner ? "border-green-500/20 bg-green-500/5" : "border-[var(--border)]"}`}>
+      <div className={`flex items-center justify-between border-b px-5 py-3 ${isWinner ? "border-gain/25 bg-gain/[0.07]" : "border-[var(--border)]"}`}>
         <div className="flex items-center gap-2.5">
-          <div className={`flex h-9 w-9 items-center justify-center rounded-lg border font-black text-sm ${isWinner ? "border-green-500/40 bg-green-500/10 text-green-400" : "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"}`}>
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg border font-display text-sm font-extrabold tracking-tight ${isWinner ? "border-strike/45 bg-strike/12 text-strike" : "border-line bg-surface text-ink-2"}`}>
             {teamTag}
           </div>
-          <span className="font-bold text-sm">{teamName}</span>
+          <span className="font-display text-sm font-bold tracking-tight">{teamName}</span>
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isWinner ? "bg-green-500/15 text-green-400" : "bg-[var(--secondary)] text-[var(--muted-foreground)]"}`}>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isWinner ? "bg-strike/15 text-strike" : "bg-[var(--secondary)] text-[var(--muted-foreground)]"}`}>
           {isWinner ? "Vitória" : "Derrota"}
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full">
           <thead>
-            <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-[0.15em] text-[var(--muted-foreground)]">
+            <tr className="border-b border-[var(--border)] font-display text-[11px] font-semibold text-ink-3">
               <th className="px-4 py-2.5 text-left font-semibold">Jogador</th>
               <th className="px-2 py-2.5 font-semibold">K</th>
               <th className="px-2 py-2.5 font-semibold">D</th>
@@ -1165,7 +1161,7 @@ function ScoreboardTeam({
                   <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.kills >= 20 ? "font-bold text-[var(--primary)]" : ""}`}>{p.kills}</td>
                   <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.deaths}</td>
                   <td className="px-2 py-2.5 text-center text-xs tabular-nums">{p.assists}</td>
-                  <td className={`px-2 py-2.5 text-center text-xs tabular-nums font-semibold ${Number(kd(p.kills, p.deaths)) >= 1.5 ? "text-green-400" : ""}`}>{kd(p.kills, p.deaths)}</td>
+                  <td className={`px-2 py-2.5 text-center text-xs tabular-nums font-semibold ${Number(kd(p.kills, p.deaths)) >= 1.5 ? "text-gain" : ""}`}>{kd(p.kills, p.deaths)}</td>
                   <td className="px-2 py-2.5 text-center text-xs tabular-nums">{hsPercent(p.hsCount, p.kills)}%</td>
                   <td className={`px-2 py-2.5 text-center text-xs tabular-nums ${p.adr >= 90 ? "font-bold text-[var(--primary)]" : ""}`}>{p.adr.toFixed(1)}</td>
                 </tr>
@@ -1325,10 +1321,8 @@ export default function MatchPageClient({
       {/* ── Hero: badges + teams + players ── */}
       <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
         <div className="relative px-5 py-6">
-          <div className="absolute inset-0 grid-bg opacity-10" />
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-950/60 via-slate-900/40 to-black/70" />
-          <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-transparent" />
-          <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--primary)]/20 to-transparent" />
+          <div className="reticle-grid absolute inset-0 opacity-60" />
+          <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--primary)]/35 to-transparent" />
 
           <div className="relative">
             {/* Centered status badges */}
@@ -1356,17 +1350,16 @@ export default function MatchPageClient({
 
               {/* Col 2 — Team 1 info, centered */}
               <div className="flex flex-col items-center gap-2">
-                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
+                <div className={`flex h-20 w-20 items-center justify-center rounded-xl border bg-surface font-display text-2xl font-extrabold tracking-tight transition-all ${
                   isFinished && winner?.id === match.team1Id
-                    ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
-                    : "border-[var(--border)] text-[var(--primary)]"
+                    ? "border-strike/60 bg-strike/12 text-strike"
+                    : "border-line text-ink-2"
                 }`}>{t1Tag}</div>
                 <div className="text-center">
-                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
+                  <div className={`font-display text-sm font-bold leading-tight tracking-tight ${isFinished && winner?.id === match.team1Id ? "text-strike" : "text-ink"}`}>{t1Name}</div>
                   {match.team1 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team1.elo} ELO</div>}
                   {isFinished && (
-                    <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team1Id ? "" : "invisible"}`}>
-                      <Crown className="h-3 w-3" /> Vencedor
+                    <div className={`mt-1 font-display text-[11px] font-bold text-strike ${winner?.id === match.team1Id ? "" : "invisible"}`}> Vencedor
                     </div>
                   )}
                 </div>
@@ -1397,11 +1390,11 @@ export default function MatchPageClient({
                     {showScore ? (
                       <div className="flex flex-col items-center gap-1">
                         <div className="flex items-baseline gap-1.5 tabular-nums">
-                          <span className={`text-4xl font-black leading-none ${dispT1! > dispT2! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
+                          <span className={`tabular text-4xl font-bold leading-none ${dispT1! > dispT2! ? "text-ink" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
                             {dispT1}
                           </span>
-                          <span className="text-xl font-black text-[var(--muted-foreground)]/30">:</span>
-                          <span className={`text-4xl font-black leading-none ${dispT2! > dispT1! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
+                          <span className="tabular text-xl font-bold text-line-2">:</span>
+                          <span className={`tabular text-4xl font-bold leading-none ${dispT2! > dispT1! ? "text-ink" : isFinished ? "text-[var(--muted-foreground)]" : "text-white"}`}>
                             {dispT2}
                           </span>
                         </div>
@@ -1410,13 +1403,13 @@ export default function MatchPageClient({
                         )}
                         {isLiveStatus && (
                           <div className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.9)]" />
-                            <span className="text-[8px] font-bold text-green-400">AO VIVO</span>
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gain" />
+                            <span className="text-[8px] font-bold text-gain">AO VIVO</span>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <Swords className={`h-5 w-5 transition-colors ${isFinished ? "text-[var(--muted-foreground)]/30" : "text-[var(--primary)] opacity-70 drop-shadow-[0_0_6px_var(--primary)]"}`} />
+                      <Swords className={`h-5 w-5 transition-colors ${isFinished ? "text-[var(--muted-foreground)]/30" : "text-[var(--primary)] opacity-70 "}`} />
                     )}
                   </div>
                 );
@@ -1424,17 +1417,16 @@ export default function MatchPageClient({
 
               {/* Col 4 — Team 2 info, centered */}
               <div className="flex flex-col items-center gap-2">
-                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
+                <div className={`flex h-20 w-20 items-center justify-center rounded-xl border bg-surface font-display text-2xl font-extrabold tracking-tight transition-all ${
                   isFinished && winner?.id === match.team2Id
-                    ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
-                    : "border-[var(--border)] text-[var(--primary)]"
+                    ? "border-strike/60 bg-strike/12 text-strike"
+                    : "border-line text-ink-2"
                 }`}>{t2Tag}</div>
                 <div className="text-center">
-                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
+                  <div className={`font-display text-sm font-bold leading-tight tracking-tight ${isFinished && winner?.id === match.team2Id ? "text-strike" : "text-ink"}`}>{t2Name}</div>
                   {match.team2 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team2.elo} ELO</div>}
                   {isFinished && (
-                    <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team2Id ? "" : "invisible"}`}>
-                      <Crown className="h-3 w-3" /> Vencedor
+                    <div className={`mt-1 font-display text-[11px] font-bold text-strike ${winner?.id === match.team2Id ? "" : "invisible"}`}> Vencedor
                     </div>
                   )}
                 </div>
@@ -1455,14 +1447,11 @@ export default function MatchPageClient({
 
         {isFinished && winner && (
           <div className="border-t border-[var(--border)] px-5 py-3">
-            <div className="flex items-center gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3">
-              <Trophy className="h-4 w-4 shrink-0 text-yellow-400" />
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-widest text-yellow-400/60">
-                  {isFinal ? "Campeão do torneio" : "Avança para próxima fase"}
-                </div>
-                <div className="text-sm font-black text-yellow-400">{winner.name}</div>
-              </div>
+            <div className="flex items-baseline gap-3">
+              <span className="tick">{isFinal ? "Campeão do torneio" : "Avança para a próxima fase"}</span>
+              <span className="font-display text-[15px] font-bold tracking-tight text-prize">
+                {winner.name}
+              </span>
             </div>
           </div>
         )}
@@ -1537,8 +1526,7 @@ export default function MatchPageClient({
             {/* Header com mapa e placar de rounds */}
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-yellow-400" />
-                <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Scoreboard</span>
+                <span className="tick-strong">Scoreboard</span>
                 {mapScore?.mapName && (
                   <span className="rounded bg-[var(--secondary)] px-2 py-0.5 text-[10px] font-mono text-[var(--muted-foreground)]">
                     {mapScore.mapName}
@@ -1547,9 +1535,9 @@ export default function MatchPageClient({
               </div>
               {mapScore && mapScore.team1Score !== null && mapScore.team2Score !== null && (
                 <span className="text-xs font-black tabular-nums text-[var(--muted-foreground)]">
-                  <span className={mapScore.winnerId === match.team1Id ? "text-green-400" : ""}>{mapScore.team1Score}</span>
+                  <span className={mapScore.winnerId === match.team1Id ? "text-gain" : ""}>{mapScore.team1Score}</span>
                   {" : "}
-                  <span className={mapScore.winnerId === match.team2Id ? "text-green-400" : ""}>{mapScore.team2Score}</span>
+                  <span className={mapScore.winnerId === match.team2Id ? "text-gain" : ""}>{mapScore.team2Score}</span>
                 </span>
               )}
             </div>
@@ -1610,7 +1598,7 @@ export default function MatchPageClient({
                     : <RefreshCw className="h-3.5 w-3.5" />}
                   {reloadingStats ? "Carregando…" : "Atualizar stats"}
                 </button>}
-                {reloadError && <p className="text-[10px] text-red-400">{reloadError}</p>}
+                {reloadError && <p className="text-[10px] text-loss">{reloadError}</p>}
               </div>
             )}
           </div>
@@ -1645,7 +1633,7 @@ export default function MatchPageClient({
 
       {isAdmin && !isFinished && match.team1Id && match.team2Id && (
         <div className="rounded-2xl border border-[var(--primary)]/20 bg-[var(--card)] p-5">
-          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)]">Registrar Resultado (Admin)</h3>
+          <h3 className="mb-3 tick text-strike">Registrar Resultado (Admin)</h3>
           <AdminResultForm matchId={match.id} tournamentId={tournamentId}
             team1={{ id: match.team1Id, name: t1Name }}
             team2={{ id: match.team2Id, name: t2Name }} />
@@ -1700,7 +1688,7 @@ function AdminResultForm({ matchId, tournamentId, team1, team2 }: {
         className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-sm font-bold text-black disabled:opacity-40">
         {loading ? <Loader2 className="inline h-4 w-4 animate-spin" /> : "Confirmar resultado"}
       </button>
-      {error && <p className="mt-1.5 text-center text-[10px] text-red-400">{error}</p>}
+      {error && <p className="mt-1.5 text-center text-[10px] text-loss">{error}</p>}
     </div>
   );
 }

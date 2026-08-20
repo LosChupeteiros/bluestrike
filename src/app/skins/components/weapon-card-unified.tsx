@@ -36,11 +36,11 @@ export function WeaponCardUnified({
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden transition-colors hover:border-[var(--primary)]/30">
-      <div className="relative aspect-[4/3] bg-[var(--secondary)] flex items-center justify-center p-3">
+    <div className="group flex flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-surface/40 transition-colors duration-300 hover:border-white/[0.18]">
+      <div className="relative flex aspect-[4/3] items-center justify-center bg-void/50 p-3">
         {isPending && (
-          <div className="absolute inset-0 bg-[var(--background)]/60 flex items-center justify-center z-10">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-void/70 backdrop-blur-[2px]">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-strike border-r-transparent" />
           </div>
         )}
         <Image
@@ -48,18 +48,18 @@ export function WeaponCardUnified({
           alt={activeSkin.paintName}
           width={160}
           height={120}
-          className="object-contain w-full h-full"
+          className="h-full w-full object-contain transition-transform duration-500 [transition-timing-function:var(--ease-out-quint)] group-hover:scale-[1.06]"
           unoptimized
         />
       </div>
 
-      <div className="p-2 flex flex-col gap-1.5">
-        <p className="text-[10px] font-bold truncate text-[var(--primary)]" title={activeSkin.paintName}>
+      <div className="flex flex-col gap-2 border-t border-line/60 p-2.5">
+        <p className="truncate text-[11px] font-semibold text-ink" title={activeSkin.paintName}>
           {activeSkin.paintName}
         </p>
 
         <select
-          className="w-full rounded border border-[var(--border)] bg-[var(--secondary)] px-2 py-1 text-[10px] text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
+          className="w-full rounded-md border border-line bg-void px-2 py-1.5 font-mono text-[10px] text-ink-2 transition-colors duration-300 hover:border-line-2 focus:border-strike/60 focus:outline-none"
           value={activePaintId}
           onChange={handleChange}
           disabled={isPending}

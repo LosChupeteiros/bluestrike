@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { Team } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { PlaceBadge } from "@/components/ui/place-badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,12 +42,7 @@ const FORMAT_LABELS: Record<string, string> = {
   swiss: "Swiss",
 };
 
-const PLACE_ICONS = ["🥇", "🥈", "🥉"];
-const PLACE_STYLES = [
-  "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
-  "border-slate-400/30 bg-slate-400/10 text-slate-300",
-  "border-orange-600/30 bg-orange-600/10 text-orange-300",
-];
+
 
 interface TournamentDetailPageViewProps {
   params: Promise<{ id: string }>;
@@ -145,7 +141,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   return (
     <div className="min-h-screen pb-20 pt-20">
       {/* ── Hero ── */}
-      <div className="relative h-72 overflow-hidden sm:h-80 lg:h-[30rem]">
+      <div className={`relative overflow-hidden ${tournament.bannerUrl ? "h-64 sm:h-72 lg:h-[26rem]" : "h-auto"}`}>
         {tournament.bannerUrl ? (
           <Image
             src={tournament.bannerUrl}
@@ -157,13 +153,12 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
             unoptimized
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-black" />
+          <div className="reticle-grid absolute inset-0 bg-void" />
         )}
-        <div className="absolute inset-0 grid-bg opacity-50" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-black/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-void/55" />
+        <div className="absolute inset-0 bg-gradient-to-t from-void via-void/80 to-transparent" />
 
-        <div className="absolute inset-x-0 bottom-0 mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <div className={`${tournament.bannerUrl ? "absolute inset-x-0 bottom-0" : "relative"} mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 lg:px-8`}>
           <nav className="mb-4 flex items-center gap-1.5 text-xs text-white/50">
             <Link href="/" className="transition-colors hover:text-white/80">Inicio</Link>
             <ChevronRight className="h-3 w-3" />
@@ -175,52 +170,41 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <Badge variant={badge.variant} className="mb-3">{badge.label}</Badge>
-              <h1 className="text-3xl font-black tracking-tight drop-shadow-lg sm:text-5xl">
+              <h1 className="font-display text-[clamp(1.875rem,4vw,3rem)] font-extrabold leading-[1.02] tracking-[-0.03em] text-ink">
                 {tournament.name}
               </h1>
-              <p className="mt-2 text-sm text-white/50">Por {tournament.organizerName}</p>
+              <p className="mt-2.5 font-mono text-[11px] uppercase tracking-[0.12em] text-ink-3">Por {tournament.organizerName}</p>
             </div>
 
-            <div className="flex-shrink-0 rounded-2xl border border-yellow-500/30 bg-black/60 px-6 py-4 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <Trophy className="h-6 w-6 text-yellow-400" />
-                <div>
-                  <div className="text-3xl font-black text-yellow-400">
-                    {formatCurrency(tournament.prizeTotal)}
-                  </div>
-                  <div className="text-xs text-white/40">premiação total</div>
-                </div>
-              </div>
+            <div className="shrink-0 border-l border-line-2 pl-6">
+              <span className="tick block">Premiação total</span>
+              <span className="tabular mt-1.5 block text-[2rem] font-bold leading-none text-prize">
+                {formatCurrency(tournament.prizeTotal)}
+              </span>
             </div>
           </div>
 
-          {/* Stats strip */}
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-              <Users className="h-3 w-3" />
+          {/* Stats strip — fita de dados, sem pílulas */}
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line/60 pt-4 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-3">
+            <span>
               {occupiedSpots}/{tournament.maxTeams} vagas
-            </div>
+            </span>
+            <span className="h-3 w-px bg-line-2" aria-hidden="true" />
             {tournament.startsAt && (
-              <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-                <Calendar className="h-3 w-3" />
-                <span className="text-white/40 mr-0.5">Início</span>
-                {formatDate(tournament.startsAt)}
-              </div>
+              <>
+                <span>Início {formatDate(tournament.startsAt)}</span>
+                <span className="h-3 w-px bg-line-2" aria-hidden="true" />
+              </>
             )}
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-              <Swords className="h-3 w-3" />
-              {FORMAT_LABELS[tournament.format]}
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-              <MapPin className="h-3 w-3" />
-              {tournament.region}
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--primary)] backdrop-blur-sm">
-              <Zap className="h-3 w-3" />
+            <span>{FORMAT_LABELS[tournament.format]}</span>
+            <span className="h-3 w-px bg-line-2" aria-hidden="true" />
+            <span>{tournament.region}</span>
+            <span className="h-3 w-px bg-line-2" aria-hidden="true" />
+            <span className="text-strike">
               {tournament.entryFee
                 ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))}/player`
                 : "Gratuito"}
-            </div>
+            </span>
           </div>
         </div>
       </div>
@@ -245,28 +229,6 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     <TournamentPodium title="Podio final" entries={finalPodiumEntries} />
                   )}
 
-                  {false && isFinishedTournament && (
-                    <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
-                      <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
-                        <Trophy className="h-4 w-4 text-yellow-400" />
-                        Pódio final
-                      </h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        {podiumEntries.map((entry, index) => (
-                          <div key={entry.label} className={`rounded-xl border p-5 text-center ${entry.className}`}>
-                            <div className="mb-2 text-3xl">{PLACE_ICONS[index] ?? `#${index + 1}`}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">{entry.label}</div>
-                            <div className="mt-2 truncate text-base font-black">{entry.team?.name ?? "—"}</div>
-                            {entry.team && <div className="text-[10px] opacity-70">{entry.team.elo} ELO</div>}
-                            <div className="mt-4 rounded-lg border border-current/15 bg-black/20 px-3 py-2 text-sm font-black">
-                              {formatCurrency(entry.prize)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Description */}
                   {tournament.description && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
@@ -280,36 +242,54 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     </div>
                   )}
 
-                  {/* Prize breakdown — podium style */}
+                  {/* Prize breakdown */}
                   {tournament.prizeBreakdown.length > 0 && (
-                    <div className="rounded-xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-5">
-                      <h3 className="mb-5 flex items-center gap-2 font-bold">
-                        <Trophy className="h-4 w-4 text-yellow-400" />
+                    <div className="rounded-xl border border-white/[0.07] bg-abyss p-6">
+                      <h3 className="font-display text-[15px] font-bold tracking-tight text-ink">
                         Distribuição de prêmios
                       </h3>
-                      <div className="flex flex-col gap-3 sm:flex-row">
-                        {tournament.prizeBreakdown.map((prize, index) => (
-                          <div
-                            key={`${prize.place}-${index}`}
-                            className={`flex flex-1 flex-col items-center gap-2 rounded-xl border p-5 ${
-                              PLACE_STYLES[index] ??
-                              "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"
-                            }`}
-                          >
-                            <span className="text-3xl">{PLACE_ICONS[index] ?? `#${index + 1}`}</span>
-                            <span className="text-xs font-semibold uppercase tracking-widest opacity-60">
-                              {prize.place}
-                            </span>
-                            <span
-                              className={`font-black ${
-                                index === 0 ? "text-2xl text-yellow-400" : "text-xl"
-                              }`}
-                            >
-                              {formatCurrency(prize.amount)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+
+                      <ul className="mt-5 space-y-5">
+                        {tournament.prizeBreakdown.map((prize, index) => {
+                          const share =
+                            tournament.prizeTotal > 0
+                              ? Math.max(4, (prize.amount / tournament.prizeTotal) * 100)
+                              : 0;
+                          const tone =
+                            index === 0
+                              ? "var(--color-prize)"
+                              : index === 1
+                                ? "oklch(0.8 0.006 250)"
+                                : "oklch(0.63 0.085 58)";
+
+                          return (
+                            <li key={`${prize.place}-${index}`}>
+                              <div className="flex items-baseline justify-between gap-4">
+                                <span
+                                  className="font-display text-[15px] font-extrabold tracking-[-0.02em]"
+                                  style={{ color: tone }}
+                                >
+                                  {prize.place}
+                                </span>
+                                <span
+                                  className="tabular text-[1.375rem] font-bold leading-none"
+                                  style={{ color: index === 0 ? "var(--color-prize)" : "var(--color-ink)" }}
+                                >
+                                  {formatCurrency(prize.amount)}
+                                </span>
+                              </div>
+
+                              {/* Fatia do prêmio total */}
+                              <div className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-white/[0.06]">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${share}%`, background: tone, opacity: index === 0 ? 1 : 0.55 }}
+                                />
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
                   )}
 
@@ -382,47 +362,36 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                       },
                       { label: "Organizador", value: tournament.organizerName, icon: Shield },
                     ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
-                      >
-                        <div className="mb-2 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
-                          <item.icon className="h-3.5 w-3.5" />
-                          {item.label}
-                        </div>
-                        <div className="text-sm font-bold">{item.value}</div>
+                      <div key={item.label} className="border-t border-line/60 pt-3.5">
+                        <span className="tick block">{item.label}</span>
+                        <span className="mt-1.5 block text-[13px] font-semibold text-ink">{item.value}</span>
                       </div>
                     ))}
                   </div>
 
                   {/* ELO requirements */}
                   {(tournament.minElo !== null || tournament.maxElo !== null) && (
-                    <div className="flex items-center gap-3 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-4">
-                      <Shield className="h-5 w-5 shrink-0 text-[var(--primary)]" />
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        {tournament.minElo !== null && (
-                          <span className="text-[var(--muted-foreground)]">
-                            ELO mínimo:{" "}
-                            <span className="font-black text-[var(--primary)]">{tournament.minElo}</span>
-                          </span>
-                        )}
-                        {tournament.maxElo !== null && (
-                          <span className="text-[var(--muted-foreground)]">
-                            ELO máximo:{" "}
-                            <span className="font-black text-[var(--primary)]">{tournament.maxElo}</span>
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line/60 pt-4 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-3">
+                      {tournament.minElo !== null && (
+                        <span>
+                          ELO mínimo <span className="text-strike">{tournament.minElo}</span>
+                        </span>
+                      )}
+                      {tournament.maxElo !== null && (
+                        <span>
+                          ELO máximo <span className="text-strike">{tournament.maxElo}</span>
+                        </span>
+                      )}
                     </div>
                   )}
 
                   {/* Tags */}
                   {tournament.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line/60 pt-4">
                       {tournament.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          #{tag}
-                        </Badge>
+                        <span key={tag} className="tick">
+                          {tag}
+                        </span>
                       ))}
                     </div>
                   )}
@@ -439,77 +408,6 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     showPendingCopy={!isFinishedTournament}
                   />
 
-                  {false && (
-                  <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
-                    <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
-                      <Trophy className="h-4 w-4 text-yellow-400" />
-                      Pódio
-                    </h3>
-
-                    {/* Classic podium: 2nd | 1st | 3rd */}
-                    <div className="grid grid-cols-3 items-end gap-3">
-                      {/* 2nd */}
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-slate-400/40 bg-slate-400/10 text-lg font-black text-slate-300">
-                          {podiumSecond?.tag ?? "?"}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-black text-slate-300">
-                            {podiumSecond?.name ?? "—"}
-                          </div>
-                          {podiumSecond && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumSecond?.elo} ELO</div>
-                          )}
-                        </div>
-                        <div className="flex h-16 w-full items-center justify-center rounded-xl bg-slate-400/10">
-                          <span className="text-2xl">🥈</span>
-                        </div>
-                      </div>
-
-                      {/* 1st — tallest */}
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-yellow-500/60 bg-yellow-500/10 text-xl font-black text-yellow-300 shadow-[0_0_24px_rgba(234,179,8,0.2)]">
-                          {podiumFirst?.tag ?? "?"}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-base font-black text-yellow-300">
-                            {podiumFirst?.name ?? "—"}
-                          </div>
-                          {podiumFirst && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumFirst?.elo} ELO</div>
-                          )}
-                        </div>
-                        <div className="flex h-24 w-full items-center justify-center rounded-xl bg-yellow-500/10">
-                          <span className="text-3xl">🥇</span>
-                        </div>
-                      </div>
-
-                      {/* 3rd */}
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-orange-600/30 bg-orange-600/10 text-lg font-black text-orange-300">
-                          {podiumThird?.tag ?? "?"}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-black text-orange-300">
-                            {podiumThird?.name ?? "-"}
-                          </div>
-                          {podiumThird && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumThird?.elo} ELO</div>
-                          )}
-                        </div>
-                        <div className="flex h-12 w-full items-center justify-center rounded-xl bg-orange-600/10">
-                          <span className="text-2xl">🥉</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {!isFinishedTournament && (
-                      <p className="mt-5 text-center text-xs text-[var(--muted-foreground)]">
-                        O pódio será revelado ao final do campeonato.
-                      </p>
-                    )}
-                  </div>
-                  )}
 
                   {/* Registered teams — compact grid, no ranking */}
                   {teams.length > 0 && (
@@ -672,27 +570,34 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
 
               {/* Prize summary */}
               {tournament.prizeBreakdown.length > 0 && (
-                <div className="rounded-xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/5 to-transparent p-5">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-yellow-400" />
-                    <h4 className="text-sm font-bold text-yellow-300">Premiação</h4>
-                  </div>
-                  <div className="space-y-3">
+                <div className="rounded-xl border border-white/[0.07] bg-abyss p-5">
+                  <h4 className="font-display text-sm font-bold tracking-tight text-ink">Premiação</h4>
+                  <ul className="mt-4 divide-y divide-line/60 border-t border-line/60">
                     {tournament.prizeBreakdown.slice(0, 3).map((prize, index) => (
-                      <div key={prize.place} className="flex items-center justify-between">
-                        <span className="text-sm text-white/60">
-                          {PLACE_ICONS[index]} {prize.place}
+                      <li key={prize.place} className="flex items-baseline justify-between gap-3 py-3.5">
+                        <span
+                          className="font-display text-[13px] font-bold tracking-tight"
+                          style={{
+                            color:
+                              index === 0
+                                ? "var(--color-prize)"
+                                : index === 1
+                                  ? "oklch(0.8 0.006 250)"
+                                  : "oklch(0.63 0.085 58)",
+                          }}
+                        >
+                          {prize.place}
                         </span>
                         <span
-                          className={`font-black ${
-                            index === 0 ? "text-base text-yellow-400" : "text-sm text-white/80"
+                          className={`tabular text-[15px] font-bold ${
+                            index === 0 ? "text-prize" : "text-ink"
                           }`}
                         >
                           {formatCurrency(prize.amount)}
                         </span>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               )}
             </div>

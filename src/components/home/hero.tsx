@@ -1,253 +1,206 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Banknote, Shield, Zap } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Magnetic } from "@/components/motion/magnetic";
 
 interface HeroProps {
   isLoggedIn?: boolean;
 }
 
-const FACEIT_ICON = (
-  <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" aria-hidden="true">
-    <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500" />
-  </svg>
-);
+const guarantees = ["Anti-cheat", "Servidor dedicado", "Chave automática"];
 
 export default function Hero({ isLoggedIn = false }: HeroProps) {
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden">
-      <div className="absolute inset-0 grid-bg" />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--background)]" />
+    <section className="relative flex min-h-[100dvh] items-center overflow-hidden bg-void">
+      <div className="reticle-grid pointer-events-none absolute inset-0 opacity-70" aria-hidden="true" />
 
-      <div className="relative z-10 w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
-        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-14">
-
-          {/* ── Esquerda: copy hero — largura fixa e compacta ───────────────── */}
-          <div className="w-full lg:w-[300px] xl:w-[340px] shrink-0 text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/5 text-[var(--primary)] text-[11px] font-semibold mb-6 animate-fade-in">
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--destructive)] opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--destructive)]" />
+      <div className="relative mx-auto w-full max-w-[1440px] px-4 pb-20 pt-32 sm:px-6 lg:px-8 lg:pb-24 lg:pt-36">
+        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-12 xl:gap-16">
+          {/* ── Copy ──────────────────────────────────────────────────────── */}
+          <div className="max-w-[32rem]">
+            <p
+              className="animate-fade-in mb-8 flex items-center gap-2.5 font-display text-[13px] font-semibold text-ink-2"
+              style={{ animationDelay: "0.1s" }}
+            >
+              <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+                <span className="animate-breathe absolute inline-flex h-full w-full rounded-full bg-live" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-live" />
               </span>
-              Campeonatos transmitidos ao vivo · Ranking · PIX
-            </div>
+              Campeonatos ao vivo
+              <span className="text-line-2" aria-hidden="true">/</span>
+              <span className="text-prize">premiação em PIX</span>
+            </p>
 
-            <h1 className="text-5xl sm:text-5xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-[0.9] mb-5 animate-slide-up">
-              <span className="block text-[var(--foreground)]">Desafie.</span>
-              <span className="block text-[var(--foreground)]">Supere.</span>
-              <span className="block text-gradient">Domine.</span>
+            <h1 className="type-display text-ink">
+              <span className="animate-line-in block sm:inline" style={{ animationDelay: "0.15s" }}>
+                Desafie.
+              </span>{" "}
+              <span className="animate-line-in block sm:inline" style={{ animationDelay: "0.27s" }}>
+                Supere.
+              </span>
+              <span className="animate-line-in block text-strike" style={{ animationDelay: "0.39s" }}>
+                Domine.
+              </span>
             </h1>
 
             <p
-              className="text-sm text-[var(--muted-foreground)] mb-5 leading-relaxed animate-slide-up mx-auto lg:mx-0"
-              style={{ animationDelay: "0.1s" }}
+              className="animate-slide-up type-body mt-7 max-w-[42ch] text-[1.0625rem]"
+              style={{ animationDelay: "0.5s" }}
             >
-              A plataforma brasileira de CS2. Monte seu time, entre em torneios, dispute ranking e ganhe dinheiro.
+              A plataforma brasileira de CS2. Monte seu time, entre em campeonatos com
+              premiação paga em PIX e dispute o ranking com quem leva a sério.
             </p>
 
-            {/* ── Destaque: premiação PIX ──────────────────────────────────── */}
             <div
-              className="flex items-start gap-3 rounded-xl border px-4 py-3 mb-7 animate-slide-up mx-auto lg:mx-0 text-left"
-              style={{
-                borderColor: "rgba(245,200,66,0.22)",
-                backgroundColor: "rgba(245,200,66,0.05)",
-                animationDelay: "0.15s",
-              }}
+              className="animate-slide-up mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
+              style={{ animationDelay: "0.6s" }}
             >
-              <Banknote className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#f5c842" }} aria-hidden="true" />
-              <div>
-                <p className="text-sm font-bold" style={{ color: "#f5c842" }}>Premiação paga em PIX</p>
-                <p className="text-xs text-[var(--muted-foreground)] mt-0.5 leading-relaxed">
-                  Direto na sua chave, na hora.
-                </p>
-              </div>
+              <Magnetic strength={0.24} className="w-full sm:w-auto">
+                <Link href={isLoggedIn ? "/tournaments" : "/auth/login"} className="block">
+                  <Button variant="gradient" size="lg" className="w-full gap-2 sm:w-auto">
+                    {isLoggedIn ? "Ver campeonatos" : "Entrar com Steam"}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </Link>
+              </Magnetic>
+
+              <Link href="/ranking" className="w-full sm:w-auto">
+                <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                  Ver o ranking
+                </Button>
+              </Link>
             </div>
 
-            <div
-              className="flex flex-col sm:flex-row lg:flex-col items-center lg:items-start gap-3 mb-7 animate-slide-up"
-              style={{ animationDelay: "0.2s" }}
+            <ul
+              className="animate-slide-up mt-10 flex items-center gap-4"
+              style={{ animationDelay: "0.7s" }}
             >
-              {isLoggedIn ? (
-                <>
-                  <Link href="/teams" className="w-full sm:w-auto lg:w-full">
-                    <Button size="lg" variant="gradient" className="w-full gap-2 font-bold">
-                      Monte seu time
-                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                    </Button>
-                  </Link>
-                  <Link href="/ranking" className="w-full sm:w-auto lg:w-full">
-                    <Button size="lg" variant="outline" className="w-full gap-2">
-                      Ver ranking
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link href="/auth/login" className="w-full sm:w-auto lg:w-full">
-                    <Button size="lg" variant="gradient" className="w-full gap-2 font-bold">
-                      Entrar com Steam
-                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                    </Button>
-                  </Link>
-                  <Link href="/ranking" className="w-full sm:w-auto lg:w-full">
-                    <Button size="lg" variant="outline" className="w-full gap-2">
-                      Ver ranking
-                    </Button>
-                  </Link>
-                </>
-              )}
-            </div>
-
-            <div
-              className="flex flex-col items-center lg:items-start gap-2 animate-slide-up"
-              style={{ animationDelay: "0.3s" }}
-            >
-              {[
-                { icon: Shield, label: "Anti-cheat e arbitragem" },
-                { icon: Zap, label: "Brackets automáticos" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
-                  <item.icon className="w-3 h-3 text-[var(--primary)]" aria-hidden="true" />
-                  {item.label}
-                </div>
+              {guarantees.map((item, index) => (
+                <li key={item} className="flex items-center gap-4">
+                  {index > 0 && <span className="h-3.5 w-px bg-line-2" aria-hidden="true" />}
+                  <span className="font-display text-[13px] font-semibold text-ink-3">{item}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
-          {/* ── Direita: portal cards — flex-1 toma o espaço restante ───────── */}
+          {/* ── Os dois modos ─────────────────────────────────────────────── */}
           <div
-            className="flex-1 min-w-0 grid grid-cols-2 gap-4 animate-slide-up"
-            style={{ animationDelay: "0.35s" }}
+            className="animate-slide-up grid grid-cols-1 gap-3.5 sm:grid-cols-2"
+            style={{ animationDelay: "0.45s" }}
           >
-
-            {/* ── Card BlueStrike ──────────────────────────────────────────── */}
-            <Link href="/tournaments" className="group block">
-              <div className="bs-portal-card relative rounded-2xl overflow-hidden border border-[var(--primary)]/20 bg-[var(--card)] h-[400px] sm:h-[480px] lg:h-[520px] xl:h-[560px] transition-all duration-300 hover:border-[var(--primary)]/55 hover:shadow-[0_0_48px_rgba(0,200,255,0.14)] hover:-translate-y-1.5">
-
-                {/* Imagem de fundo */}
+            <ModeCard
+              href="/tournaments"
+              accent="var(--color-strike)"
+              image="/assets/banner_bluestrike_home.png"
+              kicker="Campeonatos próprios"
+              title="Todas as skins liberadas"
+              body="!ws ativo em todos os servidores. Qualquer faca, glove ou skin, sem restrição."
+              mark={
                 <Image
-                  src="/assets/banner_bluestrike_home.png"
+                  src="/assets/logo/bluestrike_logo_header.png"
                   alt=""
-                  fill
-                  sizes="50vw"
-                  className="object-cover object-center"
-                  priority
+                  width={28}
+                  height={28}
+                  className="logo-blend h-7 w-7 object-contain"
                 />
-                {/* Overlay atmosférico sobre a imagem */}
-                <div className="absolute inset-0 bg-gradient-to-br from-[#001a2e]/70 via-[#0a1520]/50 to-black/60" />
-                <div className="absolute inset-0 grid-bg opacity-20" />
-                {/* Glow superior direito */}
-                <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-[var(--primary)]/12 blur-3xl transition-all duration-500 group-hover:bg-[var(--primary)]/22" />
-                {/* Linha de luz inferior */}
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--primary)]/30 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                {/* Fade inferior para o conteúdo */}
-                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
+              }
+              wordmark={
+                <>
+                  Blue<span className="text-strike">Strike</span>
+                </>
+              }
+            />
 
-                {/* Mira decorativa */}
-                <div className="absolute top-6 right-6 opacity-[0.07] transition-opacity duration-300 group-hover:opacity-[0.14]" aria-hidden="true">
-                  <svg width="80" height="80" viewBox="0 0 52 52" fill="none">
-                    <circle cx="26" cy="26" r="11" stroke="#00c8ff" strokeWidth="1.5" />
-                    <circle cx="26" cy="26" r="2.5" fill="#00c8ff" />
-                    <line x1="26" y1="0" x2="26" y2="13" stroke="#00c8ff" strokeWidth="1.5" />
-                    <line x1="26" y1="39" x2="26" y2="52" stroke="#00c8ff" strokeWidth="1.5" />
-                    <line x1="0" y1="26" x2="13" y2="26" stroke="#00c8ff" strokeWidth="1.5" />
-                    <line x1="39" y1="26" x2="52" y2="26" stroke="#00c8ff" strokeWidth="1.5" />
-                  </svg>
-                </div>
-
-                {/* Conteúdo */}
-                <div className="absolute inset-0 flex flex-col justify-between p-6">
-                  <span className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/25 text-[var(--primary)] text-xs font-bold tracking-wide">
-                    <Zap className="w-3 h-3" aria-hidden="true" />
-                    BLUESTRIKE
-                  </span>
-
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--primary)] mb-3">
-                      Campeonatos Próprios
-                    </p>
-                    <h2 className="text-2xl font-black leading-tight text-white mb-3">
-                     Todas as skins liberadas<br /> Sonhe enquanto compete.
-                    </h2>
-                    <p className="text-sm text-[var(--muted-foreground)] leading-relaxed mb-6">
-                      !ws ativo em todos os servidores — use qualquer faca, glove ou skin sem restrição. Premiação em PIX, bracket automático.
-                    </p>
-                    <span className="inline-flex items-center gap-1.5 text-[var(--primary)] text-sm font-semibold transition-all duration-200 group-hover:gap-2.5">
-                      Ver campeonatos
-                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Link>
-
-            {/* ── Card FACEIT ──────────────────────────────────────────────── */}
-            <Link href="/tournaments/faceit" className="group block">
-              <div className="relative rounded-2xl overflow-hidden border border-[#FF5500]/18 bg-[var(--card)] h-[400px] sm:h-[480px] lg:h-[520px] xl:h-[560px] transition-all duration-300 hover:border-[#FF5500]/55 hover:shadow-[0_0_48px_rgba(255,85,0,0.13)] hover:-translate-y-1.5">
-
-                {/* Imagem de fundo */}
-                <Image
-                  src="/assets/banner_faceit_home.png"
-                  alt=""
-                  fill
-                  sizes="50vw"
-                  className="object-cover object-center"
-                  priority
-                />
-                {/* Overlay atmosférico sobre a imagem */}
-                <div className="absolute inset-0 bg-gradient-to-br from-[#1e0800]/70 via-[#110600]/50 to-black/60" />
-                <div
-                  className="absolute inset-0 opacity-15"
-                  style={{
-                    backgroundImage: "linear-gradient(rgba(255,85,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,85,0,0.06) 1px, transparent 1px)",
-                    backgroundSize: "40px 40px",
-                  }}
-                />
-                {/* Glow superior direito */}
-                <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-[#FF5500]/10 blur-3xl transition-all duration-500 group-hover:bg-[#FF5500]/20" />
-                {/* Linha de luz inferior */}
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#FF5500]/35 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                {/* Fade inferior */}
-                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
-
-                {/* Logo F decorativa */}
-                <div className="absolute top-5 right-5 opacity-[0.06] transition-opacity duration-300 group-hover:opacity-[0.12]" aria-hidden="true">
-                  <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" width="96" height="96">
-                    <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="#FF5500" />
-                  </svg>
-                </div>
-
-                {/* Conteúdo */}
-                <div className="absolute inset-0 flex flex-col justify-between p-6">
-                  <span className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-bold tracking-wide border" style={{ backgroundColor: "rgba(255,85,0,0.10)", borderColor: "rgba(255,85,0,0.28)", color: "#FF5500" }}>
-                    {FACEIT_ICON}
-                    FACEIT
-                  </span>
-
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: "#FF5500" }}>
-                      Plataforma FACEIT
-                    </p>
-                    <h2 className="text-2xl font-black leading-tight text-white mb-3">
-                      Jogue como um Pro<br />Maiores premiações
-                    </h2>
-                    <p className="text-sm text-[var(--muted-foreground)] leading-relaxed mb-6">
-                      FACEIT AC ativo em todas as partidas. Sem smurfs, sem desculpa. Competição com critério e ranking que conta de verdade.
-                    </p>
-                    <span className="inline-flex items-center gap-1.5 text-sm font-semibold transition-all duration-200 group-hover:gap-2.5" style={{ color: "#FF5500" }}>
-                      Ver campeonatos
-                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Link>
-
+            <ModeCard
+              href="/tournaments/faceit"
+              accent="var(--color-faceit)"
+              image="/assets/banner_faceit_home.png"
+              kicker="Plataforma FACEIT"
+              title="Jogue como um profissional"
+              body="FACEIT Anti-cheat em todas as partidas. Sem smurf, premiações maiores."
+              mark={
+                <svg viewBox="0 0 18 18" className="h-5 w-5" aria-hidden="true">
+                  <path d="M2 2h14v3H5v3h9v3H5v5H2V2Z" fill="var(--color-faceit)" />
+                </svg>
+              }
+              wordmark="FACEIT"
+            />
           </div>
         </div>
       </div>
-
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none" />
     </section>
+  );
+}
+
+interface ModeCardProps {
+  href: string;
+  accent: string;
+  image: string;
+  kicker: string;
+  title: string;
+  body: string;
+  mark: React.ReactNode;
+  wordmark: React.ReactNode;
+}
+
+function ModeCard({ href, accent, image, kicker, title, body, mark, wordmark }: ModeCardProps) {
+  return (
+    <Link
+      href={href}
+      prefetch
+      className="group relative block h-[24rem] overflow-hidden rounded-xl border border-white/[0.09] bg-abyss transition-[border-color,transform] duration-500 [transition-timing-function:var(--ease-out-quint)] hover:-translate-y-1 hover:border-white/[0.2] sm:h-[28rem] lg:h-[33rem]"
+    >
+      <Image
+        src={image}
+        alt=""
+        fill
+        sizes="(max-width: 640px) 100vw, 36vw"
+        priority
+        className="object-cover opacity-[0.62] saturate-[0.85] transition-all duration-[1200ms] [transition-timing-function:var(--ease-out-expo)] group-hover:scale-[1.06] group-hover:opacity-[0.85] group-hover:saturate-100"
+      />
+
+      {/* Escurecimento sólido só onde o texto precisa de contraste */}
+      <div className="absolute inset-0 bg-void/25" />
+      <div className="absolute inset-x-0 bottom-0 h-[68%] bg-gradient-to-t from-void via-void/88 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-void/85 to-transparent" />
+
+      <span
+        className="absolute inset-x-0 top-0 h-px origin-left scale-x-0 transition-transform duration-700 [transition-timing-function:var(--ease-out-expo)] group-hover:scale-x-100"
+        style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
+        aria-hidden="true"
+      />
+
+      <div className="relative flex h-full flex-col justify-between p-6">
+        {/* Marca: ícone + nome, na mesma tipografia da nav */}
+        <span className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[0.12] bg-void/70 backdrop-blur-sm">
+            {mark}
+          </span>
+          <span className="font-display text-lg font-extrabold tracking-[-0.03em] text-ink">
+            {wordmark}
+          </span>
+        </span>
+
+        <div>
+          <span className="font-display text-[13px] font-semibold" style={{ color: accent }}>
+            {kicker}
+          </span>
+
+          <h2 className="type-h3 mt-2 max-w-[14ch] text-ink">{title}</h2>
+
+          <p className="mt-2.5 max-w-[34ch] text-[13px] leading-relaxed text-ink-2">{body}</p>
+
+          <span
+            className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold transition-[gap] duration-300 group-hover:gap-3.5"
+            style={{ color: accent }}
+          >
+            Ver campeonatos
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+        </div>
+      </div>
+    </Link>
   );
 }

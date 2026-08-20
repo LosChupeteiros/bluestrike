@@ -1,125 +1,155 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, TrendingUp, TrendingDown, Minus, Crown, Medal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Reveal } from "@/components/motion/reveal";
 import { mockRanking } from "@/data/mock";
 import { getPlayerRank } from "@/lib/ranks";
 import { cn } from "@/lib/utils";
 
-function PositionIcon({ position }: { position: number }) {
-  if (position === 1) return <Crown className="w-4 h-4 text-yellow-400" />;
-  if (position === 2) return <Medal className="w-4 h-4 text-gray-300" />;
-  if (position === 3) return <Medal className="w-4 h-4 text-orange-400" />;
-  return <span className="text-sm font-bold text-[var(--muted-foreground)]">#{position}</span>;
-}
-
+/**
+ * A broadcast standings table, not a stack of cards: rows are grouped by
+ * hairline rules, every figure is tabular so the columns never jitter, and
+ * only the leader gets colour.
+ */
 export default function RankingPreview() {
-  const top5 = mockRanking.slice(0, 5);
+  const top = mockRanking.slice(0, 5);
 
   return (
-    <section className="py-24 bg-[var(--card)] border-y border-[var(--border)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-10">
-          <div>
-            <div className="flex items-center gap-2 text-[var(--primary)] text-sm font-semibold mb-2">
-              <TrendingUp className="w-4 h-4" />
-              Ranking Global
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-              Os melhores jogadores
+    <section className="relative overflow-hidden border-y border-line/60 bg-void">
+      <div className="relative mx-auto w-full max-w-[1360px] px-4 py-28 sm:px-6 lg:px-8 lg:py-36">
+        <Reveal variant="mask" className="flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-2xl">
+            <h2 className="type-h2 text-ink">
+              Os melhores
+              <span className="text-ink-3"> do ranking.</span>
             </h2>
-            <p className="text-[var(--muted-foreground)] mt-2">
-              Baseado em ELO e performance nos campeonatos.
+            <p className="type-body mt-5">
+              ELO ajustado a cada partida oficial, com K/D e taxa de headshot puxados direto das
+              estatísticas do servidor.
             </p>
           </div>
-          <Link href="/ranking" className="hidden md:block">
-            <Button variant="outline" size="sm" className="gap-2">
-              Ver ranking completo <ArrowRight className="w-4 h-4" />
-            </Button>
+
+          <Link
+            href="/ranking"
+            prefetch
+            className="hidden items-center gap-2 text-sm font-semibold text-strike transition-[gap] duration-300 hover:gap-3.5 md:inline-flex"
+          >
+            Ranking completo
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
-        </div>
+        </Reveal>
 
-        <div className="space-y-2">
-          {top5.map((entry, i) => {
-            return (
-              <Link key={entry.profileId} href={`/profile/${entry.profileId}`} className="group block">
-                <div className={cn(
-                  "flex items-center gap-4 p-4 rounded-xl border transition-all duration-200",
-                  i === 0
-                    ? "border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/8"
-                    : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--primary)]/30 hover:bg-[var(--primary)]/3"
-                )}>
-                  {/* Position */}
-                  <div className="w-8 flex items-center justify-center shrink-0">
-                    <PositionIcon position={entry.position} />
-                  </div>
+        <Reveal delay={0.08} className="mt-12">
+          {/* Column heads — desktop only, this is a table not a list */}
+          <div className="hidden grid-cols-[3rem_minmax(0,1fr)_5rem_5rem_9rem] items-center gap-4 border-b border-line/70 px-3 pb-3 md:grid">
+            <span className="tick">#</span>
+            <span className="tick">Jogador</span>
+            <span className="tick text-right">K/D</span>
+            <span className="tick text-right">HS</span>
+            <span className="tick text-right">ELO</span>
+          </div>
 
-                  {/* Avatar */}
-                  <Avatar className={cn("h-10 w-10", i === 0 && "ring-2 ring-yellow-400/50")}>
-                    <AvatarImage src={entry.avatarUrl ?? undefined} alt={entry.nickname} />
-                    <AvatarFallback>{entry.nickname[0]}</AvatarFallback>
-                  </Avatar>
+          <ol className="divide-y divide-line/50">
+            {top.map((entry, index) => {
+              const rank = getPlayerRank(entry.elo);
+              const isLeader = index === 0;
+              const trendUp = entry.eloChange > 0;
+              const trendFlat = entry.eloChange === 0;
 
-                  {/* Name */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm group-hover:text-[var(--primary)] transition-colors truncate">
-                      {entry.nickname}
-                    </div>
-                    <div className="text-xs text-[var(--muted-foreground)]">
-                      {entry.tournamentsPlayed} torneios · {entry.wins}V/{entry.losses}D
-                    </div>
-                  </div>
+              return (
+                <li key={entry.profileId}>
+                  <Link
+                    href={`/profile/${entry.profileId}`}
+                    className={cn(
+                      "group grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-4 rounded-lg px-3 py-4",
+                      "transition-colors duration-300 hover:bg-white/[0.035]",
+                      "md:grid-cols-[3rem_minmax(0,1fr)_5rem_5rem_9rem]"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "tabular text-sm font-semibold",
+                        isLeader ? "text-prize" : "text-ink-3"
+                      )}
+                    >
+                      {String(entry.position).padStart(2, "0")}
+                    </span>
 
-                  {/* Stats */}
-                  <div className="hidden sm:flex items-center gap-6 text-xs text-[var(--muted-foreground)]">
-                    <div className="text-center">
-                      <div className="font-semibold text-[var(--foreground)]">{entry.kdRatio.toFixed(2)}</div>
-                      <div>K/D</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-semibold text-[var(--foreground)]">{entry.hsRate.toFixed(0)}%</div>
-                      <div>HS</div>
-                    </div>
-                  </div>
+                    <span className="flex min-w-0 items-center gap-3">
+                      <Avatar
+                        className={cn(
+                          "h-9 w-9 shrink-0 ring-1 transition-all duration-500",
+                          isLeader ? "ring-prize/50" : "ring-line-2 group-hover:ring-strike/40"
+                        )}
+                      >
+                        <AvatarImage src={entry.avatarUrl ?? undefined} alt="" />
+                        <AvatarFallback className="font-display text-xs font-bold">
+                          {entry.nickname.slice(0, 1)}
+                        </AvatarFallback>
+                      </Avatar>
 
-                  {/* Patente + ELO + variação */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {(() => {
-                      const rank = getPlayerRank(entry.elo);
-                      return (
-                        <Image
-                          src={rank.imagePath}
-                          alt={rank.name}
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 object-contain"
-                          unoptimized
-                        />
-                      );
-                    })()}
-                    <div className="text-right">
-                      <div className="font-mono text-sm font-black text-[var(--primary)]">{entry.elo.toLocaleString()}</div>
-                      <div className={cn(
-                        "flex items-center justify-end gap-0.5 text-xs font-medium",
-                        entry.eloChange > 0 ? "text-green-400" : entry.eloChange < 0 ? "text-red-400" : "text-[var(--muted-foreground)]"
-                      )}>
-                        {entry.eloChange > 0 ? <TrendingUp className="w-3 h-3" /> : entry.eloChange < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-                        {entry.eloChange > 0 ? `+${entry.eloChange}` : entry.eloChange === 0 ? "—" : entry.eloChange}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                      <span className="min-w-0">
+                        <span className="block truncate font-display text-sm font-bold tracking-tight text-ink transition-colors duration-300 group-hover:text-strike">
+                          {entry.nickname}
+                        </span>
+                        <span className="block truncate font-mono text-[11px] text-ink-3">
+                          {entry.tournamentsPlayed} torneios · {entry.wins}V {entry.losses}D
+                        </span>
+                      </span>
+                    </span>
 
-        <div className="mt-6 text-center md:hidden">
-          <Link href="/ranking">
-            <Button variant="outline" className="gap-2">
-              Ver ranking completo <ArrowRight className="w-4 h-4" />
-            </Button>
+                    <span className="tabular hidden text-right text-[13px] text-ink-2 md:block">
+                      {entry.kdRatio.toFixed(2)}
+                    </span>
+                    <span className="tabular hidden text-right text-[13px] text-ink-2 md:block">
+                      {entry.hsRate.toFixed(0)}%
+                    </span>
+
+                    <span className="flex items-center justify-end gap-3">
+                      <Image
+                        src={rank.imagePath}
+                        alt={rank.name}
+                        width={30}
+                        height={30}
+                        className="h-7 w-7 shrink-0 object-contain"
+                        unoptimized
+                      />
+                      <span className="text-right">
+                        <span className="tabular block text-[0.9375rem] font-semibold leading-tight text-ink">
+                          {entry.elo.toLocaleString("pt-BR")}
+                        </span>
+                        <span
+                          className={cn(
+                            "tabular flex items-center justify-end gap-0.5 text-[11px] leading-tight",
+                            trendFlat ? "text-ink-3" : trendUp ? "text-gain" : "text-loss"
+                          )}
+                        >
+                          {!trendFlat &&
+                            (trendUp ? (
+                              <TrendingUp className="h-3 w-3" aria-hidden="true" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3" aria-hidden="true" />
+                            ))}
+                          {trendFlat ? "—" : trendUp ? `+${entry.eloChange}` : entry.eloChange}
+                        </span>
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
+        </Reveal>
+
+        <div className="mt-8 md:hidden">
+          <Link
+            href="/ranking"
+            prefetch
+            className="inline-flex items-center gap-2 text-sm font-semibold text-strike"
+          >
+            Ranking completo
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
       </div>

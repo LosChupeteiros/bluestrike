@@ -229,11 +229,11 @@ export default function ProfileShellView({
 
           {showTeamCreatedNotice && isOwner && (
             <div className="mb-8 rounded-2xl border border-green-500/20 bg-green-500/10 p-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-green-300">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gain">
                 <ShieldCheck className="h-4 w-4" />
                 Time criado com sucesso
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-green-100/80">
+              <p className="mt-2 text-sm leading-relaxed text-ink-2">
                 Seu time já está no hub, aparece no catálogo público e pode receber convites para campeonato.
               </p>
             </div>
@@ -241,11 +241,11 @@ export default function ProfileShellView({
 
           {showTeamDeletedNotice && isOwner && (
             <div className="mb-8 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-orange-300">
+              <div className="flex items-center gap-2 text-sm font-semibold text-faceit">
                 <ShieldCheck className="h-4 w-4" />
                 Time removido
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-orange-100/80">
+              <p className="mt-2 text-sm leading-relaxed text-ink-2">
                 O time foi arquivado e sua vaga ficou livre para montar outra line quando quiser.
               </p>
             </div>
@@ -326,55 +326,43 @@ export default function ProfileShellView({
             </div>
           </div>
 
-          <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-[var(--primary)]" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">Patente</span>
-              </div>
-
-              <div className="flex items-center gap-3.5">
-                <div className="shrink-0">
-                  <Image
-                    src={playerRank.imagePath}
-                    alt={playerRank.name}
-                    width={76}
-                    height={76}
-                    className="h-[76px] w-[76px] object-contain drop-shadow-lg"
-                    unoptimized
-                  />
-                </div>
-
-                <div>
-                  <div className="text-sm font-bold leading-tight text-[var(--foreground)]">{playerRank.name}</div>
-                  <div className="mt-0.5 font-mono text-base font-black text-[var(--primary)]">{profile.elo} ELO</div>
-                </div>
+          {/* Estatísticas — os rótulos compartilham a mesma linha de topo e os
+              valores a mesma linha de base, então as quatro colunas alinham. */}
+          <div className="mb-8 grid grid-cols-2 items-start gap-x-8 gap-y-8 border-y border-line/70 py-6 sm:grid-cols-4">
+            <div>
+              <span className="tick block">Patente</span>
+              <div className="mt-2 flex items-center gap-3">
+                <Image
+                  src={playerRank.imagePath}
+                  alt={playerRank.name}
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 shrink-0 object-contain"
+                  unoptimized
+                />
+                <span className="min-w-0">
+                  <span className="block truncate font-display text-sm font-bold tracking-tight text-ink">
+                    {playerRank.name}
+                  </span>
+                  <span className="tabular mt-0.5 block text-[13px] font-semibold text-strike">
+                    {profile.elo} ELO
+                  </span>
+                </span>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-green-400" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">Win rate</span>
+            {[
+              { label: "Win rate", value: `${stats.winRate}%` },
+              { label: "K/D ratio", value: stats.kdRatio.toFixed(2) },
+              { label: "HS rate", value: `${stats.hsRate}%` },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <span className="tick block">{stat.label}</span>
+                <span className="tabular mt-2 flex h-14 items-center text-[2rem] font-bold leading-[1.05] text-ink">
+                  {stat.value}
+                </span>
               </div>
-              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-green-400">{stats.winRate}%</div>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <Swords className="h-4 w-4 text-orange-400" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">K/D ratio</span>
-              </div>
-              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-orange-400">{stats.kdRatio.toFixed(2)}</div>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <Target className="h-4 w-4 text-purple-400" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">HS rate</span>
-              </div>
-              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-purple-400">{stats.hsRate}%</div>
-            </div>
+            ))}
           </div>
 
           <div className="mb-8">
@@ -406,8 +394,8 @@ export default function ProfileShellView({
                               !isFinished
                                 ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
                                 : match.isWinner
-                                  ? "border-green-500/30 bg-green-500/10 text-green-400"
-                                  : "border-red-500/30 bg-red-500/10 text-red-400"
+                                  ? "border-gain/30 bg-gain/12 text-gain"
+                                  : "border-red-500/30 bg-red-500/10 text-loss"
                             )}>
                               {!isFinished ? "AO" : match.isWinner ? "V" : "D"}
                             </div>
@@ -430,7 +418,7 @@ export default function ProfileShellView({
                                 {match.eloDelta !== null && (
                                   <>
                                     <span>·</span>
-                                    <span className={cn("font-bold tabular-nums", match.eloDelta >= 0 ? "text-green-400" : "text-red-400")}>
+                                    <span className={cn("font-bold tabular-nums", match.eloDelta >= 0 ? "text-gain" : "text-loss")}>
                                       {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} elo
                                     </span>
                                   </>

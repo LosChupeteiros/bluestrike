@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, useTransition, type ReactNode, useRef} from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -74,6 +74,8 @@ function Modal({
 }) {
   const titleId = useId();
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
@@ -92,6 +94,18 @@ function Modal({
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
+  // Ao abrir, o foco entra no diálogo; ao fechar, volta para o gatilho.
+  // Sem isso o teclado continua navegando a página atrás do overlay.
+  useEffect(() => {
+    if (!open) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    const frame = requestAnimationFrame(() => dialogRef.current?.focus());
+    return () => {
+      cancelAnimationFrame(frame);
+      trigger?.focus?.();
+    };
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -102,14 +116,16 @@ function Modal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
-        aria-modal
+        aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[var(--background)] shadow-[0_32px_100px_rgba(0,0,0,0.7)]"
+        tabIndex={-1}
+        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-abyss shadow-[0_32px_100px_rgba(0,0,0,0.7)] outline-none"
       >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#0d0d0d] px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-void px-5 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-base font-black tracking-tight">{title}</h2>
+            <h2 id={titleId} className="font-display text-base font-bold tracking-tight text-ink">{title}</h2>
             {subtitle && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{subtitle}</p>}
           </div>
           {onClose && (
@@ -200,11 +216,11 @@ function PixCheckout({
           <p className="mt-1 text-2xl font-black text-green-300">Pagamento aprovado</p>
           <p className="mt-1 text-3xl font-black text-green-400">{formatCurrency(amount)}</p>
         </div>
-        <div className="w-full rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-left text-xs text-green-200">
-          Seu time foi confirmado no campeonato. A pagina sera atualizada com a inscricao oficial.
+        <div className="w-full rounded-xl border border-gain/25 bg-gain/[0.08] px-4 py-3 text-left text-[13px] text-ink-2">
+          Seu time está confirmado no campeonato. A página será atualizada com a inscrição oficial.
         </div>
         <Button type="button" variant="outline" className="w-full border-green-500/30 text-green-300 hover:bg-green-500/10" onClick={onApproved}>
-          Ver inscricao confirmada
+          Ver inscrição confirmada
         </Button>
       </div>
     );
@@ -212,9 +228,9 @@ function PixCheckout({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center gap-4 py-10 text-center">
-        <Loader2 className="h-9 w-9 animate-spin text-[var(--primary)]" />
-        <p className="text-sm font-semibold">Gerando QR Code...</p>
+      <div className="flex flex-col items-center gap-4 py-10 text-center" role="status" aria-live="polite">
+        <Loader2 className="h-9 w-9 animate-spin text-strike" aria-hidden="true" />
+        <p className="text-sm font-semibold">Gerando QR Code</p>
         <p className="text-xs text-[var(--muted-foreground)]">Aguarde um instante.</p>
       </div>
     );
@@ -222,8 +238,8 @@ function PixCheckout({
 
   if (error) {
     return (
-      <div className="space-y-4 py-2">
-        <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+      <div className="space-y-4 py-2" role="alert">
+        <div className="flex items-start gap-2 rounded-xl border border-loss/25 bg-loss/[0.08] px-4 py-3 text-[13px] text-loss">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           {error}
         </div>
@@ -551,7 +567,6 @@ export default function TournamentRegistrationCard({
             if (canRegister) handleStartRegistration();
           }}
         >
-          <Trophy className="h-4 w-4" />
           {ctaLabel}
         </Button>
 
@@ -602,7 +617,7 @@ export default function TournamentRegistrationCard({
         )}
 
         {feedback && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          <div className="rounded-xl border border-loss/20 bg-loss/[0.08] px-3 py-2 text-[11px] text-loss">
             {feedback}
           </div>
         )}
@@ -730,7 +745,7 @@ export default function TournamentRegistrationCard({
               </div>
 
               {feedback && (
-                <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                <div className="flex items-start gap-2 rounded-xl border border-loss/25 bg-loss/[0.08] px-4 py-3 text-[13px] text-loss">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   {feedback}
                 </div>
@@ -824,7 +839,7 @@ export default function TournamentRegistrationCard({
           </label>
 
           {feedback && (
-            <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <div className="flex items-start gap-2 rounded-xl border border-loss/25 bg-loss/[0.08] px-4 py-3 text-[13px] text-loss">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               {feedback}
             </div>

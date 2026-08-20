@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, Menu, Shield, Trophy, X, Zap } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ChevronDown, Menu, Shield, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,11 +13,11 @@ import HeaderElo from "./header-elo";
 import NotificationBell from "./notification-bell";
 
 const navLinks = [
-  { href: "/live", label: "Ao vivo", badge: null, live: true },
-  { href: "/teams", label: "Times", badge: null, live: false },
-  { href: "/players", label: "Players", badge: null, live: false },
-  { href: "/ranking", label: "Ranking", badge: null, live: false },
-  { href: "/skins", label: "Skins", badge: null, live: false },
+  { href: "/live", label: "Ao vivo", live: true },
+  { href: "/teams", label: "Times", live: false },
+  { href: "/players", label: "Players", live: false },
+  { href: "/ranking", label: "Ranking", live: false },
+  { href: "/skins", label: "Skins", live: false },
 ];
 
 interface HeaderUser {
@@ -34,248 +35,309 @@ interface HeaderProps {
   authState?: "ready" | "loading";
 }
 
-// ── Campeonatos dropdown ──────────────────────────────────────────────────────
+const SPRING = { type: "spring" as const, stiffness: 380, damping: 32, mass: 0.7 };
 
-function FaceitLogo({ size = 18 }: { size?: number }) {
+function FaceitMark({ size = 18 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#FF5500" />
-      <path
-        d="M8 8h16v4.5H12.5v3H22v4.5h-9.5V24H8V8z"
-        fill="white"
-      />
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect width="32" height="32" rx="8" fill="var(--color-faceit)" />
+      <path d="M8 8h16v4.5H12.5v3H22v4.5h-9.5V24H8V8z" fill="white" />
     </svg>
   );
 }
 
-interface CampeonatosMenuProps {
-  pathname: string;
-  onClose?: () => void;
+/**
+ * O PNG do logo tem fundo preto esfumaçado. `mix-blend-mode: screen` descarta
+ * esse preto contra a superfície escura e deixa só o raio — sem a caixa feia
+ * em volta da marca, e sem precisar reexportar o asset.
+ */
+function StrikeMark() {
+  return (
+    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+      <Image
+        src="/assets/logo/bluestrike_logo_header.png"
+        alt=""
+        width={36}
+        height={36}
+        priority
+        className="logo-blend h-9 w-9 object-contain transition-transform duration-700 [transition-timing-function:var(--ease-out-expo)] group-hover:scale-110"
+      />
+    </span>
+  );
 }
 
-function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
+// ── Campeonatos dropdown ─────────────────────────────────────────────────────
+
+function CampeonatosMenu({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isActive =
-    pathname.startsWith("/tournaments") || pathname.startsWith("/faceit");
+  const isActive = pathname.startsWith("/tournaments") || pathname.startsWith("/faceit");
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
 
   function scheduleClose() {
-    closeTimer.current = setTimeout(() => setOpen(false), 300);
+    closeTimer.current = setTimeout(() => setOpen(false), 220);
   }
 
   function cancelClose() {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }
 
+  const lanes = [
+    {
+      href: "/tournaments",
+      title: "BlueStrike",
+      note: "Skins liberadas · Premiação PIX",
+      accent: "var(--color-strike)",
+      mark: (
+        <Image
+          src="/assets/logo/bluestrike_logo_header.png"
+          alt=""
+          width={26}
+          height={26}
+          className="logo-blend h-6 w-6 object-contain"
+        />
+      ),
+      tag: "!ws",
+    },
+    {
+      href: "/faceit",
+      title: "FACEIT",
+      note: "Anti-cheat · Premiações maiores",
+      accent: "var(--color-faceit)",
+      mark: <FaceitMark size={24} />,
+      tag: null,
+    },
+  ];
+
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => { cancelClose(); setOpen(true); }}
-      onMouseLeave={scheduleClose}
-    >
-      {/* Trigger button */}
+    <div className="relative" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="true"
         className={cn(
-          "flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors select-none",
-          isActive
-            ? "text-[var(--primary)] bg-[var(--primary)]/10"
-            : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
+          "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors duration-300",
+          isActive ? "text-strike" : "text-ink hover:text-strike"
         )}
       >
-        <Trophy className="h-3.5 w-3.5" />
         Campeonatos
         <ChevronDown
-          className={cn(
-            "h-3 w-3 transition-transform duration-200",
-            open && "rotate-180"
-          )}
+          className={cn("h-3 w-3 transition-transform duration-300 [transition-timing-function:var(--ease-out-quint)]", open && "rotate-180")}
+          aria-hidden="true"
         />
       </button>
 
-      {/* Dropdown */}
-      <div
-        className={cn(
-          "absolute left-0 top-full pt-2 w-72 z-50",
-          "transition-all duration-200 ease-out",
-          open
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 -translate-y-2 pointer-events-none"
-        )}
-      >
-        {/* Arrow */}
-        <div className="ml-5 w-3 h-1.5 overflow-hidden">
-          <div className="w-3 h-3 bg-[var(--border)] rotate-45 translate-y-1.5 translate-x-0.5" />
-        </div>
-
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl shadow-black/60 overflow-hidden">
-          {/* Top accent line */}
-          <div className="h-px bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent" />
-
-          <div className="p-2 space-y-0.5">
-            {/* Header label */}
-            <p className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
-              Modalidades
-            </p>
-
-            {/* BlueStrike !ws */}
-            <Link
-              href="/tournaments"
-              prefetch
-              onClick={onClose}
-              className="group relative flex items-center gap-3 rounded-lg px-3 py-3 transition-all duration-150 hover:bg-[var(--primary)]/8 overflow-hidden"
-            >
-              {/* Subtle glow on hover */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gradient-to-r from-[var(--primary)]/5 to-transparent" />
-
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/25 group-hover:ring-[var(--primary)]/50 group-hover:bg-[var(--primary)]/15 transition-all duration-150">
-                <Image
-                  src="/assets/logo/bluestrike_logo_header.png"
-                  alt="BlueStrike"
-                  width={28}
-                  height={28}
-                  className="rounded-md object-cover"
-                />
-              </div>
-
-              <div className="relative min-w-0">
-                <p className="text-sm font-bold text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors duration-150 flex items-center gap-1.5">
-                  BlueStrike
-                  <span className="font-mono text-xs px-1 py-0.5 rounded bg-[var(--primary)]/15 text-[var(--primary)] group-hover:bg-[var(--primary)]/25 transition-colors">
-                    !ws
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98, transition: { duration: 0.14 } }}
+            transition={SPRING}
+            style={{ zIndex: "var(--z-dropdown)" }}
+            className="absolute left-1/2 top-full w-[21rem] -translate-x-1/2 pt-3"
+          >
+            <div className="frost overflow-hidden rounded-2xl p-1.5 shadow-[0_28px_60px_-24px_rgba(0,0,0,0.9)]">
+              {lanes.map((lane) => (
+                <Link
+                  key={lane.href}
+                  href={lane.href}
+                  prefetch
+                  onClick={() => { setOpen(false); onNavigate?.(); }}
+                  className="group/lane relative flex items-center gap-3 rounded-xl px-3 py-3 transition-colors duration-300 hover:bg-white/[0.05]"
+                >
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all duration-300"
+                    style={{
+                      borderColor: `color-mix(in oklab, ${lane.accent} 28%, transparent)`,
+                      background: `color-mix(in oklab, ${lane.accent} 10%, transparent)`,
+                    }}
+                  >
+                    {lane.mark}
                   </span>
-                </p>
-                <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
-                  Skins customizadas • PIX
-                </p>
-              </div>
 
-              <Zap className="relative ml-auto h-3.5 w-3.5 text-[var(--primary)]/30 group-hover:text-[var(--primary)]/70 transition-colors shrink-0" />
-            </Link>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 font-display text-sm font-bold tracking-tight text-ink">
+                      {lane.title}
+                      {lane.tag && (
+                        <span
+                          className="rounded px-1 py-px font-mono text-[10px] font-semibold"
+                          style={{ color: lane.accent, background: `color-mix(in oklab, ${lane.accent} 14%, transparent)` }}
+                        >
+                          {lane.tag}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-3">{lane.note}</span>
+                  </span>
 
-            {/* Divider */}
-            <div className="mx-3 h-px bg-[var(--border)]" />
-
-            {/* FACEIT */}
-            <Link
-              href="/faceit"
-              prefetch
-              onClick={onClose}
-              className="group relative flex items-center gap-3 rounded-lg px-3 py-3 transition-all duration-150 hover:bg-[#FF5500]/8 overflow-hidden"
-            >
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gradient-to-r from-[#FF5500]/5 to-transparent" />
-
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#FF5500]/10 ring-1 ring-[#FF5500]/25 group-hover:ring-[#FF5500]/50 group-hover:bg-[#FF5500]/15 transition-all duration-150">
-                <FaceitLogo size={22} />
-              </div>
-
-              <div className="relative min-w-0">
-                <p className="text-sm font-bold text-[var(--foreground)] group-hover:text-[#FF5500] transition-colors duration-150">
-                  FACEIT
-                </p>
-                <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
-                  Liga anti-cheat • Competitivo PIX
-                </p>
-              </div>
-
-              <Zap className="relative ml-auto h-3.5 w-3.5 text-[#FF5500]/30 group-hover:text-[#FF5500]/70 transition-colors shrink-0" />
-            </Link>
-
-            {/* Bottom spacing */}
-            <div className="pb-1" />
-          </div>
-        </div>
-      </div>
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full opacity-40 transition-all duration-300 group-hover/lane:opacity-100"
+                    style={{ background: lane.accent }}
+                    aria-hidden="true"
+                  />
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// ── Mobile Campeonatos section ────────────────────────────────────────────────
+// ── Desktop nav with a sliding indicator ─────────────────────────────────────
 
-function MobileCampeonatosSection({
+function DesktopNav({ pathname }: { pathname: string }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
+  const activeHref = navLinks.find(
+    (link) => pathname === link.href || pathname.startsWith(`${link.href}/`)
+  )?.href;
+  const highlighted = hovered ?? activeHref;
+
+  return (
+    <nav className="hidden items-center lg:flex" onMouseLeave={() => setHovered(null)}>
+      <CampeonatosMenu pathname={pathname} />
+
+      {navLinks.map((link) => {
+        const isActive = link.href === activeHref;
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            prefetch
+            onMouseEnter={() => setHovered(link.href)}
+            className={cn(
+              "relative flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors duration-300",
+              isActive ? "text-strike" : "text-ink hover:text-strike"
+            )}
+          >
+            {highlighted === link.href && (
+              <motion.span
+                layoutId="nav-indicator"
+                className="absolute inset-0 -z-10 rounded-full bg-white/[0.07]"
+                transition={reduceMotion ? { duration: 0 } : SPRING}
+                aria-hidden="true"
+              />
+            )}
+            {link.live && (
+              <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+                <span className="animate-breathe absolute inline-flex h-full w-full rounded-full bg-live" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-live" />
+              </span>
+            )}
+            {link.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ── Mobile sheet ─────────────────────────────────────────────────────────────
+
+function MobileSheet({
+  user,
+  authState,
   pathname,
   onClose,
 }: {
+  user: HeaderUser | null;
+  authState: "ready" | "loading";
   pathname: string;
   onClose: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const isActive =
-    pathname.startsWith("/tournaments") || pathname.startsWith("/faceit");
+  const allLinks = [
+    { href: "/tournaments", label: "Campeonatos BlueStrike", live: false },
+    { href: "/faceit", label: "Campeonatos FACEIT", live: false },
+    ...navLinks,
+  ];
 
   return (
-    <div>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-          isActive
-            ? "text-[var(--primary)] bg-[var(--primary)]/10"
-            : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
-        )}
-      >
-        <Trophy className="h-3.5 w-3.5 shrink-0" />
-        Campeonatos
-        <ChevronDown
-          className={cn(
-            "ml-auto h-3.5 w-3.5 transition-transform duration-200",
-            open && "rotate-180"
-          )}
-        />
-      </button>
+    <motion.div
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12, transition: { duration: 0.16 } }}
+      transition={SPRING}
+      className="mt-2 lg:hidden"
+    >
+      <div className="frost overflow-hidden rounded-2xl p-2 shadow-[0_28px_60px_-24px_rgba(0,0,0,0.9)]">
+        {allLinks.map((link) => {
+          const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              prefetch
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm font-medium transition-colors",
+                isActive ? "bg-strike/10 text-strike" : "text-ink hover:bg-white/[0.05] hover:text-strike"
+              )}
+            >
+              {link.live && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-live" aria-hidden="true" />}
+              {link.label}
+            </Link>
+          );
+        })}
 
-      <div
-        className={cn(
-          "overflow-hidden transition-all duration-200",
-          open ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
-        )}
-      >
-        <div className="ml-4 mt-1 space-y-0.5 border-l border-[var(--border)] pl-3">
-          <Link
-            href="/tournaments"
-            prefetch
-            onClick={onClose}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              pathname.startsWith("/tournaments")
-                ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
-            )}
-          >
-            <Image
-              src="/assets/logo/bluestrike_logo_header.png"
-              alt="BlueStrike"
-              width={16}
-              height={16}
-              className="rounded object-cover"
-            />
-            BlueStrike{" "}
-            <span className="font-mono text-[10px] px-1 rounded bg-[var(--primary)]/15 text-[var(--primary)]">
-              !ws
-            </span>
-          </Link>
+        <div className="my-2 h-px bg-line" />
 
-          <Link
-            href="/faceit"
-            prefetch
-            onClick={onClose}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              pathname.startsWith("/faceit")
-                ? "text-[#FF5500] bg-[#FF5500]/10"
-                : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
+        {user ? (
+          <div className="space-y-2 p-1">
+            <Link
+              href={`/profile/${user.publicId}`}
+              prefetch
+              onClick={onClose}
+              className="flex items-center gap-3 rounded-xl border border-line bg-surface/60 px-3 py-3"
+            >
+              <Avatar className="h-10 w-10 ring-1 ring-strike/25">
+                <AvatarImage src={user.steamAvatarUrl ?? undefined} alt="" />
+                <AvatarFallback className="font-display font-bold text-strike">
+                  {user.displayName.slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-ink">{user.displayName}</span>
+                <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
+              </span>
+            </Link>
+
+            {user.isAdmin && (
+              <Link href="/admin" prefetch onClick={onClose} className="block">
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2">
+                  <Shield className="h-4 w-4" aria-hidden="true" />
+                  Admin
+                </Button>
+              </Link>
             )}
-          >
-            <FaceitLogo size={16} />
-            FACEIT
-          </Link>
-        </div>
+
+            <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+              <a href="/api/auth/logout" onClick={onClose}>Sair</a>
+            </Button>
+          </div>
+        ) : authState === "loading" ? (
+          <div className="p-1">
+            <div className="skeleton h-10 w-full rounded-lg" />
+          </div>
+        ) : (
+          <div className="p-1">
+            <Link href="/auth/login" prefetch onClick={onClose} className="block">
+              <Button variant="gradient" size="sm" className="w-full">Entrar com Steam</Button>
+            </Link>
+          </div>
+        )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-// ── Main header ───────────────────────────────────────────────────────────────
+// ── Header ───────────────────────────────────────────────────────────────────
 
 export default function Header({ user, authState = "ready" }: HeaderProps) {
   const pathname = usePathname();
@@ -284,126 +346,83 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () => setScrolled(window.scrollY > 16);
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
-    const routesToPrefetch = ["/", "/tournaments", "/teams", "/players", "/ranking", "/auth/login", "/faceit"];
-
+    const routes = ["/", "/tournaments", "/teams", "/players", "/ranking", "/auth/login", "/faceit"];
     if (user) {
-      routesToPrefetch.push(`/profile/${user.publicId}`);
-      routesToPrefetch.push("/cadastro");
+      routes.push(`/profile/${user.publicId}`, "/cadastro");
     }
 
-    const prefetchRoutes = () => {
-      for (const route of routesToPrefetch) {
-        router.prefetch(route);
-      }
-    };
+    const prefetchRoutes = () => routes.forEach((route) => router.prefetch(route));
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(prefetchRoutes);
-      return () => window.cancelIdleCallback(idleId);
+      const id = window.requestIdleCallback(prefetchRoutes);
+      return () => window.cancelIdleCallback(id);
     }
 
     const timeout = setTimeout(prefetchRoutes, 250);
     return () => clearTimeout(timeout);
   }, [router, user]);
 
-  function closeMobileMenu() {
+  useEffect(() => {
     setMobileOpen(false);
-  }
+  }, [pathname]);
 
   return (
     <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-[var(--background)]/95 backdrop-blur-md border-b border-[var(--border)] shadow-lg"
-          : "bg-transparent"
-      )}
+      className="fixed inset-x-0 top-0 px-3 pt-3 sm:px-4"
+      style={{ zIndex: "var(--z-sticky)" }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2.5 group" onClick={closeMobileMenu}>
-            <div className="relative flex items-center justify-center w-9 h-9 overflow-hidden rounded-lg bg-[var(--primary)] shadow-md group-hover:shadow-[0_0_16px_rgba(0,200,255,0.5)] transition-shadow">
-              <Image
-                src="/assets/logo/bluestrike_logo_header.png"
-                alt="BlueStrike"
-                width={36}
-                height={36}
-                priority
-                className="relative z-10 h-9 w-9 rounded-lg object-cover"
-              />
-            </div>
-            <span className="text-xl font-black tracking-tight">
-              Blue<span className="text-[var(--primary)]">Strike</span>
+      <div className="mx-auto max-w-[1360px]">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-3 rounded-full border px-3 transition-all duration-500 [transition-timing-function:var(--ease-out-quint)] sm:px-4",
+            scrolled
+              ? "h-14 border-white/[0.08] bg-void/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_16px_40px_-20px_rgba(0,0,0,0.9)] backdrop-blur-2xl backdrop-saturate-150"
+              : "h-16 border-transparent bg-transparent"
+          )}
+        >
+          <Link href="/" className="group flex shrink-0 items-center gap-2.5">
+            <StrikeMark />
+            <span className="font-display text-lg font-extrabold tracking-[-0.03em] text-ink">
+              Blue<span className="text-strike">Strike</span>
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
-            {/* Campeonatos dropdown — before Ao vivo */}
-            <CampeonatosMenu pathname={pathname} />
+          <DesktopNav pathname={pathname} />
 
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                prefetch
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  pathname === link.href || pathname.startsWith(`${link.href}/`)
-                    ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                    : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
-                )}
-              >
-                {link.live && (
-                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--destructive)]" />
-                )}
-                {link.label}
-                {link.badge && (
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
-                    style={{ color: "#f5c842", backgroundColor: "rgba(245,200,66,0.12)" }}
-                  >
-                    {link.badge}
-                  </span>
-                )}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             {user ? (
               <>
-                <NotificationBell enabled={true} />
+                <NotificationBell enabled />
                 <Link
                   href={`/profile/${user.publicId}`}
                   prefetch
-                  className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 transition-all hover:border-[var(--primary)]/40 hover:bg-[var(--secondary)]"
+                  className="group flex items-center gap-2.5 rounded-full border border-line bg-surface/50 py-1 pl-1 pr-3.5 transition-all duration-300 [transition-timing-function:var(--ease-out-quint)] hover:border-strike/40 hover:bg-surface"
                 >
-                  <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
-                    <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
-                    <AvatarFallback className="font-black text-[var(--primary)]">
+                  <Avatar className="h-8 w-8 ring-1 ring-strike/25">
+                    <AvatarImage src={user.steamAvatarUrl ?? undefined} alt="" />
+                    <AvatarFallback className="font-display text-xs font-bold text-strike">
                       {user.displayName.slice(0, 1).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-
-                  <div className="min-w-0">
-                    <div className="max-w-[160px] truncate text-sm font-semibold group-hover:text-[var(--primary)] transition-colors">
+                  <span className="min-w-0">
+                    <span className="block max-w-[130px] truncate text-[13px] font-semibold leading-tight text-ink transition-colors group-hover:text-strike">
                       {user.displayName}
-                    </div>
+                    </span>
                     <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
-                  </div>
+                  </span>
                 </Link>
 
                 {user.isAdmin && (
                   <Link href="/admin" prefetch>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Shield className="w-4 h-4" />
-                      Admin
+                    <Button variant="ghost" size="icon-sm" aria-label="Admin">
+                      <Shield className="h-4 w-4" aria-hidden="true" />
                     </Button>
                   </Link>
                 )}
@@ -414,122 +433,37 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
               </>
             ) : authState === "loading" ? (
               <>
-                <div className="h-9 w-24 animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
-                <div className="h-9 w-32 animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
+                <div className="skeleton h-9 w-40 rounded-lg" />
               </>
             ) : (
-              <>
-                <Link href="/auth/login" prefetch>
-                  <Button variant="ghost" size="sm">Entrar</Button>
-                </Link>
-                <Link href="/auth/login" prefetch>
-                  <Button size="sm" variant="gradient">Começar agora</Button>
-                </Link>
-              </>
+              <Link href="/auth/login" prefetch>
+                <Button variant="gradient" size="sm">Entrar com Steam</Button>
+              </Link>
             )}
           </div>
 
           <button
-            className="md:hidden p-2 rounded-md hover:bg-[var(--secondary)] transition-colors"
-            onClick={() => setMobileOpen((current) => !current)}
-            aria-label="Menu"
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-white/[0.06] hover:text-ink lg:hidden"
+            onClick={() => setMobileOpen((value) => !value)}
+            aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
           </button>
         </div>
+
+        <AnimatePresence>
+          {mobileOpen && (
+            <MobileSheet
+              user={user}
+              authState={authState}
+              pathname={pathname}
+              onClose={() => setMobileOpen(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
-
-      {mobileOpen && (
-        <div className="md:hidden border-t border-[var(--border)] bg-[var(--background)]/98 backdrop-blur-md">
-          <div className="px-4 py-4 space-y-1">
-            {/* Campeonatos accordion — first item */}
-            <MobileCampeonatosSection pathname={pathname} onClose={closeMobileMenu} />
-
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                prefetch
-                onClick={closeMobileMenu}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                  pathname === link.href || pathname.startsWith(`${link.href}/`)
-                    ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                    : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
-                )}
-              >
-                {link.live && (
-                  <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--destructive)]" />
-                )}
-                {link.label}
-                {link.badge && (
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none"
-                    style={{ color: "#f5c842", backgroundColor: "rgba(245,200,66,0.12)" }}
-                  >
-                    {link.badge}
-                  </span>
-                )}
-              </Link>
-            ))}
-
-            <div className="pt-2">
-              {user ? (
-                <div className="space-y-2">
-                  <div className="flex justify-end">
-                    <NotificationBell enabled={true} />
-                  </div>
-                  <Link
-                    href={`/profile/${user.publicId}`}
-                    prefetch
-                    onClick={closeMobileMenu}
-                    className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-3"
-                  >
-                    <Avatar className="h-10 w-10 ring-1 ring-[var(--primary)]/20">
-                      <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
-                      <AvatarFallback className="font-black text-[var(--primary)]">
-                        {user.displayName.slice(0, 1).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{user.displayName}</div>
-                      <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
-                    </div>
-                  </Link>
-
-                  {user.isAdmin && (
-                    <Link href="/admin" prefetch onClick={closeMobileMenu}>
-                      <Button variant="outline" size="sm" className="w-full justify-start gap-2">
-                        <Shield className="w-4 h-4" />
-                        Admin
-                      </Button>
-                    </Link>
-                  )}
-
-                  <Button asChild variant="ghost" size="sm" className="w-full justify-start">
-                    <a href="/api/auth/logout" onClick={closeMobileMenu}>Sair</a>
-                  </Button>
-                </div>
-              ) : authState === "loading" ? (
-                <div className="space-y-2">
-                  <div className="h-9 w-full animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
-                  <div className="h-9 w-full animate-pulse rounded-md border border-[var(--border)] bg-[var(--secondary)]/70" />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <Link href="/auth/login" prefetch onClick={closeMobileMenu} className="w-full">
-                    <Button variant="outline" size="sm" className="w-full">Entrar</Button>
-                  </Link>
-                  <Link href="/auth/login" prefetch onClick={closeMobileMenu} className="w-full">
-                    <Button size="sm" variant="gradient" className="w-full">Começar agora</Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

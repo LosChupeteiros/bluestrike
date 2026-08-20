@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LayoutGrid, List, Search, Trophy, X } from "lucide-react";
+import { LayoutGrid, List, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import TournamentCard from "@/components/tournament/tournament-card";
 import { cn } from "@/lib/utils";
@@ -39,14 +39,13 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
     <div className="min-h-screen pb-20 pt-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-        <div className="mb-10">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
-            <Trophy className="h-4 w-4" aria-hidden="true" />
-            BlueStrike
-          </div>
-          <h1 className="mb-2 text-4xl font-black tracking-tight">Campeonatos BlueStrike</h1>
-          <p className="text-[var(--muted-foreground)]">
-            !ws ativo — use qualquer faca ou skin. Premiação em PIX, bracket automático.
+        <div className="mb-12">
+          <h1 className="font-display text-[clamp(2rem,4vw,3rem)] font-extrabold leading-[1.02] tracking-[-0.03em] text-ink">
+            Campeonatos
+            <span className="text-strike"> BlueStrike</span>
+          </h1>
+          <p className="type-body mt-4">
+            !ws ativo — use qualquer faca ou skin. Premiação em PIX e chave automática.
           </p>
         </div>
 
@@ -108,29 +107,38 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
               type="button"
               onClick={() => setStatusFilter(filter.value)}
               className={cn(
-                "rounded-full border px-4 py-1.5 text-sm font-medium transition-all",
+                "rounded-lg border px-3.5 py-1.5 text-[13px] font-medium",
+                "transition-colors duration-300 [transition-timing-function:var(--ease-out-quint)]",
                 statusFilter === filter.value
-                  ? "border-[var(--primary)] bg-[var(--primary)] text-black shadow-md"
-                  : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
+                  ? "border-strike/45 bg-strike/12 text-strike"
+                  : "border-line text-ink-3 hover:border-line-2 hover:text-ink"
               )}
             >
               {filter.label}
             </button>
           ))}
 
-          <span className="ml-auto self-center text-sm text-[var(--muted-foreground)]">
+          <span className="tabular ml-auto self-center text-[11px] text-ink-3">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <Trophy className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" aria-hidden="true" />
-            <h3 className="mb-1 text-lg font-semibold">Nenhum campeonato encontrado</h3>
-            <p className="text-sm text-[var(--muted-foreground)]">Tente ajustar os filtros de busca.</p>
+          <div className="flex flex-col items-center border-t border-line/70 py-20 text-center">
+            <svg viewBox="0 0 52 52" className="mb-5 h-10 w-10" aria-hidden="true">
+              <circle cx="26" cy="26" r="12" fill="none" stroke="var(--color-line-2)" strokeWidth="1.5" />
+              <line x1="26" y1="2" x2="26" y2="12" stroke="var(--color-line-2)" strokeWidth="1.5" />
+              <line x1="26" y1="40" x2="26" y2="50" stroke="var(--color-line-2)" strokeWidth="1.5" />
+              <line x1="2" y1="26" x2="12" y2="26" stroke="var(--color-line-2)" strokeWidth="1.5" />
+              <line x1="40" y1="26" x2="50" y2="26" stroke="var(--color-line-2)" strokeWidth="1.5" />
+            </svg>
+            <h3 className="font-display text-base font-bold tracking-tight text-ink">
+              Nenhum campeonato encontrado
+            </h3>
+            <p className="mt-1.5 text-[13px] text-ink-3">Ajuste a busca ou troque o filtro de status.</p>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map((tournament) => (
               <TournamentCard key={tournament.id} tournament={tournament} featured />
             ))}
