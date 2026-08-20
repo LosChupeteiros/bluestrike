@@ -46,7 +46,7 @@ export default function WebhookInfoPanel({ webhookInfo }: { webhookInfo: MatchWe
       <div className="mb-5 flex items-center gap-2">
         <Webhook className="h-4 w-4 text-[var(--primary)]" />
         <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--primary)]">
-          Webhook CS2 — Dathost
+          Webhook CS2 | Dathost
         </h3>
       </div>
 

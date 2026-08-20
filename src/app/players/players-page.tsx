@@ -1,33 +1,21 @@
 import { Suspense } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { Search, Users, Zap } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  ArrowRight,
+  Search,
+  Sparkles,
+  Trophy,
+  Users,
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
+import { Input } from "@/components/ui/input";
 import { getProfilePath, IN_GAME_ROLES, type UserProfile } from "@/lib/profile";
 import { listPublicProfiles } from "@/lib/profiles";
-import { getPlayerRank } from "@/lib/ranks";
 import ViewToggle from "./view-toggle";
 
-const ROLE_LABELS: Record<string, string> = Object.fromEntries(
-  IN_GAME_ROLES.map((r) => [r.value, r.label])
-);
-
-function getRankAccent(minElo: number) {
-  if (minElo >= 3700) return { color: "#ef4444", bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.25)", text: "text-red-400" };
-  if (minElo >= 2600) return { color: "#a855f7", bg: "rgba(168,85,247,0.10)", border: "rgba(168,85,247,0.25)", text: "text-purple-400" };
-  if (minElo >= 1400) return { color: "#38bdf8", bg: "rgba(56,189,248,0.10)", border: "rgba(56,189,248,0.25)", text: "text-sky-400" };
-  if (minElo >= 600)  return { color: "#facc15", bg: "rgba(250,204,21,0.10)",  border: "rgba(250,204,21,0.25)",  text: "text-yellow-400" };
-  return                     { color: "#9ca3af", bg: "rgba(156,163,175,0.08)", border: "rgba(156,163,175,0.20)", text: "text-gray-400" };
-}
-
-interface PlayersPageProps {
-  query: string;
-  page: number;
-  view: "cards" | "list";
-}
+const ROLE_LABELS: Record<string, string> = Object.fromEntries(IN_GAME_ROLES.map((role) => [role.value, role.label]));
 
 function buildHref(query: string, page: number, view: "cards" | "list") {
   const params = new URLSearchParams();
@@ -38,316 +26,94 @@ function buildHref(query: string, page: number, view: "cards" | "list") {
   return suffix ? `/players?${suffix}` : "/players";
 }
 
-function PlayerAvatar({ profile, size }: { profile: UserProfile; size: "sm" | "md" }) {
+function PlayerAvatar({ profile, className = "h-16 w-16" }: { profile: UserProfile; className?: string }) {
   const src = profile.faceitAvatar ?? profile.steamAvatarUrl ?? undefined;
-  const name = profile.steamPersonaName;
-  const dim = size === "md" ? "h-12 w-12" : "h-9 w-9";
-  const text = size === "md" ? "text-sm" : "text-xs";
-
   return (
-    <div className={`${dim} overflow-hidden rounded-full`}>
-      {src ? (
-        <img src={src} alt={name} className="h-full w-full object-cover" />
-      ) : (
-        <div className={`flex h-full w-full items-center justify-center bg-[var(--secondary)] ${text} font-black text-[var(--primary)]`}>
-          {name.slice(0, 1).toUpperCase()}
-        </div>
-      )}
-    </div>
+    <Avatar className={`${className} border border-[var(--border)] bg-[var(--secondary)]`}>
+      <AvatarImage src={src} alt={profile.steamPersonaName} />
+      <AvatarFallback className="font-bold text-[var(--primary)]">{profile.steamPersonaName.slice(0, 1).toUpperCase()}</AvatarFallback>
+    </Avatar>
   );
 }
 
-function PlayerCard({ profile }: { profile: UserProfile }) {
-  const rank = getPlayerRank(profile.elo);
-  const role = profile.inGameRole ? ROLE_LABELS[profile.inGameRole] : null;
-  const href = getProfilePath(profile.publicId);
-  const hasFaceit = Boolean(profile.faceitId && profile.faceitElo && profile.faceitLevel);
-
+function PlayerCard({ profile, position }: { profile: UserProfile; position: number }) {
+  const role = profile.inGameRole ? ROLE_LABELS[profile.inGameRole] : "Sem função";
+  const hasFaceit = profile.faceitLevel != null && profile.faceitElo != null;
   return (
-    <Link href={href} className="group block h-full">
-      <div className="flex h-full flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 transition-all hover:border-[var(--primary)]/35 hover:bg-[var(--secondary)]/60 hover:shadow-lg hover:shadow-black/20">
-
-        {/* Avatar + name */}
-        <div className="flex items-start gap-3">
-          <div className="relative shrink-0">
-            <div className="ring-2 ring-[var(--border)] ring-offset-1 ring-offset-[var(--card)] rounded-full">
-              <PlayerAvatar profile={profile} size="md" />
-            </div>
-            {hasFaceit && profile.faceitLevel != null && (
-              <div className="absolute -bottom-1.5 -right-1.5 rounded-full ring-2 ring-[var(--card)]">
-                <FaceitSkillIcon level={profile.faceitLevel} size={20} />
-              </div>
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1 pt-0.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="truncate text-sm font-black leading-tight transition-colors group-hover:text-[var(--primary)]">
-                {profile.steamPersonaName}
-              </span>
-              {role && (
-                <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-                  {role}
-                </Badge>
-              )}
-            </div>
-            {hasFaceit && profile.faceitNickname && (
-              <div className="truncate text-[11px] font-semibold text-orange-400 mt-0.5">
-                @{profile.faceitNickname}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* FACEIT stats strip */}
-        {hasFaceit && (
-          <div className="flex items-center gap-2 rounded-xl border border-orange-500/20 bg-orange-500/8 px-3 py-2">
-            <FaceitSkillIcon level={profile.faceitLevel!} size={20} />
-            <div className="flex items-baseline gap-1">
-              <span className="text-[13px] font-black text-orange-400">{profile.faceitElo}</span>
-              <span className="text-[9px] uppercase tracking-wider text-[var(--muted-foreground)]">ELO</span>
-            </div>
-            {profile.faceitKdRatio != null && (
-              <div className="ml-auto flex items-baseline gap-1">
-                <span className="text-[12px] font-bold text-[var(--foreground)]">
-                  {profile.faceitKdRatio.toFixed(2)}
-                </span>
-                <span className="text-[9px] text-[var(--muted-foreground)]">K/D</span>
-              </div>
-            )}
-            {profile.faceitWinRate != null && (
-              <div className="flex items-baseline gap-1">
-                <span className="text-[12px] font-bold text-[var(--foreground)]">
-                  {profile.faceitWinRate}%
-                </span>
-                <span className="text-[9px] text-[var(--muted-foreground)]">WR</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* BlueStrike rank */}
-        {(() => {
-          const accent = getRankAccent(rank.minElo);
-          return (
-            <div
-              className="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5"
-              style={{ background: `linear-gradient(135deg, ${accent.bg} 0%, transparent 70%)`, border: `1px solid ${accent.border}` }}
-            >
-              <Image
-                src={rank.imagePath}
-                alt={rank.name}
-                width={40}
-                height={40}
-                className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]"
-                unoptimized
-              />
-              <div className="min-w-0 flex-1">
-                <div className={`truncate text-xs font-bold ${accent.text}`}>{rank.name}</div>
-                <div className="mt-0.5 flex items-center gap-1">
-                  <Zap className={`h-3 w-3 shrink-0 fill-current ${accent.text}`} />
-                  <span className="text-[11px] font-mono font-black text-[var(--foreground)]">{profile.elo}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+    <Link href={getProfilePath(profile.publicId)} className={`group bs-panel relative flex min-h-[300px] flex-col p-5 transition-transform hover:-translate-y-0.5 ${position === 1 ? "border-[var(--primary)]" : ""}`}>
+      <div className="flex items-center justify-between"><span className="rounded-md bg-[var(--secondary)] px-2 py-1 font-mono text-[10px] font-bold text-[var(--muted-foreground)]">#{position}</span><span className="text-lg text-[var(--muted-foreground)]">···</span></div>
+      <div className="mt-1 flex flex-col items-center text-center">
+        <PlayerAvatar profile={profile} className="h-20 w-20" />
+        <h3 className="mt-3 max-w-full truncate text-lg font-semibold tracking-[-0.025em] group-hover:text-[var(--primary)]">{profile.steamPersonaName}</h3>
+        <span className="mt-2 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase text-blue-700">{role}</span>
       </div>
+      <div className="mt-5 grid grid-cols-2 divide-x divide-[var(--border)] border-y border-[var(--border)] py-3 text-center">
+        <div><div className="text-[10px] text-[var(--muted-foreground)]">BlueStrike ELO</div><div className="mt-1 font-mono text-xl font-bold text-[var(--primary)]">{profile.elo.toLocaleString("pt-BR")}</div></div>
+        <div><div className="text-[10px] text-[var(--muted-foreground)]">FACEIT Level</div><div className="mt-1 flex h-6 items-center justify-center gap-1.5 font-mono text-xl font-bold text-[var(--faceit)]">{hasFaceit ? <><FaceitSkillIcon level={profile.faceitLevel!} size={20} />{profile.faceitLevel}</> : "-"}</div></div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-4 text-center"><div><div className="text-[10px] text-[var(--muted-foreground)]">K/D</div><div className="mt-1 font-mono font-semibold">{profile.faceitKdRatio?.toFixed(2) ?? "-"}</div></div><div><div className="text-[10px] text-[var(--muted-foreground)]">Win rate</div><div className="mt-1 font-mono font-semibold">{profile.faceitWinRate != null ? `${profile.faceitWinRate}%` : "-"}</div></div></div>
     </Link>
   );
 }
 
-function PlayerListRow({ profile, position }: { profile: UserProfile; position: number }) {
-  const rank = getPlayerRank(profile.elo);
-  const role = profile.inGameRole ? ROLE_LABELS[profile.inGameRole] : null;
-  const href = getProfilePath(profile.publicId);
-  const hasFaceit = Boolean(profile.faceitId && profile.faceitElo && profile.faceitLevel);
-
+function PlayerTableRow({ profile, position }: { profile: UserProfile; position: number }) {
+  const role = profile.inGameRole ? ROLE_LABELS[profile.inGameRole] : "Sem função";
   return (
-    <Link href={href} className="group block">
-      <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 transition-colors hover:border-[var(--primary)]/30 hover:bg-[var(--secondary)]/60">
-        {/* Position */}
-        <span className="w-7 shrink-0 text-center text-xs font-mono font-bold text-[var(--muted-foreground)]">
-          #{position}
-        </span>
-
-        {/* Avatar with optional level badge */}
-        <div className="relative shrink-0">
-          <PlayerAvatar profile={profile} size="sm" />
-          {hasFaceit && profile.faceitLevel != null && (
-            <div className="absolute -bottom-1 -right-1 rounded-full ring-1 ring-[var(--card)]">
-              <FaceitSkillIcon level={profile.faceitLevel} size={14} />
-            </div>
-          )}
-        </div>
-
-        {/* Name */}
-        <div className="min-w-0 flex-1">
-          <span className="truncate text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
-            {profile.steamPersonaName}
-          </span>
-          {hasFaceit && profile.faceitNickname && (
-            <span className="ml-1.5 text-[11px] font-medium text-orange-400">
-              @{profile.faceitNickname}
-            </span>
-          )}
-        </div>
-
-        {/* Role */}
-        {role && (
-          <Badge variant="secondary" className="shrink-0 hidden sm:inline-flex">
-            {role}
-          </Badge>
-        )}
-
-        {/* FACEIT ELO + level */}
-        {hasFaceit && (
-          <div className="hidden sm:flex shrink-0 items-center gap-1.5 rounded-lg border border-orange-500/20 bg-orange-500/8 px-2 py-1">
-            <FaceitSkillIcon level={profile.faceitLevel!} size={16} />
-            <span className="text-xs font-black text-orange-400">{profile.faceitElo}</span>
-          </div>
-        )}
-
-        {/* BlueStrike rank + ELO */}
-        {(() => {
-          const accent = getRankAccent(rank.minElo);
-          return (
-            <div
-              className="flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5"
-              style={{ background: `linear-gradient(135deg, ${accent.bg} 0%, transparent 80%)`, border: `1px solid ${accent.border}` }}
-            >
-              <Image
-                src={rank.imagePath}
-                alt={rank.name}
-                width={28}
-                height={28}
-                className="h-7 w-7 object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]"
-                unoptimized
-              />
-              <div className="hidden sm:block">
-                <div className={`text-[10px] font-bold leading-tight ${accent.text}`}>{rank.name}</div>
-                <div className="flex items-center gap-0.5">
-                  <Zap className={`h-2.5 w-2.5 fill-current ${accent.text}`} />
-                  <span className="text-[10px] font-mono font-black text-[var(--foreground)]">{profile.elo}</span>
-                </div>
-              </div>
-              <div className={`sm:hidden text-xs font-mono font-black ${accent.text}`}>{profile.elo}</div>
-            </div>
-          );
-        })()}
-      </div>
+    <Link href={getProfilePath(profile.publicId)} className="grid min-w-[1060px] grid-cols-[44px_1.4fr_0.8fr_0.75fr_0.75fr_0.5fr_0.6fr_0.65fr_0.7fr_30px] items-center gap-4 border-b border-[var(--border)] px-5 py-3.5 last:border-b-0 hover:bg-[var(--accent)]/60">
+      <span className="font-mono text-xs text-[var(--muted-foreground)]">{position}</span>
+      <div className="flex min-w-0 items-center gap-3"><PlayerAvatar profile={profile} className="h-9 w-9" /><div className="min-w-0"><div className="truncate text-sm font-semibold">{profile.steamPersonaName}</div>{profile.faceitNickname && <div className="truncate text-[10px] text-[var(--faceit)]">@{profile.faceitNickname}</div>}</div></div>
+      <span className="w-fit rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase text-blue-700">{role}</span>
+      <span className="font-mono font-bold text-[var(--primary)]">{profile.elo.toLocaleString("pt-BR")}</span>
+      <span className="flex items-center gap-2 font-mono font-bold text-[var(--faceit)]">{profile.faceitLevel ? <FaceitSkillIcon level={profile.faceitLevel} size={18} /> : null}{profile.faceitLevel ?? "-"}</span>
+      <span className="font-mono text-sm">{profile.faceitKdRatio?.toFixed(2) ?? "-"}</span>
+      <span className="font-mono text-sm">{profile.faceitWinRate != null ? `${profile.faceitWinRate}%` : "-"}</span>
+      <span className="text-sm text-[var(--muted-foreground)]">Brasil</span>
+      <span className="text-xs text-[var(--muted-foreground)]">Perfil ativo</span>
+      <ArrowRight className="h-4 w-4 text-[var(--muted-foreground)]" />
     </Link>
   );
 }
 
-export default async function PlayersPage({ query, page, view }: PlayersPageProps) {
+export default async function PlayersPage({ query, page, view }: { query: string; page: number; view: "cards" | "list" }) {
   const result = await listPublicProfiles({ query, page });
+  const profiles = result.profiles;
+  const featured = profiles.slice(0, 6);
+  const faceitCount = profiles.filter((profile) => profile.faceitId).length;
+  const maxElo = profiles.reduce((current, profile) => Math.max(current, profile.elo), 0);
 
   return (
-    <div className="min-h-screen pb-20 pt-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-
-        {/* Header */}
-        <div className="mb-10">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
-            <Users className="h-4 w-4" />
-            Players
+    <div className="bs-page pb-20">
+      <div className="bs-page-shell">
+        <header className="relative grid gap-10 overflow-hidden pb-12 pt-14 lg:grid-cols-[1fr_0.9fr] lg:items-center lg:pb-14 lg:pt-16">
+          <div className="relative z-10">
+            <div className="bs-kicker mb-3">Players</div>
+            <h1 className="text-5xl font-bold leading-[0.98] tracking-[-0.04em] md:text-6xl">Hub de Jogadores</h1>
+            <p className="mt-4 max-w-[62ch] text-lg leading-7 text-[var(--muted-foreground)]">Encontre, avalie e acompanhe jogadores do cenário competitivo brasileiro.</p>
+            <div className="mt-8 grid max-w-[760px] grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="bs-panel flex items-center gap-3 p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--primary)]"><Users className="h-5 w-5" /></div><div><div className="font-mono text-xl font-bold">{result.total.toLocaleString("pt-BR")}</div><div className="text-[11px] text-[var(--muted-foreground)]">Jogadores ativos</div></div></div>
+              <div className="bs-panel flex items-center gap-3 p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--primary)]"><Sparkles className="h-5 w-5" /></div><div><div className="font-mono text-xl font-bold">{faceitCount}</div><div className="text-[11px] text-[var(--muted-foreground)]">FACEIT nesta página</div></div></div>
+              <div className="bs-panel flex items-center gap-3 p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--primary)]"><Trophy className="h-5 w-5" /></div><div><div className="font-mono text-xl font-bold text-[var(--primary)]">{maxElo.toLocaleString("pt-BR")}</div><div className="text-[11px] text-[var(--muted-foreground)]">Maior ELO na página</div></div></div>
+            </div>
           </div>
-          <h1 className="text-4xl font-black tracking-tight">Hub de Jogadores</h1>
-          <p className="mt-2 text-[var(--muted-foreground)]">
-            {result.total > 0
-              ? `${result.total} jogador${result.total !== 1 ? "es" : ""} registrado${result.total !== 1 ? "s" : ""} no BlueStrike.`
-              : "Nenhum jogador encontrado com esse criterio."}
-          </p>
+          <div className="relative min-h-[230px] overflow-hidden rounded-2xl bg-[var(--accent)]">
+            <div className="bs-brand-arc -right-28 -top-28 opacity-90" />
+            <div className="absolute inset-y-0 right-0 flex w-[68%] items-center px-8">
+              <div className="bs-panel relative z-10 p-6"><Users className="h-7 w-7 text-[var(--primary)]" /><h2 className="mt-4 text-xl font-semibold tracking-[-0.03em]">Conecte-se ao cenário</h2><p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">Complete seu perfil para ser encontrado por times e organizadores.</p><Link href="/profile" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">Criar perfil <ArrowRight className="h-4 w-4" /></Link></div>
+            </div>
+          </div>
+        </header>
+
+        <div className="bs-panel mb-10 flex flex-col gap-3 p-3 lg:flex-row lg:items-center">
+          <form action="/players" className="relative flex-1"><Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><Input name="q" defaultValue={result.query} className="border-transparent bg-[var(--background)] pl-10" placeholder="Buscar jogador por nickname ou nome real..." autoComplete="off" />{view === "list" && <input type="hidden" name="view" value="list" />}</form>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{["Função: Todas", "Função secundária", "Faixa de ELO", "FACEIT Level"].map((label) => <button type="button" key={label} className="h-10 rounded-[10px] border border-[var(--border)] px-3 text-left text-xs text-[var(--muted-foreground)]">{label}</button>)}</div>
+          <Suspense><ViewToggle current={view} /></Suspense>
         </div>
 
-        {/* Toolbar */}
-        <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:flex-row sm:items-center">
-          <form action="/players" className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-            <Input
-              name="q"
-              defaultValue={result.query}
-              className="pl-9"
-              placeholder="Buscar por nick BlueStrike ou FACEIT..."
-              autoComplete="off"
-            />
-            {view === "list" && <input type="hidden" name="view" value="list" />}
-          </form>
+        {featured.length > 0 && <section><div className="mb-5 flex items-end justify-between"><div><h2 className="text-2xl font-bold tracking-[-0.03em]">Jogadores em destaque</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">Ordenados pelo BlueStrike ELO.</p></div></div><div className="grid grid-flow-dense gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">{featured.map((profile, index) => <PlayerCard key={profile.id} profile={profile} position={(result.page - 1) * result.pageSize + index + 1} />)}</div></section>}
 
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
-              {result.total} resultado{result.total !== 1 ? "s" : ""}
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
-              {result.page}/{result.totalPages}
-            </div>
-            <Suspense>
-              <ViewToggle current={view} />
-            </Suspense>
-          </div>
-        </div>
+        <section className="pt-12"><div className="mb-5 flex items-end justify-between"><div><h2 className="text-2xl font-bold tracking-[-0.03em]">Todos os jogadores</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">{result.total.toLocaleString("pt-BR")} perfis encontrados</p></div></div>{profiles.length ? <div className="bs-panel bs-table-scroll"><div className="grid min-w-[1060px] grid-cols-[44px_1.4fr_0.8fr_0.75fr_0.75fr_0.5fr_0.6fr_0.65fr_0.7fr_30px] gap-4 border-b border-[var(--border)] bg-[var(--secondary)]/60 px-5 py-3 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]"><span>#</span><span>Jogador</span><span>Função</span><span>BlueStrike ELO</span><span>FACEIT Level</span><span>K/D</span><span>Win rate</span><span>País</span><span>Atividade</span><span /></div>{profiles.map((profile, index) => <PlayerTableRow key={profile.id} profile={profile} position={(result.page - 1) * result.pageSize + index + 1} />)}</div> : <div className="bs-panel p-16 text-center"><Users className="mx-auto h-10 w-10 text-[var(--muted-foreground)]" /><h3 className="mt-4 font-semibold">Nenhum jogador encontrado</h3></div>}</section>
 
-        {/* Empty state */}
-        {result.profiles.length === 0 && (
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-20 text-center">
-            <Users className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-30" />
-            <h3 className="mb-2 text-lg font-semibold">Nenhum jogador encontrado</h3>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Tente outro nickname ou limpe a busca.
-            </p>
-          </div>
-        )}
-
-        {/* Cards view */}
-        {result.profiles.length > 0 && view === "cards" && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {result.profiles.map((profile) => (
-              <PlayerCard key={profile.id} profile={profile} />
-            ))}
-          </div>
-        )}
-
-        {/* List view */}
-        {result.profiles.length > 0 && view === "list" && (
-          <div className="space-y-2">
-            {result.profiles.map((profile, index) => (
-              <PlayerListRow
-                key={profile.id}
-                profile={profile}
-                position={(result.page - 1) * result.pageSize + index + 1}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {result.totalPages > 1 && (
-          <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-sm text-[var(--muted-foreground)]">
-              Página {result.page} de {result.totalPages} &middot; {result.total} jogadores
-            </span>
-
-            <div className="flex gap-2">
-              {result.page <= 1 ? (
-                <Button variant="outline" size="sm" disabled>Anterior</Button>
-              ) : (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={buildHref(result.query, result.page - 1, view)}>Anterior</Link>
-                </Button>
-              )}
-
-              {result.page >= result.totalPages ? (
-                <Button variant="outline" size="sm" disabled>Proxima</Button>
-              ) : (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={buildHref(result.query, result.page + 1, view)}>Proxima</Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-
+        {result.totalPages > 1 && <div className="mt-6 flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-[var(--muted-foreground)]">Página {result.page} de {result.totalPages} | {result.total} jogadores</span><div className="flex gap-2">{result.page > 1 && <Button asChild variant="outline" size="sm"><Link href={buildHref(result.query, result.page - 1, view)}>Anterior</Link></Button>}{result.page < result.totalPages && <Button asChild variant="outline" size="sm"><Link href={buildHref(result.query, result.page + 1, view)}>Próxima</Link></Button>}</div></div>}
       </div>
     </div>
   );

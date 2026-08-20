@@ -175,7 +175,7 @@ function ReadyPanel({
   const title = phase === "pre_veto" ? "Check-in" : "Confirmar início";
   const subtitle = phase === "pre_veto"
     ? "Ambos os times devem confirmar para iniciar o veto"
-    : "Veto concluído — confirmem para iniciar o servidor";
+    : "Veto concluído. Confirmem para iniciar o servidor";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
@@ -237,7 +237,7 @@ function ReadyPanel({
       {isCaptain && !myReady && !bothReady && (
         <div className="border-t border-[var(--border)] px-5 py-3">
           <button type="button" onClick={ready} disabled={loading}
-            className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-black transition-all hover:brightness-110 active:scale-95 disabled:opacity-50">
+            className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-[var(--primary-hover)] active:scale-95 disabled:opacity-50">
             {loading ? <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> : "Confirmar Ready"}
           </button>
           {error && <p className="mt-1.5 text-center text-[10px] text-red-400">{error}</p>}
@@ -332,7 +332,7 @@ function VetoPanel({
       {/* Header bar */}
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-2.5">
         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
-          Veto — {boType === 1 ? "BO1" : boType === 3 ? "BO3" : "BO5"}
+          Veto | {boType === 1 ? "BO1" : boType === 3 ? "BO3" : "BO5"}
         </span>
         <div className="flex items-center gap-1">
           {sequence.map((slot, i) => {
@@ -641,7 +641,7 @@ function PostVetoPanel({
   const matchUrl = typeof window !== "undefined"
     ? `${window.location.origin}/tournaments/${tournamentId}/matches/${matchId}`
     : "";
-  const waText = encodeURIComponent(`⚠️ BlueStrike — Servidor não alocado\nPartida: ${team1Name} vs ${team2Name}\nMatch ID: ${matchId}\nURL: ${matchUrl}`);
+  const waText = encodeURIComponent(`BlueStrike | Servidor não alocado\nPartida: ${team1Name} vs ${team2Name}\nMatch ID: ${matchId}\nURL: ${matchUrl}`);
   const waUrl = `https://wa.me/5511961223798?text=${waText}`;
 
   return (
@@ -747,7 +747,7 @@ function PostVetoPanel({
 
               {isCaptain && !myReady && (
                 <button type="button" onClick={confirmReady} disabled={readyLoading}
-                  className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-black shadow-[0_0_16px_rgba(0,200,255,0.2)] transition-all hover:brightness-110 hover:shadow-[0_0_24px_rgba(0,200,255,0.3)] active:scale-[0.98] disabled:opacity-50">
+                  className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-[var(--primary-hover)] active:scale-[0.98] disabled:opacity-50">
                   {readyLoading ? <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> : "Confirmar Ready"}
                 </button>
               )}
@@ -911,7 +911,7 @@ function PostVetoPanel({
               {isPlayer ? (
                 <>
                   <a href={steamUrl}
-                    className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-black shadow-[0_0_20px_rgba(0,200,255,0.25)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgba(0,200,255,0.35)] active:scale-[0.98]">
+                    className="flex items-center justify-center gap-2.5 rounded-xl bg-[var(--primary)] py-3 text-sm font-black uppercase tracking-widest text-white transition-colors hover:bg-[var(--primary-hover)] active:scale-[0.98]">
                     <Wifi className="h-4 w-4" /> Entrar no servidor
                   </a>
                   <div>
@@ -1094,7 +1094,7 @@ function DeadlinePanel({ teamsAssignedAt }: { teamsAssignedAt: string | null }) 
     <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3">
       <Clock className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
       <p className="text-[11px] text-[var(--muted-foreground)]">
-        Prazo: <strong className="text-[var(--foreground)]">{label} restantes</strong> — após isso, os times ficam sujeitos a penalidades.
+        Prazo: <strong className="text-[var(--foreground)]">{label} restantes</strong>. Depois disso, os times ficam sujeitos a penalidades.
       </p>
     </div>
   );
@@ -1342,10 +1342,10 @@ export default function MatchPageClient({
             </div>
 
             {/* 5-col: [players] [team1] [score/VS] [team2] [players] */}
-            <div className="grid grid-cols-[5fr_7fr_96px_7fr_5fr] items-center gap-x-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] items-center gap-x-2 sm:grid-cols-[5fr_7fr_96px_7fr_5fr]">
 
               {/* Col 1 — Team 1 players: avatar → nick, left-aligned */}
-              <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="hidden min-w-0 flex-col gap-1.5 sm:flex">
                 {team1Members.map((m) => (
                   <div key={m.profileId} className="flex min-w-0 items-center gap-1.5">
                     <SmallAvatar nickname={m.nickname} avatarUrl={m.avatarUrl} />
@@ -1356,13 +1356,13 @@ export default function MatchPageClient({
 
               {/* Col 2 — Team 1 info, centered */}
               <div className="flex flex-col items-center gap-2">
-                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-slate-950 text-lg font-black transition-all sm:h-20 sm:w-20 sm:text-2xl ${
                   isFinished && winner?.id === match.team1Id
                     ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t1Tag}</div>
                 <div className="text-center">
-                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t1Name}</div>
+                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team1Id ? "text-green-400" : "text-white"}`}>{t1Name}</div>
                   {match.team1 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team1.elo} ELO</div>}
                   {isFinished && (
                     <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team1Id ? "" : "invisible"}`}>
@@ -1424,13 +1424,13 @@ export default function MatchPageClient({
 
               {/* Col 4 — Team 2 info, centered */}
               <div className="flex flex-col items-center gap-2">
-                <div className={`flex h-20 w-20 items-center justify-center rounded-2xl border-2 bg-gradient-to-br from-slate-800 to-slate-950 text-2xl font-black transition-all ${
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 bg-slate-950 text-lg font-black transition-all sm:h-20 sm:w-20 sm:text-2xl ${
                   isFinished && winner?.id === match.team2Id
                     ? "border-green-500 text-green-400 shadow-[0_0_24px_rgba(34,197,94,0.3)]"
                     : "border-[var(--border)] text-[var(--primary)]"
                 }`}>{t2Tag}</div>
                 <div className="text-center">
-                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-[var(--foreground)]"}`}>{t2Name}</div>
+                  <div className={`text-sm font-black leading-tight ${isFinished && winner?.id === match.team2Id ? "text-green-400" : "text-white"}`}>{t2Name}</div>
                   {match.team2 && <div className="text-[10px] text-[var(--muted-foreground)]">{match.team2.elo} ELO</div>}
                   {isFinished && (
                     <div className={`mt-0.5 flex items-center justify-center gap-1 text-[10px] font-bold text-green-400 ${winner?.id === match.team2Id ? "" : "invisible"}`}>
@@ -1441,7 +1441,7 @@ export default function MatchPageClient({
               </div>
 
               {/* Col 5 — Team 2 players: nick → avatar, right-aligned */}
-              <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="hidden min-w-0 flex-col gap-1.5 sm:flex">
                 {team2Members.map((m) => (
                   <div key={m.profileId} className="flex min-w-0 items-center justify-end gap-1.5">
                     <span className="truncate text-[11px] font-bold text-white">{m.nickname}</span>
@@ -1475,7 +1475,7 @@ export default function MatchPageClient({
       {effectiveStatus === "pending" && !bothTeamsDefined && (
         <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-5 py-4">
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--muted-foreground)]" />
-          <p className="text-sm text-[var(--muted-foreground)]">Aguardando adversário — a outra partida ainda não terminou.</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Aguardando adversário. A outra partida ainda não terminou.</p>
         </div>
       )}
 
@@ -1564,7 +1564,7 @@ export default function MatchPageClient({
                       onClick={() => setSelectedMapNumber(m.mapOrder)}
                       className={`rounded-lg px-3 py-1.5 text-[10px] font-black transition-colors ${
                         active
-                          ? "bg-[var(--primary)] text-black"
+                          ? "bg-[var(--primary)] text-white"
                           : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
                       }`}
                     >
@@ -1697,7 +1697,7 @@ function AdminResultForm({ matchId, tournamentId, team1, team2 }: {
         ))}
       </div>
       <button type="button" onClick={submit} disabled={!selected || loading}
-        className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-sm font-bold text-black disabled:opacity-40">
+        className="w-full rounded-xl bg-[var(--primary)] py-2.5 text-sm font-bold text-white disabled:opacity-40">
         {loading ? <Loader2 className="inline h-4 w-4 animate-spin" /> : "Confirmar resultado"}
       </button>
       {error && <p className="mt-1.5 text-center text-[10px] text-red-400">{error}</p>}

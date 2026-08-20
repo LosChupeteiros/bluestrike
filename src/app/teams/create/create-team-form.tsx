@@ -70,7 +70,7 @@ export default function CreateTeamForm({ backHref }: CreateTeamFormProps) {
               </div>
               <h2 className="text-2xl font-black tracking-tight">Nome e tag do time</h2>
               <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                Escolha um nome único. A tag aparece nas partidas — máx. 5 caracteres.
+                Escolha um nome único. A tag aparece nas partidas, com no máximo 5 caracteres.
               </p>
             </div>
 
@@ -103,7 +103,7 @@ export default function CreateTeamForm({ backHref }: CreateTeamFormProps) {
                   maxLength={5}
                   className="font-mono tracking-widest"
                 />
-                <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">2–5 caracteres</p>
+                <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">2 a 5 caracteres</p>
               </div>
             </div>
           </section>
@@ -264,11 +264,11 @@ export default function CreateTeamForm({ backHref }: CreateTeamFormProps) {
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Nome</span>
-                <span className="font-medium truncate ml-4 max-w-[160px] text-right">{name || "—"}</span>
+                <span className="font-medium truncate ml-4 max-w-[160px] text-right">{name || "-"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Tag</span>
-                <span className="font-mono font-bold">{tag || "—"}</span>
+                <span className="font-mono font-bold">{tag || "-"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Acesso</span>

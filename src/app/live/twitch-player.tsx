@@ -89,10 +89,13 @@ export default function TwitchPlayer({ channel, onStatusChange }: TwitchPlayerPr
   // ── iframe src ──────────────────────────────────────────────────────────────
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   useEffect(() => {
-    const parents = resolveParents();
-    const params = new URLSearchParams({ channel, autoplay: "false" });
-    parents.forEach((p) => params.append("parent", p));
-    setIframeSrc(`https://player.twitch.tv/?${params.toString()}`);
+    const frame = window.requestAnimationFrame(() => {
+      const parents = resolveParents();
+      const params = new URLSearchParams({ channel, autoplay: "false" });
+      parents.forEach((p) => params.append("parent", p));
+      setIframeSrc(`https://player.twitch.tv/?${params.toString()}`);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [channel]);
 
   // ── SDK invisível apenas para eventos ONLINE / OFFLINE ──────────────────────
@@ -147,7 +150,7 @@ export default function TwitchPlayer({ channel, onStatusChange }: TwitchPlayerPr
             allowFullScreen
             allow="autoplay; fullscreen"
             className="absolute inset-0 h-full w-full border-0"
-            title={`${channel} ao vivo — Twitch`}
+            title={`${channel} ao vivo | Twitch`}
           />
         )}
       </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Swords } from "lucide-react";
+import Image from "next/image";
 
 const platformLinks = [
   { label: "Campeonatos", href: "/tournaments" },
@@ -9,16 +9,16 @@ const platformLinks = [
 
 export default function Footer() {
   return (
-    <footer className="border-t border-[var(--border)] bg-[var(--card)] mt-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <footer className="mt-24 border-t border-[var(--border)] bg-white">
+      <div className="mx-auto max-w-[1380px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-10">
           <div>
             <Link href="/" className="flex items-center gap-2.5 mb-4">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--primary)]">
-                <Swords className="w-5 h-5 text-black" />
+              <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--brand-navy)]">
+                <Image src="/assets/logo/bluestrike_logo_header.png" alt="" width={36} height={36} className="h-9 w-9 object-cover" />
               </div>
-              <span className="text-xl font-black tracking-tight">
-                Blue<span className="text-[var(--primary)]">Strike</span>
+              <span className="text-lg font-black tracking-[-0.035em]">
+                BLUE<span className="text-[var(--primary)]">STRIKE</span>
               </span>
             </Link>
             <p className="text-sm text-[var(--muted-foreground)] leading-relaxed max-w-sm">

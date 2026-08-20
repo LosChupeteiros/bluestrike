@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { Medal, Trophy } from "lucide-react";
 import type { Team } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -17,29 +17,26 @@ interface TournamentPodiumProps {
 
 const STYLE_BY_PLACE = {
   1: {
-    card: "border-yellow-500/35 bg-yellow-500/10 shadow-[0_0_28px_rgba(234,179,8,0.16)]",
-    tag: "border-yellow-500/60 bg-yellow-500/10 text-yellow-300 shadow-[0_0_24px_rgba(234,179,8,0.2)]",
-    medal: "🥇",
+    card: "border-amber-200 bg-amber-50",
+    tag: "border-amber-300 bg-white text-amber-800",
     label: "1 lugar",
-    accent: "text-yellow-300",
+    accent: "text-amber-800",
     size: "h-20 w-20 text-xl",
     lift: "sm:-translate-y-3",
   },
   2: {
-    card: "border-slate-400/25 bg-slate-400/10",
-    tag: "border-slate-400/40 bg-slate-400/10 text-slate-300",
-    medal: "🥈",
+    card: "border-slate-200 bg-slate-50",
+    tag: "border-slate-300 bg-white text-slate-700",
     label: "2 lugar",
-    accent: "text-slate-300",
+    accent: "text-slate-700",
     size: "h-16 w-16 text-lg",
     lift: "",
   },
   3: {
-    card: "border-orange-600/25 bg-orange-600/10",
-    tag: "border-orange-600/30 bg-orange-600/10 text-orange-300",
-    medal: "🥉",
+    card: "border-orange-200 bg-orange-50",
+    tag: "border-orange-300 bg-white text-orange-800",
     label: "3 lugar",
-    accent: "text-orange-300",
+    accent: "text-orange-800",
     size: "h-16 w-16 text-lg",
     lift: "",
   },
@@ -66,15 +63,13 @@ function PodiumColumn({ entry }: { entry: PodiumEntry }) {
       {teamContent}
 
       {entry.prize > 0 && (
-        <div className="mt-1 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-black text-[var(--foreground)]">
+        <div className="mt-1 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs font-bold text-[var(--foreground)]">
           {formatCurrency(entry.prize)}
         </div>
       )}
 
       <div className="flex min-h-20 flex-col items-center justify-center gap-1 overflow-visible">
-        <div className="text-5xl leading-normal drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)]">
-          {style.medal}
-        </div>
+        <Medal className={`h-9 w-9 ${style.accent}`} />
         <div className={`text-xs font-black uppercase tracking-wider ${style.accent}`}>{style.label}</div>
       </div>
     </div>
@@ -103,9 +98,9 @@ export default function TournamentPodium({ title, entries, showPendingCopy }: To
   });
 
   return (
-    <div className="overflow-visible rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
-      <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
-        <Trophy className="h-4 w-4 text-yellow-400" />
+    <div className="bs-panel overflow-visible p-6">
+      <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+        <Trophy className="h-4 w-4 text-[var(--primary)]" />
         {title}
       </h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end sm:pt-3">

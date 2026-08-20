@@ -1,126 +1,55 @@
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, TrendingUp, TrendingDown, Minus, Crown, Medal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { mockRanking } from "@/data/mock";
-import { getPlayerRank } from "@/lib/ranks";
-import { cn } from "@/lib/utils";
-
-function PositionIcon({ position }: { position: number }) {
-  if (position === 1) return <Crown className="w-4 h-4 text-yellow-400" />;
-  if (position === 2) return <Medal className="w-4 h-4 text-gray-300" />;
-  if (position === 3) return <Medal className="w-4 h-4 text-orange-400" />;
-  return <span className="text-sm font-bold text-[var(--muted-foreground)]">#{position}</span>;
-}
 
 export default function RankingPreview() {
   const top5 = mockRanking.slice(0, 5);
 
   return (
-    <section className="py-24 bg-[var(--card)] border-y border-[var(--border)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-10">
-          <div>
-            <div className="flex items-center gap-2 text-[var(--primary)] text-sm font-semibold mb-2">
-              <TrendingUp className="w-4 h-4" />
-              Ranking Global
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-              Os melhores jogadores
-            </h2>
-            <p className="text-[var(--muted-foreground)] mt-2">
-              Baseado em ELO e performance nos campeonatos.
-            </p>
-          </div>
-          <Link href="/ranking" className="hidden md:block">
-            <Button variant="outline" size="sm" className="gap-2">
-              Ver ranking completo <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
+    <section className="bs-page-shell py-12 md:py-20">
+      <div className="mb-7 flex items-end justify-between gap-5">
+        <div>
+          <h2 className="text-3xl font-bold tracking-[-0.035em] sm:text-4xl">Top jogadores</h2>
+          <p className="mt-2 text-[var(--muted-foreground)]">Performance, consistência e evolução no BlueStrike ELO.</p>
         </div>
+        <Link href="/ranking" className="hidden items-center gap-2 text-sm font-semibold text-[var(--primary)] hover:underline sm:flex">
+          Ranking completo <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
 
-        <div className="space-y-2">
-          {top5.map((entry, i) => {
+      <div className="bs-panel overflow-hidden">
+        <div className="flex snap-x snap-mandatory overflow-x-auto md:grid md:grid-cols-5 md:overflow-visible">
+          {top5.map((entry, index) => {
+            const trend = entry.eloChange;
             return (
-              <Link key={entry.profileId} href={`/profile/${entry.profileId}`} className="group block">
-                <div className={cn(
-                  "flex items-center gap-4 p-4 rounded-xl border transition-all duration-200",
-                  i === 0
-                    ? "border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/8"
-                    : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--primary)]/30 hover:bg-[var(--primary)]/3"
-                )}>
-                  {/* Position */}
-                  <div className="w-8 flex items-center justify-center shrink-0">
-                    <PositionIcon position={entry.position} />
-                  </div>
-
-                  {/* Avatar */}
-                  <Avatar className={cn("h-10 w-10", i === 0 && "ring-2 ring-yellow-400/50")}>
+              <Link
+                key={entry.profileId}
+                href={`/profile/${entry.profileId}`}
+                className="group min-w-[230px] snap-start border-r border-[var(--border)] px-5 py-6 transition-colors last:border-r-0 hover:bg-[var(--accent)] md:min-w-0"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 font-mono text-sm font-bold text-[var(--muted-foreground)]">{index + 1}</span>
+                  <Avatar className="h-10 w-10 border border-[var(--border)]">
                     <AvatarImage src={entry.avatarUrl ?? undefined} alt={entry.nickname} />
-                    <AvatarFallback>{entry.nickname[0]}</AvatarFallback>
+                    <AvatarFallback>{entry.nickname.slice(0, 1).toUpperCase()}</AvatarFallback>
                   </Avatar>
-
-                  {/* Name */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm group-hover:text-[var(--primary)] transition-colors truncate">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-[var(--foreground)] transition-colors group-hover:text-[var(--primary)]">
                       {entry.nickname}
                     </div>
-                    <div className="text-xs text-[var(--muted-foreground)]">
-                      {entry.tournamentsPlayed} torneios · {entry.wins}V/{entry.losses}D
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="hidden sm:flex items-center gap-6 text-xs text-[var(--muted-foreground)]">
-                    <div className="text-center">
-                      <div className="font-semibold text-[var(--foreground)]">{entry.kdRatio.toFixed(2)}</div>
-                      <div>K/D</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-semibold text-[var(--foreground)]">{entry.hsRate.toFixed(0)}%</div>
-                      <div>HS</div>
-                    </div>
-                  </div>
-
-                  {/* Patente + ELO + variação */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {(() => {
-                      const rank = getPlayerRank(entry.elo);
-                      return (
-                        <Image
-                          src={rank.imagePath}
-                          alt={rank.name}
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 object-contain"
-                          unoptimized
-                        />
-                      );
-                    })()}
-                    <div className="text-right">
-                      <div className="font-mono text-sm font-black text-[var(--primary)]">{entry.elo.toLocaleString()}</div>
-                      <div className={cn(
-                        "flex items-center justify-end gap-0.5 text-xs font-medium",
-                        entry.eloChange > 0 ? "text-green-400" : entry.eloChange < 0 ? "text-red-400" : "text-[var(--muted-foreground)]"
-                      )}>
-                        {entry.eloChange > 0 ? <TrendingUp className="w-3 h-3" /> : entry.eloChange < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-                        {entry.eloChange > 0 ? `+${entry.eloChange}` : entry.eloChange === 0 ? "—" : entry.eloChange}
-                      </div>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                      <span>ELO <strong className="font-mono text-[var(--foreground)]">{entry.elo.toLocaleString("pt-BR")}</strong></span>
+                      <span className={trend > 0 ? "text-emerald-700" : trend < 0 ? "text-red-700" : "text-[var(--muted-foreground)]"}>
+                        {trend > 0 ? <TrendingUp className="inline h-3 w-3" aria-hidden="true" /> : trend < 0 ? <TrendingDown className="inline h-3 w-3" aria-hidden="true" /> : <Minus className="inline h-3 w-3" aria-hidden="true" />}
+                        <span className="ml-1">{trend > 0 ? `+${trend}` : trend}</span>
+                      </span>
                     </div>
                   </div>
                 </div>
               </Link>
             );
           })}
-        </div>
-
-        <div className="mt-6 text-center md:hidden">
-          <Link href="/ranking">
-            <Button variant="outline" className="gap-2">
-              Ver ranking completo <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
         </div>
       </div>
     </section>

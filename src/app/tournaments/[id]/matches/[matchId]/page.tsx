@@ -85,8 +85,8 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
   const roundLabel = getBracketRoundLabel(detail.match.round, model);
 
   return (
-    <div className="min-h-screen pb-20 pt-20">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div className="bs-page min-h-screen pb-20 pt-20">
+      <div className="bs-page-shell pt-8">
         {/* Breadcrumb */}
         <nav className="mb-6 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
           <Link href="/" className="transition-colors hover:text-[var(--foreground)]">Inicio</Link>
@@ -99,6 +99,12 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
           <ChevronRight className="h-3 w-3" />
           <span className="text-[var(--foreground)]">{roundLabel}</span>
         </nav>
+
+        <header className="mb-6">
+          <div className="bs-kicker">Match center</div>
+          <h1 className="mt-2 text-4xl font-bold tracking-[-0.045em]">Central da Partida</h1>
+          <p className="mt-2 text-sm text-[var(--muted-foreground)]">Acompanhe o veto, o servidor, o placar e as estatísticas oficiais.</p>
+        </header>
 
         <MatchPageClient
           detail={detail}

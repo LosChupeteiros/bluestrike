@@ -8,6 +8,7 @@ interface TeamsPageProps {
     q?: string | string[];
     page?: string | string[];
     faceitQ?: string | string[];
+    source?: string | string[];
   }>;
 }
 

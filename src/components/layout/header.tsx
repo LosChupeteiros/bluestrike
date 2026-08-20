@@ -77,13 +77,12 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors select-none",
+          "relative flex h-16 items-center gap-1.5 px-3 text-sm font-medium transition-colors select-none after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:scale-x-0 after:bg-[var(--primary)] after:transition-transform",
           isActive
-            ? "text-[var(--primary)] bg-[var(--primary)]/10"
-            : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
+            ? "text-[var(--primary)] after:scale-x-100"
+            : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
         )}
       >
-        <Trophy className="h-3.5 w-3.5" />
         Campeonatos
         <ChevronDown
           className={cn(
@@ -108,9 +107,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
           <div className="w-3 h-3 bg-[var(--border)] rotate-45 translate-y-1.5 translate-x-0.5" />
         </div>
 
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl shadow-black/60 overflow-hidden">
-          {/* Top accent line */}
-          <div className="h-px bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent" />
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-float)] overflow-hidden">
 
           <div className="p-2 space-y-0.5">
             {/* Header label */}
@@ -123,7 +120,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
               href="/tournaments"
               prefetch
               onClick={onClose}
-              className="group relative flex items-center gap-3 rounded-lg px-3 py-3 transition-all duration-150 hover:bg-[var(--primary)]/8 overflow-hidden"
+              className="group relative flex items-center gap-3 rounded-lg px-3 py-3 transition-all duration-150 hover:bg-[var(--accent)] overflow-hidden"
             >
               {/* Subtle glow on hover */}
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gradient-to-r from-[var(--primary)]/5 to-transparent" />
@@ -280,14 +277,7 @@ function MobileCampeonatosSection({
 export default function Header({ user, authState = "ready" }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     const routesToPrefetch = ["/", "/tournaments", "/teams", "/players", "/ranking", "/auth/login", "/faceit"];
@@ -317,18 +307,11 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
   }
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-[var(--background)]/95 backdrop-blur-md border-b border-[var(--border)] shadow-lg"
-          : "bg-transparent"
-      )}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-[var(--border)] bg-white/96 backdrop-blur-md">
+      <div className="mx-auto max-w-[1380px] px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2.5 group" onClick={closeMobileMenu}>
-            <div className="relative flex items-center justify-center w-9 h-9 overflow-hidden rounded-lg bg-[var(--primary)] shadow-md group-hover:shadow-[0_0_16px_rgba(0,200,255,0.5)] transition-shadow">
+          <Link href="/" className="group flex items-center gap-2.5" onClick={closeMobileMenu} aria-label="BlueStrike, página inicial">
+            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--brand-navy)]">
               <Image
                 src="/assets/logo/bluestrike_logo_header.png"
                 alt="BlueStrike"
@@ -338,12 +321,12 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 className="relative z-10 h-9 w-9 rounded-lg object-cover"
               />
             </div>
-            <span className="text-xl font-black tracking-tight">
-              Blue<span className="text-[var(--primary)]">Strike</span>
+            <span className="text-[18px] font-black tracking-[-0.035em] text-[var(--foreground)]">
+              BLUE<span className="text-[var(--primary)]">STRIKE</span>
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Navegação principal">
             {/* Campeonatos dropdown — before Ao vivo */}
             <CampeonatosMenu pathname={pathname} />
 
@@ -353,10 +336,10 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                 href={link.href}
                 prefetch
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  "relative flex h-16 items-center gap-2 px-3 text-sm font-medium transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:scale-x-0 after:bg-[var(--primary)] after:transition-transform",
                   pathname === link.href || pathname.startsWith(`${link.href}/`)
-                    ? "text-[var(--primary)] bg-[var(--primary)]/10"
-                    : "text-[var(--foreground)] hover:bg-[var(--secondary)]"
+                    ? "text-[var(--primary)] after:scale-x-100"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 )}
               >
                 {link.live && (
@@ -420,10 +403,10 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             ) : (
               <>
                 <Link href="/auth/login" prefetch>
-                  <Button variant="ghost" size="sm">Entrar</Button>
+                  <Button variant="outline" size="sm">Entrar</Button>
                 </Link>
                 <Link href="/auth/login" prefetch>
-                  <Button size="sm" variant="gradient">Começar agora</Button>
+                  <Button size="sm" variant="default">Criar conta</Button>
                 </Link>
               </>
             )}
@@ -440,7 +423,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden border-t border-[var(--border)] bg-[var(--background)]/98 backdrop-blur-md">
+        <div className="md:hidden border-t border-[var(--border)] bg-white">
           <div className="px-4 py-4 space-y-1">
             {/* Campeonatos accordion — first item */}
             <MobileCampeonatosSection pathname={pathname} onClose={closeMobileMenu} />
@@ -522,7 +505,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                     <Button variant="outline" size="sm" className="w-full">Entrar</Button>
                   </Link>
                   <Link href="/auth/login" prefetch onClick={closeMobileMenu} className="w-full">
-                    <Button size="sm" variant="gradient" className="w-full">Começar agora</Button>
+                    <Button size="sm" className="w-full">Criar conta</Button>
                   </Link>
                 </div>
               )}

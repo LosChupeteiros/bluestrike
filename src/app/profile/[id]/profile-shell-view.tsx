@@ -161,6 +161,14 @@ export default function ProfileShellView({
   const playerRank = getPlayerRank(profile.elo);
   const missingFields = getMissingRequiredFields(profile);
   const role = roleLabel(profile.inGameRole);
+  const recentFinishedMatches = recentMatches.filter((match) => match.status === "finished").slice(0, 10);
+  const recentWins = recentFinishedMatches.filter((match) => match.isWinner).length;
+  const recentLosses = recentFinishedMatches.length - recentWins;
+  const recentEloDelta = recentFinishedMatches.reduce((total, match) => total + (match.eloDelta ?? 0), 0);
+  const nextRankElo = playerRank.maxElo === null ? null : playerRank.maxElo + 1;
+  const rankProgress = nextRankElo === null
+    ? 100
+    : Math.max(0, Math.min(100, ((profile.elo - playerRank.minElo) / (nextRankElo - playerRank.minElo)) * 100));
   const teamsDescription = isOwner
     ? "Monte sua line, acompanhe seus elencos e abra o hub do time em um clique."
     : `Veja os times em que ${profile.steamPersonaName} esta vinculado.`;
@@ -229,11 +237,11 @@ export default function ProfileShellView({
 
           {showTeamCreatedNotice && isOwner && (
             <div className="mb-8 rounded-2xl border border-green-500/20 bg-green-500/10 p-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-green-300">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
                 Time criado com sucesso
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-green-100/80">
+              <p className="mt-2 text-sm leading-relaxed text-emerald-800/80">
                 Seu time já está no hub, aparece no catálogo público e pode receber convites para campeonato.
               </p>
             </div>
@@ -241,57 +249,73 @@ export default function ProfileShellView({
 
           {showTeamDeletedNotice && isOwner && (
             <div className="mb-8 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-orange-300">
+              <div className="flex items-center gap-2 text-sm font-semibold text-orange-700">
                 <ShieldCheck className="h-4 w-4" />
                 Time removido
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-orange-100/80">
+              <p className="mt-2 text-sm leading-relaxed text-orange-800/80">
                 O time foi arquivado e sua vaga ficou livre para montar outra line quando quiser.
               </p>
             </div>
           )}
 
-          <div className="mb-8 flex flex-col gap-5 border-b border-[var(--border)] py-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
+          <section className="bs-panel relative mb-6 overflow-hidden p-6 sm:p-8">
+            <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-[#eef6ff] lg:block" />
+            <div className="bs-brand-arc -right-36 top-1/2 hidden -translate-y-1/2 scale-75 opacity-40 lg:block" />
+            <div className="relative z-10 flex flex-col gap-7 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
               <div className="relative">
-                <Avatar className="h-16 w-16 ring-2 ring-[var(--primary)]/30">
+                <Avatar className="h-28 w-28 rounded-2xl ring-2 ring-blue-200">
                   <AvatarImage src={profile.steamAvatarUrl ?? undefined} alt={profile.steamPersonaName} />
-                  <AvatarFallback className="text-xl font-black">
+                  <AvatarFallback className="rounded-2xl bg-blue-100 text-4xl font-bold text-[var(--primary)]">
                     {profile.steamPersonaName.slice(0, 1).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-[var(--background)] bg-green-400" />
               </div>
 
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-black">{profile.steamPersonaName}</h1>
-                  <Badge variant={currentBand.badgeVariant}>{playerRank.name}</Badge>
-                  <Badge variant={completion === 100 ? "open" : "upcoming"}>
-                    {completion === 100 ? "Cadastro OK" : "Cadastro pendente"}
-                  </Badge>
+                  <h1 className="text-4xl font-bold tracking-[-0.04em]">{profile.steamPersonaName}</h1>
+                  <Badge variant="outline">{role}</Badge>
                 </div>
 
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-[var(--muted-foreground)]">
-                  <span className="flex items-center gap-1">
-                    <TrendingUp className="h-3.5 w-3.5 text-[var(--primary)]" />
-                    {profile.elo} ELO
-                  </span>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                  <span>@{profile.faceitNickname ?? profile.steamPersonaName}</span>
                   <span>|</span>
-                  <span>{role}</span>
+                  <span>Membro desde {new Date(profile.createdAt).getFullYear()}</span>
                 </div>
 
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--muted-foreground)]">
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {profile.faceitLevel != null && <Badge variant="faceit">FACEIT Level {profile.faceitLevel}</Badge>}
+                  <Badge variant="open">Steam verificada</Badge>
+                  <Badge variant={completion === 100 ? "open" : "upcoming"}>{completion === 100 ? "Cadastro completo" : "Cadastro pendente"}</Badge>
+                </div>
+
+                <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">
                   {profile.bio ??
                     "Ainda sem bio pública. Abra a edição para contar como você joga, como se comunica e o que seu time pode esperar de você no servidor."}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid w-full gap-5 sm:grid-cols-2 xl:w-auto xl:min-w-[390px]">
+              <div className="border-l-2 border-blue-200 pl-5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">BlueStrike ELO</div>
+                <div className="mt-2 font-mono text-4xl font-bold tracking-[-0.04em] text-[var(--primary)]">{profile.elo.toLocaleString("pt-BR")}</div>
+                <div className="mt-1 text-xs font-semibold text-[var(--primary)]">{playerRank.name}</div>
+              </div>
+              <div className="border-l-2 border-orange-200 pl-5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">FACEIT ELO</div>
+                <div className="mt-2 font-mono text-4xl font-bold tracking-[-0.04em] text-[#e65300]">{profile.faceitElo?.toLocaleString("pt-BR") ?? "Não conectado"}</div>
+                <div className="mt-1 text-xs font-semibold text-[#e65300]">{profile.faceitLevel != null ? `Level ${profile.faceitLevel}` : "Conecte sua conta"}</div>
+              </div>
+            </div>
+            </div>
+
+            <div className="relative z-10 mt-6 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-5">
               <Button variant="outline" className="gap-2" onClick={openRankGuide}>
                 <BookOpen className="h-4 w-4" />
-                Rank Guide
+                Guia de ranks
               </Button>
 
               {profile.steamProfileUrl && (
@@ -324,62 +348,32 @@ export default function ProfileShellView({
                 </Button>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-[var(--primary)]" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">Patente</span>
-              </div>
-
-              <div className="flex items-center gap-3.5">
-                <div className="shrink-0">
-                  <Image
-                    src={playerRank.imagePath}
-                    alt={playerRank.name}
-                    width={76}
-                    height={76}
-                    className="h-[76px] w-[76px] object-contain drop-shadow-lg"
-                    unoptimized
-                  />
-                </div>
-
-                <div>
-                  <div className="text-sm font-bold leading-tight text-[var(--foreground)]">{playerRank.name}</div>
-                  <div className="mt-0.5 font-mono text-base font-black text-[var(--primary)]">{profile.elo} ELO</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-green-400" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">Win rate</span>
-              </div>
-              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-green-400">{stats.winRate}%</div>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <Swords className="h-4 w-4 text-orange-400" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">K/D ratio</span>
-              </div>
-              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-orange-400">{stats.kdRatio.toFixed(2)}</div>
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 card-hover">
-              <div className="mb-0 flex items-center gap-2">
-                <Target className="h-4 w-4 text-purple-400" />
-                <span className="text-sm font-semibold text-[var(--muted-foreground)]">HS rate</span>
-              </div>
-              <div className="pt-2.5 text-[1.75rem] font-black leading-none text-purple-400">{stats.hsRate}%</div>
-            </div>
+          <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <PerformanceMetric icon={Trophy} label="Últimas 10" value={`${recentWins}W | ${recentLosses}L`} detail={`${recentFinishedMatches.length} partidas computadas`} tone={recentWins > recentLosses ? "positive" : recentLosses > recentWins ? "negative" : "default"} />
+            <PerformanceMetric icon={TrendingUp} label="ELO ganho" value={`${recentEloDelta >= 0 ? "+" : ""}${recentEloDelta}`} detail="nas partidas recentes" tone={recentEloDelta >= 0 ? "positive" : "negative"} />
+            <PerformanceMetric icon={Swords} label="K/D" value={stats.kdRatio.toFixed(2)} detail={`${stats.hsRate}% de headshots`} />
+            <PerformanceMetric icon={Target} label="Win rate" value={`${stats.winRate}%`} detail={`${profile.faceitMatches ?? recentMatches.length} partidas registradas`} tone={stats.winRate >= 50 ? "positive" : "default"} />
           </div>
 
           <div className="mb-8">
             <EloTrendChart points={eloTrendPoints} />
           </div>
+
+          <section className="bs-panel mb-8 p-6 sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="bs-kicker">BlueStrike rank</div>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{playerRank.name}</h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  {nextRankElo === null ? "Patente máxima alcançada" : `Próxima patente em ${nextRankElo.toLocaleString("pt-BR")} ELO`}
+                </p>
+              </div>
+              {nextRankElo !== null && <div className="font-mono text-sm font-bold text-[var(--primary)]">{Math.max(0, nextRankElo - profile.elo)} ELO restantes</div>}
+            </div>
+            <Progress value={rankProgress} className="mt-5 h-3" />
+          </section>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
@@ -404,10 +398,10 @@ export default function ProfileShellView({
                             <div className={cn(
                               "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-xs font-black",
                               !isFinished
-                                ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                                ? "border-blue-200 bg-blue-50 text-blue-700"
                                 : match.isWinner
-                                  ? "border-green-500/30 bg-green-500/10 text-green-400"
-                                  : "border-red-500/30 bg-red-500/10 text-red-400"
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-red-200 bg-red-50 text-red-700"
                             )}>
                               {!isFinished ? "AO" : match.isWinner ? "V" : "D"}
                             </div>
@@ -430,7 +424,7 @@ export default function ProfileShellView({
                                 {match.eloDelta !== null && (
                                   <>
                                     <span>·</span>
-                                    <span className={cn("font-bold tabular-nums", match.eloDelta >= 0 ? "text-green-400" : "text-red-400")}>
+                                    <span className={cn("font-bold tabular-nums", match.eloDelta >= 0 ? "text-emerald-700" : "text-red-700")}>
                                       {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} elo
                                     </span>
                                   </>
@@ -508,7 +502,7 @@ export default function ProfileShellView({
                           <div key={team.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
                             <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 font-black text-[var(--primary)]">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--accent)] font-bold text-[var(--primary)]">
                                   {team.tag}
                                 </div>
                                 <div>
@@ -758,6 +752,18 @@ export default function ProfileShellView({
                   Perfil público
                 </div>
 
+                {teams[0] && (
+                  <Link href={`/teams/${teams[0].slug}`} className="mb-5 flex items-center gap-3 rounded-xl bg-[var(--secondary)] p-3 hover:bg-[var(--accent)]">
+                    {teams[0].logoUrl ? (
+                      <Image src={teams[0].logoUrl} alt={teams[0].name} width={42} height={42} className="h-10 w-10 rounded-lg object-cover" unoptimized />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-xs font-bold text-[var(--primary)]">{teams[0].tag}</div>
+                    )}
+                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{teams[0].name}</div><div className="text-xs text-[var(--muted-foreground)]">Time atual</div></div>
+                    <ChevronRight className="h-4 w-4 text-[var(--muted-foreground)]" />
+                  </Link>
+                )}
+
                 <div className="space-y-4 text-sm">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[var(--muted-foreground)]">Idade</span>
@@ -837,5 +843,32 @@ export default function ProfileShellView({
       <RankGuideModal currentElo={profile.elo} isOpen={isRankGuideOpen} onClose={closeRankGuide} />
       <FaceitConnectModal isOpen={isFaceitModalOpen} onClose={() => setIsFaceitModalOpen(false)} />
     </>
+  );
+}
+
+function PerformanceMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone = "default",
+}: {
+  icon: typeof Trophy;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "default" | "positive" | "negative";
+}) {
+  return (
+    <section className="bs-panel p-5">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.07em] text-[var(--muted-foreground)]">
+        <Icon className="h-4 w-4 text-[var(--primary)]" />
+        {label}
+      </div>
+      <div className={`mt-4 font-mono text-3xl font-bold tracking-[-0.04em] ${tone === "positive" ? "text-emerald-700" : tone === "negative" ? "text-red-700" : "text-[var(--foreground)]"}`}>
+        {value}
+      </div>
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">{detail}</p>
+    </section>
   );
 }

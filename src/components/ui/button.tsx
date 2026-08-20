@@ -6,25 +6,25 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] text-sm font-semibold transition-[background-color,border-color,color,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none active:scale-[0.98]",
   {
     variants: {
       variant: {
         default:
-          "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90 shadow-md hover:shadow-[0_0_16px_rgba(0,200,255,0.4)] active:scale-[0.98]",
+          "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)] shadow-[var(--shadow-xs)]",
         destructive:
-          "bg-[var(--destructive)] text-white hover:bg-[var(--destructive)]/90 shadow-md active:scale-[0.98]",
+          "bg-[var(--destructive)] text-white hover:brightness-95",
         outline:
-          "border border-[var(--border)] bg-transparent hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 active:scale-[0.98]",
+          "border border-[var(--border-strong)] bg-white text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-[var(--accent)]",
         secondary:
-          "bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-[var(--secondary)]/80 active:scale-[0.98]",
+          "bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-[#e2ebf5]",
         ghost:
-          "hover:bg-[var(--secondary)] hover:text-[var(--foreground)] active:scale-[0.98]",
+          "hover:bg-[var(--secondary)] hover:text-[var(--foreground)]",
         link: "text-[var(--primary)] underline-offset-4 hover:underline p-0 h-auto",
         gradient:
-          "bg-gradient-to-r from-cyan-500 to-cyan-600 text-black font-bold hover:from-cyan-400 hover:to-cyan-500 shadow-md hover:shadow-[0_0_20px_rgba(0,200,255,0.5)] active:scale-[0.98]",
+          "bg-[var(--primary)] text-white font-bold hover:bg-[var(--primary-hover)] shadow-[var(--shadow-xs)]",
         orange:
-          "bg-orange-500 text-white hover:bg-orange-400 shadow-md hover:shadow-[0_0_16px_rgba(249,115,22,0.4)] active:scale-[0.98]",
+          "bg-[var(--faceit)] text-white hover:brightness-95",
       },
       size: {
         default: "h-10 px-5 py-2",

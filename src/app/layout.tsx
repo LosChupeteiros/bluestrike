@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "BlueStrike — Campeonatos de CS2",
+    default: "BlueStrike | Campeonatos de CS2",
     template: "%s | BlueStrike",
   },
   description:
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     siteName: "BlueStrike Esports",
-    title: "BlueStrike — Campeonatos de CS2",
+    title: "BlueStrike | Campeonatos de CS2",
     description: "A maior plataforma de campeonatos de CS2 do Brasil.",
   },
 };
@@ -44,11 +44,11 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <body className="min-h-full flex flex-col overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
         <Suspense fallback={<Header user={null} authState="loading" />}>
           <HeaderWithUser />
         </Suspense>
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 overflow-x-hidden">{children}</main>
         <Footer />
       </body>
     </html>

@@ -6,7 +6,6 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
-  Info,
   MapPin,
   Shield,
   Swords,
@@ -26,7 +25,11 @@ import {
   getCurrentTournamentRegistrationIntent,
   getTournamentActiveReservationCount,
 } from "@/lib/tournament-registration-intents";
-import { getEffectiveTournamentStatus, isTournamentRegistrationOpen, getTournamentBadgeProps } from "@/lib/tournament-status";
+import {
+  getEffectiveTournamentStatus,
+  getTournamentBadgeProps,
+  isTournamentRegistrationOpen,
+} from "@/lib/tournament-status";
 import { getTournamentMatches } from "@/lib/matches";
 import { getBracketRoundModel } from "@/lib/bracket-model";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -35,18 +38,11 @@ import TournamentPodium from "./tournament-podium";
 import BlueStrikeBracketView from "./bluestrike-bracket-view";
 
 const FORMAT_LABELS: Record<string, string> = {
-  single_elimination: "Eliminação Simples",
-  double_elimination: "Eliminação Dupla",
-  round_robin: "Round Robin",
+  single_elimination: "Eliminação simples",
+  double_elimination: "Eliminação dupla",
+  round_robin: "Round robin",
   swiss: "Swiss",
 };
-
-const PLACE_ICONS = ["🥇", "🥈", "🥉"];
-const PLACE_STYLES = [
-  "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
-  "border-slate-400/30 bg-slate-400/10 text-slate-300",
-  "border-orange-600/30 bg-orange-600/10 text-orange-300",
-];
 
 interface TournamentDetailPageViewProps {
   params: Promise<{ id: string }>;
@@ -54,7 +50,10 @@ interface TournamentDetailPageViewProps {
 
 export default async function TournamentDetailPageView({ params }: TournamentDetailPageViewProps) {
   const { id } = await params;
-  const [tournament, currentProfile] = await Promise.all([getTournamentById(id), getCurrentProfile()]);
+  const [tournament, currentProfile] = await Promise.all([
+    getTournamentById(id),
+    getCurrentProfile(),
+  ]);
 
   if (!tournament) notFound();
 
@@ -70,35 +69,48 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
       ? getTournamentMatches(tournament.id)
       : Promise.resolve([]),
     getTournamentActiveReservationCount(tournament.id),
-    currentProfile ? getCurrentTournamentRegistrationIntent(tournament.id, currentProfile.id) : Promise.resolve(null),
+    currentProfile
+      ? getCurrentTournamentRegistrationIntent(tournament.id, currentProfile.id)
+      : Promise.resolve(null),
   ]);
 
   const registered = tournament.registeredTeamsCount ?? 0;
   const occupiedSpots = registered + activeReservationCount;
   const spotsLeft = Math.max(0, tournament.maxTeams - occupiedSpots);
-  const fillPercent = tournament.maxTeams > 0 ? (occupiedSpots / tournament.maxTeams) * 100 : 0;
+  const fillPercent = tournament.maxTeams > 0
+    ? Math.min(100, (occupiedSpots / tournament.maxTeams) * 100)
+    : 0;
   const isFull = spotsLeft === 0;
-  const isFinishedTournament = effectiveStatus === "finished";
-  const teams =
-    tournament.registrations?.map((r) => r.team).filter((t): t is Team => Boolean(t)) ?? [];
+  const isFinished = effectiveStatus === "finished";
+  const teams = tournament.registrations
+    ?.map((registration) => registration.team)
+    .filter((team): team is Team => Boolean(team)) ?? [];
 
-  // Derive podium from match results (no DB registration status required)
   let podiumFirst: Team | null = null;
   let podiumSecond: Team | null = null;
   let podiumThird: Team | null = null;
-  if (isFinishedTournament && matches.length > 0) {
+
+  if (isFinished && matches.length > 0) {
     const model = getBracketRoundModel(teams.length);
-    const finalMatch = matches.find((m) => m.round === model.finalRound && m.status === "finished");
+    const finalMatch = matches.find(
+      (match) => match.round === model.finalRound && match.status === "finished"
+    );
     const thirdPlaceMatch = model.thirdPlaceRound !== null
-      ? matches.find((m) => m.round === model.thirdPlaceRound && m.status === "finished")
+      ? matches.find(
+          (match) => match.round === model.thirdPlaceRound && match.status === "finished"
+        )
       : null;
+
     if (finalMatch?.winnerId) {
-      podiumFirst = teams.find((t) => t.id === finalMatch.winnerId) ?? null;
-      const runnerUpId = finalMatch.team1Id === finalMatch.winnerId ? finalMatch.team2Id : finalMatch.team1Id;
-      podiumSecond = teams.find((t) => t.id === runnerUpId) ?? null;
+      podiumFirst = teams.find((team) => team.id === finalMatch.winnerId) ?? null;
+      const runnerUpId = finalMatch.team1Id === finalMatch.winnerId
+        ? finalMatch.team2Id
+        : finalMatch.team1Id;
+      podiumSecond = teams.find((team) => team.id === runnerUpId) ?? null;
     }
+
     if (thirdPlaceMatch?.winnerId) {
-      podiumThird = teams.find((t) => t.id === thirdPlaceMatch.winnerId) ?? null;
+      podiumThird = teams.find((team) => team.id === thirdPlaceMatch.winnerId) ?? null;
     }
   }
 
@@ -127,14 +139,9 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   const keyDates = [
     { label: "Inscrições abertas", value: tournament.registrationStarts },
     { label: "Inscrições encerram", value: tournament.registrationEnds },
-    { label: "Início do campeonato", value: tournament.startsAt },
+    { label: "Início", value: tournament.startsAt },
     { label: "Encerramento", value: tournament.endsAt },
-  ].filter((d) => d.value);
-  const podiumEntries = [
-    { label: "1º lugar", team: podiumFirst, prize: tournament.prizeBreakdown[0]?.amount ?? 0, className: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" },
-    { label: "2º lugar", team: podiumSecond, prize: tournament.prizeBreakdown[1]?.amount ?? 0, className: "border-slate-400/30 bg-slate-400/10 text-slate-300" },
-    { label: "3º lugar", team: podiumThird, prize: tournament.prizeBreakdown[2]?.amount ?? 0, className: "border-orange-600/30 bg-orange-600/10 text-orange-300" },
-  ];
+  ].filter((date): date is { label: string; value: string } => Boolean(date.value));
 
   const finalPodiumEntries = [
     { place: 1 as const, team: podiumFirst, prize: tournament.prizeBreakdown[0]?.amount ?? 0 },
@@ -142,563 +149,243 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     { place: 3 as const, team: podiumThird, prize: tournament.prizeBreakdown[2]?.amount ?? 0 },
   ];
 
-  return (
-    <div className="min-h-screen pb-20 pt-20">
-      {/* ── Hero ── */}
-      <div className="relative h-72 overflow-hidden sm:h-80 lg:h-[30rem]">
-        {tournament.bannerUrl ? (
-          <Image
-            src={tournament.bannerUrl}
-            alt={tournament.name}
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover object-center"
-            unoptimized
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-950 via-slate-900 to-black" />
-        )}
-        <div className="absolute inset-0 grid-bg opacity-50" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-black/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+  const entryFeePerPlayer = tournament.entryFee
+    ? formatCurrency(Math.ceil(tournament.entryFee / 5))
+    : "Gratuita";
 
-        <div className="absolute inset-x-0 bottom-0 mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-          <nav className="mb-4 flex items-center gap-1.5 text-xs text-white/50">
-            <Link href="/" className="transition-colors hover:text-white/80">Inicio</Link>
+  return (
+    <div className="bs-page min-h-screen pb-20">
+      <section className="relative min-h-[390px] overflow-hidden border-b border-[var(--border)] bg-[#f8fbff]">
+        {tournament.bannerUrl && (
+          <Image src={tournament.bannerUrl} alt="" fill priority sizes="100vw" className="object-cover opacity-[0.045]" unoptimized />
+        )}
+        <div className="absolute inset-y-0 right-0 hidden w-[42%] bg-[var(--accent)] md:block" />
+        <div className="bs-brand-arc -right-[3%] top-1/2 hidden -translate-y-1/2 opacity-90 md:block" />
+
+        <div className="bs-page-shell relative z-10 py-8 md:py-10">
+          <nav className="mb-9 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted-foreground)]" aria-label="Navegação estrutural">
+            <Link href="/" className="hover:text-[var(--primary)]">Início</Link>
             <ChevronRight className="h-3 w-3" />
-            <Link href="/tournaments" className="transition-colors hover:text-white/80">Campeonatos</Link>
+            <Link href="/tournaments" className="hover:text-[var(--primary)]">Campeonatos</Link>
             <ChevronRight className="h-3 w-3" />
-            <span className="text-white/80">{tournament.name}</span>
+            <span className="text-[var(--foreground)]">{tournament.name}</span>
           </nav>
 
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <Badge variant={badge.variant} className="mb-3">{badge.label}</Badge>
-              <h1 className="text-3xl font-black tracking-tight drop-shadow-lg sm:text-5xl">
-                {tournament.name}
-              </h1>
-              <p className="mt-2 text-sm text-white/50">Por {tournament.organizerName}</p>
-            </div>
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-[760px]">
+              <Badge variant={badge.variant} className="mb-4">{badge.label}</Badge>
+              <h1 className="text-4xl font-bold tracking-[-0.045em] sm:text-6xl">{tournament.name}</h1>
+              <p className="mt-3 text-sm text-[var(--muted-foreground)]">
+                Organizado por {tournament.organizerName} <span aria-hidden="true">|</span> {tournament.region}
+              </p>
 
-            <div className="flex-shrink-0 rounded-2xl border border-yellow-500/30 bg-black/60 px-6 py-4 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <Trophy className="h-6 w-6 text-yellow-400" />
-                <div>
-                  <div className="text-3xl font-black text-yellow-400">
-                    {formatCurrency(tournament.prizeTotal)}
-                  </div>
-                  <div className="text-xs text-white/40">premiação total</div>
-                </div>
+              <div className="mt-7 flex flex-wrap items-center gap-2">
+                <HeroPill icon={Users} label={`${occupiedSpots} / ${tournament.maxTeams} vagas`} />
+                {tournament.startsAt && <HeroPill icon={Calendar} label={formatDate(tournament.startsAt)} />}
+                <HeroPill icon={Swords} label={FORMAT_LABELS[tournament.format] ?? tournament.format} />
+                <HeroPill icon={Zap} label="!ws ativo" active />
               </div>
             </div>
-          </div>
 
-          {/* Stats strip */}
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-              <Users className="h-3 w-3" />
-              {occupiedSpots}/{tournament.maxTeams} vagas
-            </div>
-            {tournament.startsAt && (
-              <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-                <Calendar className="h-3 w-3" />
-                <span className="text-white/40 mr-0.5">Início</span>
-                {formatDate(tournament.startsAt)}
-              </div>
-            )}
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-              <Swords className="h-3 w-3" />
-              {FORMAT_LABELS[tournament.format]}
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
-              <MapPin className="h-3 w-3" />
-              {tournament.region}
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--primary)] backdrop-blur-sm">
-              <Zap className="h-3 w-3" />
-              {tournament.entryFee
-                ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))}/player`
-                : "Gratuito"}
+            <div className="relative z-10 w-full max-w-[310px] rounded-2xl border border-[var(--border)] bg-white px-7 py-6 shadow-[var(--shadow-float)]">
+              <div className="text-[10px] font-bold uppercase tracking-[0.09em] text-[var(--muted-foreground)]">Premiação total</div>
+              <div className="mt-2 font-mono text-3xl font-bold tracking-[-0.04em]">{formatCurrency(tournament.prizeTotal)}</div>
+              <div className="mt-2 text-xs font-semibold text-[var(--primary)]">Pagamento em PIX</div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── Main layout ── */}
-      <div className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          {/* ── Left: Tabs ── */}
-          <div className="lg:col-span-2">
-            <Tabs defaultValue="info">
-              <TabsList className="mb-6 w-full justify-start border border-[var(--border)] bg-[var(--card)]">
-                <TabsTrigger value="info">Informações</TabsTrigger>
-                <TabsTrigger value="teams">Times ({registered})</TabsTrigger>
-                <TabsTrigger value="rules">Regras</TabsTrigger>
-                <TabsTrigger value="bracket">Chaveamento</TabsTrigger>
-              </TabsList>
+      <Tabs defaultValue="info" className="bs-page-shell mt-0">
+        <div className="overflow-x-auto border-b border-[var(--border)]">
+          <TabsList className="h-auto min-w-max justify-start gap-7 rounded-none border-0 bg-transparent p-0">
+            <Tab value="info">Visão geral</Tab>
+            <Tab value="teams">Times {registered}</Tab>
+            <Tab value="rules">Regras</Tab>
+            <Tab value="bracket">Chaveamento</Tab>
+          </TabsList>
+        </div>
 
-              {/* ── Info tab ── */}
-              <TabsContent value="info">
-                <div className="space-y-5">
-                  {isFinishedTournament && (
-                    <TournamentPodium title="Podio final" entries={finalPodiumEntries} />
-                  )}
+        <div className="grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_350px]">
+          <main className="min-w-0">
+            <TabsContent value="info" className="mt-0 space-y-5">
+              {isFinished && <TournamentPodium title="Pódio final" entries={finalPodiumEntries} />}
 
-                  {false && isFinishedTournament && (
-                    <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
-                      <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
-                        <Trophy className="h-4 w-4 text-yellow-400" />
-                        Pódio final
-                      </h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        {podiumEntries.map((entry, index) => (
-                          <div key={entry.label} className={`rounded-xl border p-5 text-center ${entry.className}`}>
-                            <div className="mb-2 text-3xl">{PLACE_ICONS[index] ?? `#${index + 1}`}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">{entry.label}</div>
-                            <div className="mt-2 truncate text-base font-black">{entry.team?.name ?? "—"}</div>
-                            {entry.team && <div className="text-[10px] opacity-70">{entry.team.elo} ELO</div>}
-                            <div className="mt-4 rounded-lg border border-current/15 bg-black/20 px-3 py-2 text-sm font-black">
-                              {formatCurrency(entry.prize)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Description */}
-                  {tournament.description && (
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-                      <h3 className="mb-3 flex items-center gap-2 font-bold">
-                        <Info className="h-4 w-4 text-[var(--primary)]" />
-                        Sobre o campeonato
-                      </h3>
-                      <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
-                        {tournament.description}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Prize breakdown — podium style */}
-                  {tournament.prizeBreakdown.length > 0 && (
-                    <div className="rounded-xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-5">
-                      <h3 className="mb-5 flex items-center gap-2 font-bold">
-                        <Trophy className="h-4 w-4 text-yellow-400" />
-                        Distribuição de prêmios
-                      </h3>
-                      <div className="flex flex-col gap-3 sm:flex-row">
-                        {tournament.prizeBreakdown.map((prize, index) => (
-                          <div
-                            key={`${prize.place}-${index}`}
-                            className={`flex flex-1 flex-col items-center gap-2 rounded-xl border p-5 ${
-                              PLACE_STYLES[index] ??
-                              "border-[var(--border)] bg-[var(--secondary)] text-[var(--foreground)]"
-                            }`}
-                          >
-                            <span className="text-3xl">{PLACE_ICONS[index] ?? `#${index + 1}`}</span>
-                            <span className="text-xs font-semibold uppercase tracking-widest opacity-60">
-                              {prize.place}
-                            </span>
-                            <span
-                              className={`font-black ${
-                                index === 0 ? "text-2xl text-yellow-400" : "text-xl"
-                              }`}
-                            >
-                              {formatCurrency(prize.amount)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Key dates timeline */}
-                  {keyDates.length > 0 && (
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-                      <h3 className="mb-5 flex items-center gap-2 font-bold">
-                        <Calendar className="h-4 w-4 text-[var(--primary)]" />
-                        Datas importantes
-                      </h3>
-                      <div className="relative">
-                        <div className="absolute left-[11px] top-2 h-[calc(100%-1rem)] w-px bg-[var(--border)]" />
-                        <div className="space-y-5 pl-9">
-                          {keyDates.map((d) => {
-                            const isPast = d.value ? nowMs > Date.parse(d.value) : false;
-                            return (
-                              <div key={d.label} className="relative flex items-center justify-between gap-4">
-                                <div
-                                  className={`absolute -left-9 flex h-5 w-5 items-center justify-center rounded-full border ${
-                                    isPast
-                                      ? "border-[var(--primary)]/50 bg-[var(--primary)]/15"
-                                      : "border-[var(--border)] bg-[var(--background)]"
-                                  }`}
-                                >
-                                  {isPast ? (
-                                    <CheckCircle2 className="h-3 w-3 text-[var(--primary)]" />
-                                  ) : (
-                                    <div className="h-1.5 w-1.5 rounded-full bg-[var(--muted-foreground)]/50" />
-                                  )}
-                                </div>
-                                <span
-                                  className={`text-sm ${
-                                    isPast
-                                      ? "text-[var(--muted-foreground)]"
-                                      : "font-semibold text-[var(--foreground)]"
-                                  }`}
-                                >
-                                  {d.label}
-                                </span>
-                                <span className="text-sm font-bold tabular-nums text-[var(--foreground)]">
-                                  {formatDate(d.value!)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Info grid */}
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {[
-                      { label: "Formato", value: FORMAT_LABELS[tournament.format], icon: Swords },
-                      { label: "Região", value: tournament.region, icon: MapPin },
-                      {
-                        label: "Inscrição",
-                        value: tournament.entryFee
-                          ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))} / player`
-                          : "Gratuito",
-                        icon: Zap,
-                      },
-                      { label: "Vagas totais", value: `${tournament.maxTeams} times`, icon: Users },
-                      {
-                        label: "Check-in",
-                        value: tournament.checkInRequired
-                          ? `${tournament.checkInWindowMins} min antes`
-                          : "Não obrigatório",
-                        icon: CheckCircle2,
-                      },
-                      { label: "Organizador", value: tournament.organizerName, icon: Shield },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
-                      >
-                        <div className="mb-2 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
-                          <item.icon className="h-3.5 w-3.5" />
-                          {item.label}
-                        </div>
-                        <div className="text-sm font-bold">{item.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* ELO requirements */}
-                  {(tournament.minElo !== null || tournament.maxElo !== null) && (
-                    <div className="flex items-center gap-3 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-4">
-                      <Shield className="h-5 w-5 shrink-0 text-[var(--primary)]" />
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        {tournament.minElo !== null && (
-                          <span className="text-[var(--muted-foreground)]">
-                            ELO mínimo:{" "}
-                            <span className="font-black text-[var(--primary)]">{tournament.minElo}</span>
-                          </span>
-                        )}
-                        {tournament.maxElo !== null && (
-                          <span className="text-[var(--muted-foreground)]">
-                            ELO máximo:{" "}
-                            <span className="font-black text-[var(--primary)]">{tournament.maxElo}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tags */}
-                  {tournament.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {tournament.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          #{tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+              <section className="bs-panel flex gap-5 p-6 sm:p-7">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--primary)]">
+                  <Trophy className="h-5 w-5" />
                 </div>
-              </TabsContent>
-
-              {/* ── Teams tab ── */}
-              <TabsContent value="teams">
-                <div className="space-y-6">
-                  {/* Podium */}
-                  <TournamentPodium
-                    title="Podio"
-                    entries={finalPodiumEntries}
-                    showPendingCopy={!isFinishedTournament}
-                  />
-
-                  {false && (
-                  <div className="rounded-xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 via-transparent to-transparent p-6">
-                    <h3 className="mb-6 flex items-center gap-2 text-sm font-bold text-yellow-300">
-                      <Trophy className="h-4 w-4 text-yellow-400" />
-                      Pódio
-                    </h3>
-
-                    {/* Classic podium: 2nd | 1st | 3rd */}
-                    <div className="grid grid-cols-3 items-end gap-3">
-                      {/* 2nd */}
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-slate-400/40 bg-slate-400/10 text-lg font-black text-slate-300">
-                          {podiumSecond?.tag ?? "?"}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-black text-slate-300">
-                            {podiumSecond?.name ?? "—"}
-                          </div>
-                          {podiumSecond && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumSecond?.elo} ELO</div>
-                          )}
-                        </div>
-                        <div className="flex h-16 w-full items-center justify-center rounded-xl bg-slate-400/10">
-                          <span className="text-2xl">🥈</span>
-                        </div>
-                      </div>
-
-                      {/* 1st — tallest */}
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-yellow-500/60 bg-yellow-500/10 text-xl font-black text-yellow-300 shadow-[0_0_24px_rgba(234,179,8,0.2)]">
-                          {podiumFirst?.tag ?? "?"}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-base font-black text-yellow-300">
-                            {podiumFirst?.name ?? "—"}
-                          </div>
-                          {podiumFirst && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumFirst?.elo} ELO</div>
-                          )}
-                        </div>
-                        <div className="flex h-24 w-full items-center justify-center rounded-xl bg-yellow-500/10">
-                          <span className="text-3xl">🥇</span>
-                        </div>
-                      </div>
-
-                      {/* 3rd */}
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-orange-600/30 bg-orange-600/10 text-lg font-black text-orange-300">
-                          {podiumThird?.tag ?? "?"}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-black text-orange-300">
-                            {podiumThird?.name ?? "-"}
-                          </div>
-                          {podiumThird && (
-                            <div className="text-xs text-[var(--muted-foreground)]">{podiumThird?.elo} ELO</div>
-                          )}
-                        </div>
-                        <div className="flex h-12 w-full items-center justify-center rounded-xl bg-orange-600/10">
-                          <span className="text-2xl">🥉</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {!isFinishedTournament && (
-                      <p className="mt-5 text-center text-xs text-[var(--muted-foreground)]">
-                        O pódio será revelado ao final do campeonato.
-                      </p>
-                    )}
-                  </div>
-                  )}
-
-                  {/* Registered teams — compact grid, no ranking */}
-                  {teams.length > 0 && (
-                    <div>
-                      <h3 className="mb-3 flex items-center gap-2 text-sm font-bold">
-                        <Users className="h-4 w-4 text-[var(--primary)]" />
-                        Times inscritos
-                        <span className="rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)]">
-                          {teams.length}
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {teams.map((team) => (
-                          <Link
-                            key={team.id}
-                            href={`/teams/${team.slug}`}
-                            className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 transition-all hover:border-[var(--primary)]/40"
-                          >
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 text-xs font-black text-[var(--primary)]">
-                              {team.tag}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
-                                {team.name}
-                              </div>
-                              <div className="text-[10px] text-[var(--muted-foreground)]">{team.elo} ELO</div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {teams.length === 0 && (
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-10 text-center">
-                      <Users className="mx-auto mb-3 h-10 w-10 text-[var(--muted-foreground)] opacity-30" />
-                      <p className="text-sm text-[var(--muted-foreground)]">Nenhum time inscrito ainda.</p>
-                    </div>
-                  )}
+                <div>
+                  <h2 className="text-lg font-semibold tracking-[-0.02em]">Sobre o campeonato</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
+                    {tournament.description || "Os detalhes oficiais desta competição serão publicados pela organização."}
+                  </p>
                 </div>
-              </TabsContent>
+              </section>
 
-              {/* ── Rules tab ── */}
-              <TabsContent value="rules">
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-                  <h3 className="mb-5 flex items-center gap-2 font-bold">
-                    <Shield className="h-4 w-4 text-[var(--primary)]" />
-                    Regras do campeonato
-                  </h3>
-                  <ol className="space-y-4">
-                    {tournament.rules.map((rule, index) => (
-                      <li key={`${rule}-${index}`} className="flex items-start gap-4">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 text-xs font-black text-[var(--primary)]">
-                          {index + 1}
-                        </span>
-                        <span className="pt-0.5 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                          {rule}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-
-                  <Separator className="my-5" />
-
-                  <div className="flex items-start gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
-                    <p className="text-xs leading-relaxed text-yellow-200/80">
-                      O não cumprimento das regras pode resultar em desclassificação e bloqueio do time.
-                    </p>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <section className="bs-panel p-6">
+                  <div className="bs-kicker">Distribuição do prêmio</div>
+                  <div className="mt-5 divide-y divide-[var(--border)]">
+                    {tournament.prizeBreakdown.length > 0 ? tournament.prizeBreakdown.slice(0, 3).map((prize, index) => (
+                      <div key={`${prize.place}-${index}`} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--secondary)] font-mono text-xs font-bold">{index + 1}º</span>
+                          <span className="text-sm font-semibold">{prize.place}</span>
+                        </div>
+                        <span className="font-mono text-sm font-bold">{formatCurrency(prize.amount)}</span>
+                      </div>
+                    )) : <p className="text-sm text-[var(--muted-foreground)]">Distribuição ainda não publicada.</p>}
                   </div>
-                </div>
-              </TabsContent>
+                </section>
 
-              {/* ── Bracket tab ── */}
-              <TabsContent value="bracket">
-                {effectiveStatus === "open" || effectiveStatus === "upcoming" ? (
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-10 text-center">
-                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--secondary)]">
-                      <Swords className="h-8 w-8 text-[var(--muted-foreground)] opacity-40" />
-                    </div>
-                    <h3 className="mb-2 font-bold">Chaveamento ainda não gerado</h3>
-                    <p className="max-w-sm mx-auto text-sm text-[var(--muted-foreground)]">
-                      O bracket é gerado automaticamente quando as inscrições encerram e o campeonato começa.
-                    </p>
+                <section className="bs-panel p-6">
+                  <div className="bs-kicker">Agenda</div>
+                  <div className="mt-5 divide-y divide-[var(--border)]">
+                    {keyDates.length > 0 ? keyDates.map((date) => (
+                      <div key={date.label} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-center gap-3 text-sm text-[var(--muted-foreground)]">
+                          <Calendar className="h-4 w-4 text-[var(--primary)]" />{date.label}
+                        </div>
+                        <span className="font-mono text-xs font-bold">{formatDate(date.value)}</span>
+                      </div>
+                    )) : <p className="text-sm text-[var(--muted-foreground)]">Agenda ainda não publicada.</p>}
                   </div>
-                ) : matches.length === 0 ? (
-                  <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-10 text-center">
-                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/5">
-                      <Swords className="h-8 w-8 text-[var(--primary)] opacity-60" />
-                    </div>
-                    <h3 className="mb-2 font-bold">Aguardando sorteio</h3>
-                    <p className="text-sm text-[var(--muted-foreground)]">
-                      O chaveamento será gerado em instantes.
-                    </p>
-                  </div>
-                ) : (
-                  <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} teamCount={teams.length} isAdmin={currentProfile?.isAdmin ?? false} />
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          {/* ── Right: Sidebar ── */}
-          <div className="space-y-5">
-            <div className="sticky top-24 space-y-5">
-              {/* Registration card */}
-              <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
-                {/* Card header */}
-                <div className="border-b border-[var(--border)] bg-[var(--secondary)]/40 px-5 py-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold">Inscrições</span>
-                    <Badge
-                      variant={
-                        isFull ? "destructive" : registrationOpen ? "open" : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {isFull ? "Lotado" : registrationOpen ? "Abertas" : "Encerradas"}
-                    </Badge>
-                  </div>
-
-                  {/* Vagas progress */}
-                  <div className="mt-3">
-                    <div className="mb-1.5 flex items-center justify-between text-xs">
-                      <span className="text-[var(--muted-foreground)]">
-                        {registered} de {tournament.maxTeams} times
-                        {activeReservationCount > 0 ? ` + ${activeReservationCount} reserva${activeReservationCount === 1 ? "" : "s"}` : ""}
-                      </span>
-                      <span className={`font-bold ${isFull ? "text-red-400" : "text-[var(--primary)]"}`}>
-                        {isFull ? `${registered}/${tournament.maxTeams}` : `${spotsLeft} vagas restantes`}
-                      </span>
-                    </div>
-                    <Progress
-                      value={fillPercent}
-                      className={`h-1.5 ${isFull ? "[&>div]:bg-red-500" : ""}`}
-                    />
-                  </div>
-                </div>
-
-                <div className="p-5">
-                  <TournamentRegistrationCard
-                    tournamentId={tournament.id}
-                    tournamentName={tournament.name}
-                    entryFee={tournament.entryFee ?? 0}
-                    canRegister={registrationDisabledReason === null}
-                    disabledReason={registrationDisabledReason}
-                    captainTeams={captainTeams}
-                    registeredTeamIds={(tournament.registrations ?? []).map((r) => r.teamId)}
-                    initialIntent={currentRegistrationIntent}
-                  />
-
-                  {tournament.checkInRequired && (
-                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--secondary)] p-2.5 text-xs text-[var(--muted-foreground)]">
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
-                      Check-in obrigatório {tournament.checkInWindowMins}min antes da partida
-                    </div>
-                  )}
-                </div>
+                </section>
               </div>
 
-              {/* Prize summary */}
-              {tournament.prizeBreakdown.length > 0 && (
-                <div className="rounded-xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/5 to-transparent p-5">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-yellow-400" />
-                    <h4 className="text-sm font-bold text-yellow-300">Premiação</h4>
-                  </div>
-                  <div className="space-y-3">
-                    {tournament.prizeBreakdown.slice(0, 3).map((prize, index) => (
-                      <div key={prize.place} className="flex items-center justify-between">
-                        <span className="text-sm text-white/60">
-                          {PLACE_ICONS[index]} {prize.place}
-                        </span>
-                        <span
-                          className={`font-black ${
-                            index === 0 ? "text-base text-yellow-400" : "text-sm text-white/80"
-                          }`}
-                        >
-                          {formatCurrency(prize.amount)}
-                        </span>
-                      </div>
+              <section className="bs-panel p-6">
+                <div className="flex items-end justify-between gap-4">
+                  <div><div className="bs-kicker">Times confirmados</div><h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">Quem já está dentro</h2></div>
+                  <span className="text-xs text-[var(--muted-foreground)]">{teams.length} confirmados</span>
+                </div>
+                {teams.length > 0 ? (
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {teams.slice(0, 4).map((team) => (
+                      <Link key={team.id} href={`/teams/${team.slug}`} className="group flex items-center gap-3 rounded-xl bg-[var(--secondary)]/70 p-3 hover:bg-[var(--accent)]">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-xs font-bold text-[var(--primary)]">{team.tag}</div>
+                        <div className="min-w-0"><div className="truncate text-sm font-semibold group-hover:text-[var(--primary)]">{team.name}</div><div className="text-[10px] text-[var(--muted-foreground)]">{team.elo} ELO</div></div>
+                      </Link>
                     ))}
                   </div>
+                ) : <p className="mt-5 text-sm text-[var(--muted-foreground)]">Nenhum time confirmado até o momento.</p>}
+              </section>
+
+              <section className="border-y border-[var(--border)] py-6">
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
+                  <DetailItem icon={Swords} label="Formato" value={FORMAT_LABELS[tournament.format] ?? tournament.format} />
+                  <DetailItem icon={MapPin} label="Região" value={tournament.region} />
+                  <DetailItem icon={Users} label="Vagas totais" value={`${tournament.maxTeams} times`} />
+                  <DetailItem icon={Zap} label="Entrada" value={`${entryFeePerPlayer} por jogador`} />
+                  <DetailItem icon={CheckCircle2} label="Check-in" value={tournament.checkInRequired ? `${tournament.checkInWindowMins} min antes` : "Não obrigatório"} />
+                  <DetailItem icon={Shield} label="Organizador" value={tournament.organizerName} />
+                </dl>
+              </section>
+
+              {(tournament.minElo !== null || tournament.maxElo !== null) && (
+                <div className="flex flex-wrap items-center gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
+                  <Shield className="h-5 w-5 text-[var(--primary)]" />
+                  {tournament.minElo !== null && <span>ELO mínimo <strong className="text-[var(--primary)]">{tournament.minElo}</strong></span>}
+                  {tournament.maxElo !== null && <span>ELO máximo <strong className="text-[var(--primary)]">{tournament.maxElo}</strong></span>}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="teams" className="mt-0 space-y-5">
+              <TournamentPodium title="Pódio" entries={finalPodiumEntries} showPendingCopy={!isFinished} />
+              <section className="bs-panel p-6" id="times-inscritos">
+                <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">Times inscritos</h2><Badge variant="secondary">{teams.length}</Badge></div>
+                {teams.length > 0 ? (
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {teams.map((team) => (
+                      <Link key={team.id} href={`/teams/${team.slug}`} className="group flex items-center gap-3 rounded-xl border border-[var(--border)] p-4 hover:border-blue-200 hover:bg-blue-50/50">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-bold text-[var(--primary)]">{team.tag}</div>
+                        <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold group-hover:text-[var(--primary)]">{team.name}</div><div className="text-xs text-[var(--muted-foreground)]">{team.elo} ELO</div></div>
+                        <ChevronRight className="h-4 w-4 text-[var(--muted-foreground)]" />
+                      </Link>
+                    ))}
+                  </div>
+                ) : <div className="py-14 text-center text-sm text-[var(--muted-foreground)]">Nenhum time inscrito ainda.</div>}
+              </section>
+            </TabsContent>
+
+            <TabsContent value="rules" className="mt-0">
+              <section className="bs-panel p-6 sm:p-7">
+                <div className="flex items-center gap-3"><Shield className="h-5 w-5 text-[var(--primary)]" /><h2 className="text-xl font-semibold">Regras do campeonato</h2></div>
+                <ol className="mt-6 space-y-4">
+                  {tournament.rules.map((rule, index) => (
+                    <li key={`${rule}-${index}`} className="flex items-start gap-4"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] font-mono text-xs font-bold text-[var(--primary)]">{index + 1}</span><span className="pt-1 text-sm leading-6 text-[var(--muted-foreground)]">{rule}</span></li>
+                  ))}
+                </ol>
+                <Separator className="my-6" />
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />O descumprimento das regras pode resultar em desclassificação e bloqueio do time.</div>
+              </section>
+            </TabsContent>
+
+            <TabsContent value="bracket" className="mt-0">
+              {effectiveStatus === "open" || effectiveStatus === "upcoming" ? (
+                <EmptyState title="Chaveamento ainda não gerado" description="O bracket é gerado automaticamente quando as inscrições encerram e a competição começa." />
+              ) : matches.length === 0 ? (
+                <EmptyState title="Aguardando sorteio" description="O chaveamento será gerado em instantes." />
+              ) : (
+                <BlueStrikeBracketView matches={matches} tournamentId={tournament.id} teamCount={teams.length} isAdmin={currentProfile?.isAdmin ?? false} />
+              )}
+            </TabsContent>
+          </main>
+
+          <aside>
+            <div className="sticky top-24 bs-panel p-6 sm:p-7">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-emerald-700"><Users className="h-4 w-4" />{isFull ? "Inscrições lotadas" : registrationOpen ? "Vagas disponíveis" : "Inscrições encerradas"}</div>
+              <div className="mt-7 font-mono text-4xl font-bold tracking-[-0.04em]">{occupiedSpots} <span className="text-xl text-[var(--muted-foreground)]">de {tournament.maxTeams}</span></div>
+              <Progress value={fillPercent} className="mt-4 h-2" />
+              {activeReservationCount > 0 && <p className="mt-2 text-xs text-[var(--muted-foreground)]">{activeReservationCount} {activeReservationCount === 1 ? "vaga reservada" : "vagas reservadas"} em pagamento</p>}
+
+              <div className="mt-6">
+                <TournamentRegistrationCard
+                  tournamentId={tournament.id}
+                  tournamentName={tournament.name}
+                  entryFee={tournament.entryFee ?? 0}
+                  canRegister={registrationDisabledReason === null}
+                  disabledReason={registrationDisabledReason}
+                  captainTeams={captainTeams}
+                  registeredTeamIds={(tournament.registrations ?? []).map((registration) => registration.teamId)}
+                  initialIntent={currentRegistrationIntent}
+                />
+              </div>
+
+              {tournament.checkInRequired && <div className="mt-4 flex items-start gap-2 rounded-xl bg-[var(--secondary)] p-3 text-xs leading-5 text-[var(--muted-foreground)]"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />Check-in obrigatório {tournament.checkInWindowMins} minutos antes da partida.</div>}
+
+              <Separator className="my-6" />
+              <dl className="space-y-4">
+                <SidebarItem label="Entrada" value={`${entryFeePerPlayer} / jogador`} />
+                <SidebarItem label="Formato" value="5v5" />
+                <SidebarItem label="Região" value={tournament.region} />
+                <SidebarItem label="Anti-cheat" value="BlueStrike" />
+              </dl>
             </div>
-          </div>
+          </aside>
         </div>
-      </div>
+      </Tabs>
     </div>
   );
+}
+
+function Tab({ value, children }: { value: string; children: React.ReactNode }) {
+  return <TabsTrigger value={value} className="rounded-none border-b-2 border-transparent px-1 py-5 data-[state=active]:border-[var(--primary)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-none">{children}</TabsTrigger>;
+}
+
+function HeroPill({ icon: Icon, label, active = false }: { icon: typeof Users; label: string; active?: boolean }) {
+  return <div className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-[var(--border)] bg-white"}`}><Icon className="h-3.5 w-3.5 text-[var(--primary)]" />{label}</div>;
+}
+
+function DetailItem({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
+  return <div className="flex gap-3"><Icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" /><div><dt className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</dt><dd className="mt-1 text-sm font-semibold">{value}</dd></div></div>;
+}
+
+function SidebarItem({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-4 text-sm"><dt className="text-[var(--muted-foreground)]">{label}</dt><dd className="text-right font-semibold">{value}</dd></div>;
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return <div className="bs-panel px-6 py-16 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--accent)]"><Swords className="h-6 w-6 text-[var(--primary)]" /></div><h2 className="mt-5 font-semibold">{title}</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">{description}</p></div>;
 }
