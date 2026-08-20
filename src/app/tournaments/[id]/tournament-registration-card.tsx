@@ -29,7 +29,7 @@ const MIN_ROSTER = 5;
 
 const TERMS = `1. O capitao confirma que todos os membros do time leram e aceitaram as regras do campeonato.
 
-2. A taxa de inscricao e obrigatoria para campeonatos pagos e a vaga so e confirmada apos aprovacao do pagamento.
+2. A taxa de Inscrição e obrigatoria para campeonatos pagos e a vaga so e confirmada apos aprovacao do pagamento.
 
 3. A reserva do PIX dura 15 minutos. Depois disso, a vaga volta a ficar disponivel para outros times.
 
@@ -201,10 +201,10 @@ function PixCheckout({
           <p className="mt-1 text-3xl font-black text-green-400">{formatCurrency(amount)}</p>
         </div>
         <div className="w-full rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-left text-xs text-green-200">
-          Seu time foi confirmado no campeonato. A pagina sera atualizada com a inscricao oficial.
+          Seu time foi confirmado no campeonato. A pagina sera atualizada com a Inscrição oficial.
         </div>
         <Button type="button" variant="outline" className="w-full border-green-500/30 text-green-300 hover:bg-green-500/10" onClick={onApproved}>
-          Ver inscricao confirmada
+          Ver Inscrição confirmada
         </Button>
       </div>
     );
@@ -271,7 +271,7 @@ function PixCheckout({
     <div className="flex flex-col items-center gap-5">
       <div className="w-full text-center">
         <div className="text-3xl font-black text-[var(--primary)]">{formatCurrency(amount)}</div>
-        <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de inscricao</div>
+        <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de Inscrição</div>
       </div>
 
       <div className="flex flex-col items-center gap-2">
@@ -434,7 +434,7 @@ export default function TournamentRegistrationCard({
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      throw new Error(payload.error ?? "Nao foi possivel concluir a inscricao.");
+      throw new Error(payload.error ?? "Nao foi possivel concluir a Inscrição.");
     }
   }
 
@@ -446,7 +446,7 @@ export default function TournamentRegistrationCard({
     });
     const payload = (await response.json()) as { intent?: TournamentRegistrationIntent; error?: string };
     if (!response.ok || !payload.intent) {
-      throw new Error(payload.error ?? "Nao foi possivel reservar a inscricao.");
+      throw new Error(payload.error ?? "Nao foi possivel reservar a Inscrição.");
     }
     setIntent(payload.intent);
     return payload.intent;
@@ -525,7 +525,7 @@ export default function TournamentRegistrationCard({
     ? "Retomar pagamento"
     : entryFee > 0
       ? "Inscrever meu time"
-      : "Confirmar inscricao";
+      : "Confirmar Inscrição";
 
   const previewTeam = captainTeams.length === 1 ? captainTeams[0] : null;
   const previewStarters = useMemo(
@@ -758,7 +758,7 @@ export default function TournamentRegistrationCard({
       <Modal
         open={flowStep === "confirm"}
         onClose={closeModal}
-        title="Confirmar inscricao"
+        title="Confirmar Inscrição"
         subtitle="Revise seu time e aceite os termos antes de continuar."
       >
         <div className="space-y-4 p-5">
@@ -795,7 +795,7 @@ export default function TournamentRegistrationCard({
             <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Campeonato</div>
             <p className="mb-1 font-bold">{tournamentName}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted-foreground)]">
-              <span>Inscricao oficial BlueStrike</span>
+              <span>Inscrição oficial BlueStrike</span>
               {entryFee > 0 ? (
                 <span className="font-semibold text-[var(--foreground)]">{formatCurrency(perPlayer)} por player</span>
               ) : (
@@ -832,7 +832,7 @@ export default function TournamentRegistrationCard({
 
           <Button type="button" variant="gradient" className="w-full gap-2" disabled={!termsAccepted || submitting} onClick={handleConfirm}>
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            {entryFee > 0 ? "Continuar para pagamento" : "Confirmar inscricao gratuita"}
+            {entryFee > 0 ? "Continuar para pagamento" : "Confirmar Inscrição gratuita"}
           </Button>
         </div>
       </Modal>
@@ -846,7 +846,7 @@ export default function TournamentRegistrationCard({
       >
         <div className="space-y-4 p-5">
           <div className="rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/10 p-5 text-center">
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Total da inscricao</div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Total da Inscrição</div>
             <div className="text-4xl font-black text-[var(--primary)]">{formatCurrency(entryFee)}</div>
             <div className="mt-1 text-xs text-[var(--muted-foreground)]">{tournamentName}</div>
           </div>
@@ -880,7 +880,7 @@ export default function TournamentRegistrationCard({
 
           <div className="flex items-start gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-xs text-yellow-100">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" />
-            O PIX reserva a vaga por 15 minutos. A inscricao aparece no campeonato somente apos a aprovacao.
+            O PIX reserva a vaga por 15 minutos. A Inscrição aparece no campeonato somente apos a aprovacao.
           </div>
 
           <Button

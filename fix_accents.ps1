@@ -8,12 +8,12 @@ function Fix($path, $pairs) {
 Fix 'src/app/admin/create-tournament-panel.tsx' @(
   ,@('Erro de conexao ao enviar imagem.', 'Erro de conexão ao enviar imagem.')
   ,@('Nao foi possivel cadastrar o campeonato.', 'Não foi possível cadastrar o campeonato.')
-  ,@('Esse formulario ja grava o campeonato no Supabase com valor de inscricao pronto para o fluxo fake de PIX.', 'Esse formulário já grava o campeonato no Supabase com valor de inscrição pronto para o fluxo fake de PIX.')
+  ,@('Esse formulario ja grava o campeonato no Supabase com valor de Inscrição pronto para o fluxo fake de PIX.', 'Esse formulário já grava o campeonato no Supabase com valor de inscrição pronto para o fluxo fake de PIX.')
   ,@('Area administrativa', 'Área administrativa')
   ,@('label className="mb-2 block text-sm font-semibold">Descricao</label>', 'label className="mb-2 block text-sm font-semibold">Descrição</label>')
   ,@('Explique proposta, publico e nivel do campeonato.', 'Explique proposta, público e nível do campeonato.')
   ,@('Premiacao total', 'Premiação total')
-  ,@('Inscricao via PIX', 'Inscrição via PIX')
+  ,@('Inscrição via PIX', 'Inscrição via PIX')
   ,@('Maximo de times', 'Máximo de times')
   ,@('Eliminacao simples', 'Eliminação simples')
   ,@('Eliminacao dupla', 'Eliminação dupla')
@@ -22,12 +22,12 @@ Fix 'src/app/admin/create-tournament-panel.tsx' @(
 )
 
 Fix 'src/app/tournaments/[id]/tournament-registration-card.tsx' @(
-  ,@('Nao foi possivel concluir a inscricao.', 'Não foi possível concluir a inscrição.')
-  ,@('Inscricao concluida', 'Inscrição concluída')
-  ,@('Confirmar inscricao', 'Confirmar inscrição')
-  ,@('Inscricao confirmada com sucesso.', 'Inscrição confirmada com sucesso.')
-  ,@('Essa etapa simula a experiencia de pagamento para o fluxo de inscricao.', 'Essa etapa simula a experiência de pagamento para o fluxo de inscrição.')
-  ,@('Valor da inscricao', 'Valor da inscrição')
+  ,@('Nao foi possivel concluir a Inscrição.', 'Não foi possível concluir a inscrição.')
+  ,@('Inscrição concluida', 'Inscrição concluída')
+  ,@('Confirmar Inscrição', 'Confirmar inscrição')
+  ,@('Inscrição confirmada com sucesso.', 'Inscrição confirmada com sucesso.')
+  ,@('Essa etapa simula a experiencia de pagamento para o fluxo de Inscrição.', 'Essa etapa simula a experiência de pagamento para o fluxo de inscrição.')
+  ,@('Valor da Inscrição', 'Valor da inscrição')
   ,@('Ja paguei', 'Já paguei')
 )
 
@@ -50,7 +50,7 @@ Fix 'src/app/admin/faceit-prizes-panel.tsx' @(
   ,@('Inscricoes abertas', 'Inscrições abertas')
   ,@('Editar premiacao', 'Editar premiação')
   ,@('Cadastrar premiacao', 'Cadastrar premiação')
-  ,@('Deixe 0 para nao exibir. Taxa de inscricao aparece no fluxo de inscricao BlueStrike.', 'Deixe 0 para não exibir. Taxa de inscrição aparece no fluxo de inscrição BlueStrike.')
+  ,@('Deixe 0 para nao exibir. Taxa de Inscrição aparece no fluxo de Inscrição BlueStrike.', 'Deixe 0 para não exibir. Taxa de inscrição aparece no fluxo de inscrição BlueStrike.')
   ,@('Salvar premiacao', 'Salvar premiação')
   ,@('Premiacoes FACEIT', 'Premiações FACEIT')
   ,@('Gerenciar premiacoes', 'Gerenciar premiações')
@@ -60,12 +60,12 @@ Fix 'src/app/admin/faceit-prizes-panel.tsx' @(
 Fix 'src/app/tournaments/[id]/tournament-detail-page-view.tsx' @(
   ,@('Eliminacao Simples', 'Eliminação Simples')
   ,@('Eliminacao Dupla', 'Eliminação Dupla')
-  ,@('A inscricao precisa ser feita pelo capitao do time.', 'A inscrição precisa ser feita pelo capitão do time.')
+  ,@('A Inscrição precisa ser feita pelo capitao do time.', 'A inscrição precisa ser feita pelo capitão do time.')
   ,@('As inscricoes ainda nao estao abertas para esse campeonato.', 'As inscrições ainda não estão abertas para esse campeonato.')
   ,@('premiacao total', 'premiação total')
   ,@('Distribuicao de premios', 'Distribuição de prêmios')
   ,@('Inscricoes ate', 'Inscrições até')
-  ,@('Valor da inscricao', 'Valor da inscrição')
+  ,@('Valor da Inscrição', 'Valor da inscrição')
   ,@('ELO minimo', 'ELO mínimo')
   ,@('ELO maximo', 'ELO máximo')
   ,@('O nao cumprimento das regras pode resultar em desclassificacao e bloqueio do time.', 'O não cumprimento das regras pode resultar em desclassificação e bloqueio do time.')
@@ -73,7 +73,7 @@ Fix 'src/app/tournaments/[id]/tournament-detail-page-view.tsx' @(
   ,@('Informacoes Rapidas', 'Informações Rápidas')
   ,@('TabsTrigger value="info">Informacoes</TabsTrigger>', 'TabsTrigger value="info">Informações</TabsTrigger>')
   ,@('Vaga disponivel', 'Vaga disponível')
-  ,@('>Inscricao<', '>Inscrição<')
+  ,@('>Inscrição<', '>Inscrição<')
 )
 
 Fix 'src/app/teams/teams-catalog-page.tsx' @(
@@ -127,7 +127,7 @@ Fix 'src/components/tournament/faceit-tournament-card.tsx' @(
   ,@('Inscricoes abertas', 'Inscrições abertas')
   ,@('Premiacao Total', 'Premiação Total')
   ,@('Premiacao a definir', 'Premiação a definir')
-  ,@('Ver inscricao', 'Ver inscrição')
+  ,@('Ver Inscrição', 'Ver inscrição')
   ,@('>premiacao<', '>premiação<')
   ,@('alt="Nivel ', 'alt="Nível ')
 )
@@ -141,5 +141,5 @@ Fix 'src/app/api/admin/faceit-prizes/route.ts' @(
 
 Fix 'src/app/api/tournaments/[id]/register/route.ts' @(
   ,@('Voce precisa entrar com a Steam antes de inscrever um time.', 'Você precisa entrar com a Steam antes de inscrever um time.')
-  ,@('Nao foi possivel concluir a inscricao.', 'Não foi possível concluir a inscrição.')
+  ,@('Nao foi possivel concluir a Inscrição.', 'Não foi possível concluir a inscrição.')
 )

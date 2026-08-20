@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     return NextResponse.json(payload);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel reservar a inscricao.";
+    const message = error instanceof Error ? error.message : "Nao foi possivel reservar a Inscrição.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -65,10 +65,12 @@ export default function NotificationBell({ enabled }: NotificationBellProps) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label={`Notificações${hasUnread ? ` (${unreadCount} não lida${unreadCount > 1 ? "s" : ""})` : ""}`}
         className={cn(
-          "relative flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)] transition-all",
-          "hover:border-[var(--primary)]/40 hover:bg-[var(--secondary)]",
+          "bs-liquid-control relative flex h-11 w-11 items-center justify-center rounded-full transition-all",
+          "hover:text-[var(--primary)]",
           hasUnread && "border-[var(--primary)]/40 animate-pulse-glow"
         )}
       >
@@ -83,9 +85,11 @@ export default function NotificationBell({ enabled }: NotificationBellProps) {
       {open && (
         <div
           className={cn(
-            "absolute right-0 mt-2 w-[360px] origin-top-right overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl backdrop-blur-md",
+            "bs-liquid-popover absolute right-0 mt-3 w-[min(360px,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-[1.5rem]",
             "animate-fade-in"
           )}
+          role="dialog"
+          aria-label="Central de notificações"
           style={{ zIndex: 60 }}
         >
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">

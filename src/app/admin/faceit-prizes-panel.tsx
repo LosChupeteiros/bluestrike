@@ -257,7 +257,7 @@ export default function FaceitPrizesPanel({ championships }: FaceitPrizesPanelPr
   );
 
   return (
-    <section className="rounded-2xl border border-[#FF5500]/20 bg-[var(--card)] p-6">
+    <section className="bs-form-card border-[#FF5500]/20 p-6 sm:p-8">
       <div className="mb-5 flex items-center gap-2 text-sm font-semibold" style={{ color: "#FF5500" }}>
         {FACEIT_ICON_LG}
         Premiações FACEIT

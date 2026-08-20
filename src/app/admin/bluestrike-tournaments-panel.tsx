@@ -429,7 +429,7 @@ interface Props {
 
 export default function BlueStrikeTournamentsPanel({ tournaments }: Props) {
   return (
-    <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+    <section className="bs-form-card p-6 sm:p-8">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
         <Trophy className="h-4 w-4" />
         Campeonatos BlueStrike

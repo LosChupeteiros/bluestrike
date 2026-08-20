@@ -13,7 +13,7 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
   return (
     <button
       aria-label="Alternar tema de cores"
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] shadow-[var(--panel-shadow-soft)] transition-colors hover:border-[var(--primary)]/45 hover:text-[var(--primary)] ${compact ? "w-11" : "px-4"}`}
+      className={`bs-liquid-control inline-flex h-11 items-center justify-center gap-2 rounded-full text-[var(--foreground)] transition-[color,border-color,background-color] hover:text-[var(--primary)] ${compact ? "w-11" : "px-4"}`}
       onClick={toggleTheme}
       title="Alternar tema de cores"
       type="button"

@@ -26,7 +26,7 @@ export default async function CadastroPage({ searchParams }: CadastroPageProps) 
   const { welcome } = await searchParams;
 
   return (
-    <div className="min-h-screen pb-20 pt-20">
+    <div className="bs-app-page">
       <CadastroForm profile={profile} isWelcome={welcome === "1"} />
     </div>
   );

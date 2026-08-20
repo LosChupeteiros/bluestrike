@@ -169,7 +169,7 @@ export default function PugLobbyClient() {
 
   if (!state) {
     return (
-      <div className="flex min-h-screen items-center justify-center pt-20">
+      <div className="bs-app-page flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-[var(--primary)]" />
       </div>
     );
@@ -187,8 +187,8 @@ export default function PugLobbyClient() {
   const teamName = (s: "a" | "b") => (s === "a" ? captainAName : captainBName);
 
   return (
-    <div className="min-h-screen pb-24 pt-24">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+    <div className="bs-app-page">
+      <div className="bs-page-shell max-w-6xl">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>

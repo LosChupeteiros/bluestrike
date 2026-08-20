@@ -36,10 +36,10 @@ const notifications = [
 
 export default function DashboardPage() {
   return (
-    <div className="pt-20 pb-20 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="bs-app-page">
+      <div className="bs-page-shell">
         {/* Header */}
-        <div className="flex items-center justify-between py-8 border-b border-[var(--border)] mb-8">
+        <div className="bs-command-card mb-8 flex items-center justify-between p-6 sm:p-8">
           <div className="flex items-center gap-4">
             <div className="relative">
               <Avatar className="h-16 w-16 ring-2 ring-[var(--primary)]/30">
@@ -82,7 +82,7 @@ export default function DashboardPage() {
             { label: "K/D Ratio", value: kd, icon: Swords, color: "text-orange-400" },
             { label: "HS Rate", value: `${hsRate}%`, icon: Target, color: "text-orange-400" },
           ].map((stat) => (
-            <div key={stat.label} className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]">
+            <div key={stat.label} className="bs-form-card p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-1">
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
                 <span className="text-xs text-[var(--muted-foreground)]">{stat.label}</span>

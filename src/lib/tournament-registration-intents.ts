@@ -122,7 +122,7 @@ export async function getTournamentActiveReservationCount(tournamentId: string, 
 
   const { count, error } = await query;
   if (error) {
-    throw new Error(`Falha ao contar reservas de inscricao: ${error.message}`);
+    throw new Error(`Falha ao contar reservas de Inscrição: ${error.message}`);
   }
 
   return count ?? 0;
@@ -156,7 +156,7 @@ export async function getCurrentTournamentRegistrationIntent(tournamentId: strin
     .maybeSingle<TournamentRegistrationIntentRow>();
 
   if (error) {
-    throw new Error(`Falha ao buscar sua reserva de inscricao: ${error.message}`);
+    throw new Error(`Falha ao buscar sua reserva de Inscrição: ${error.message}`);
   }
 
   return data ? mapIntentRow(data) : null;
@@ -172,7 +172,7 @@ async function getExistingRegistration(tournamentId: string, teamId: string) {
     .maybeSingle<{ id: string }>();
 
   if (error) {
-    throw new Error(`Falha ao validar inscricao existente: ${error.message}`);
+    throw new Error(`Falha ao validar Inscrição existente: ${error.message}`);
   }
 
   return data;
@@ -243,7 +243,7 @@ async function validateTeamEligibility(params: {
   }
 
   if (params.team.captainId !== params.profile.id) {
-    throw new Error("A inscricao so pode ser feita pelo capitao do time.");
+    throw new Error("A Inscrição so pode ser feita pelo capitao do time.");
   }
 
   if (params.rosterProfileIds.length < TEAM_MIN_STARTERS) {
@@ -341,7 +341,7 @@ export async function createCurrentCaptainRegistrationIntent(params: {
     .single<TournamentRegistrationIntentRow>();
 
   if (error) {
-    throw new Error(`Falha ao reservar a inscricao: ${error.message}`);
+    throw new Error(`Falha ao reservar a Inscrição: ${error.message}`);
   }
 
   return { intent: mapIntentRow(data), team };
@@ -367,7 +367,7 @@ export async function saveRegistrationIntentPix(params: {
     .single<TournamentRegistrationIntentRow>();
 
   if (error) {
-    throw new Error(`Falha ao salvar o PIX da inscricao: ${error.message}`);
+    throw new Error(`Falha ao salvar o PIX da Inscrição: ${error.message}`);
   }
 
   return mapIntentRow(data);
@@ -384,14 +384,14 @@ async function markIntentFailed(intentId: string) {
 export async function finalizeBlueStrikeRegistrationIntent(intentId: string, mpPaymentId: string) {
   const intent = await getTournamentRegistrationIntentById(intentId);
   if (!intent) {
-    throw new Error("Reserva de inscricao nao encontrada.");
+    throw new Error("Reserva de Inscrição nao encontrada.");
   }
 
   const teams = await getTeamsByIds([intent.teamId], { withMembers: true });
   const team = teams[0] ?? null;
   if (!team) {
     await markIntentFailed(intent.id);
-    throw new Error("Time da inscricao nao encontrado.");
+    throw new Error("Time da Inscrição nao encontrado.");
   }
 
   const tournament = await validateTeamEligibility({
@@ -427,7 +427,7 @@ export async function finalizeBlueStrikeRegistrationIntent(intentId: string, mpP
       });
 
     if (insertError) {
-      throw new Error(`Falha ao confirmar inscricao paga: ${insertError.message}`);
+      throw new Error(`Falha ao confirmar Inscrição paga: ${insertError.message}`);
     }
   }
 

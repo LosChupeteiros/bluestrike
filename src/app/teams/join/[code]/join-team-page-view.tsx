@@ -23,8 +23,8 @@ export default async function JoinTeamPageView({ params }: JoinTeamPageViewProps
   const starters = team.members?.filter((member) => member.isStarter) ?? [];
 
   return (
-    <div className="flex min-h-screen items-start justify-center pb-20 pt-24">
-      <div className="mx-auto w-full max-w-lg px-4">
+    <div className="bs-app-page flex items-start justify-center">
+      <div className="mx-auto w-[min(calc(100%-2rem),42rem)]">
         <Link
           href="/teams"
           className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
@@ -33,7 +33,7 @@ export default async function JoinTeamPageView({ params }: JoinTeamPageViewProps
           Ver todos os times
         </Link>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8">
+        <div className="bs-command-card p-6 sm:p-8">
           <div className="mb-6 flex items-center gap-4 border-b border-[var(--border)] pb-6">
             <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 text-xl font-black text-[var(--primary)]">
               {team.tag}

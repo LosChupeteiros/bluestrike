@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
   const intent = await getTournamentRegistrationIntentById(intentId);
   if (!intent || intent.tournamentId !== tournamentId || intent.captainProfileId !== currentProfile.id) {
-    return NextResponse.json({ error: "Reserva de inscricao nao encontrada." }, { status: 404 });
+    return NextResponse.json({ error: "Reserva de Inscrição nao encontrada." }, { status: 404 });
   }
 
   return NextResponse.json({
