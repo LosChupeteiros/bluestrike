@@ -7,6 +7,7 @@ import {
   profileUpdateSchema,
   type UserProfile,
   getProfilePath,
+  normalizeSteamAvatarUrl,
 } from "@/lib/profile";
 import { getFaceitTeams, type FaceitTeam } from "@/lib/faceit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -51,7 +52,7 @@ export function mapProfileRow(row: ProfileRow): UserProfile {
     publicId: row.public_id,
     steamId: row.steam_id,
     steamPersonaName: row.steam_persona_name,
-    steamAvatarUrl: row.steam_avatar_url,
+    steamAvatarUrl: normalizeSteamAvatarUrl(row.steam_avatar_url),
     steamProfileUrl: row.steam_profile_url,
     steamLevel: row.steam_level ?? 0,
     elo: row.elo ?? 1000,

@@ -29,8 +29,9 @@ import {
 import { getEffectiveTournamentStatus, isTournamentRegistrationOpen, getTournamentBadgeProps } from "@/lib/tournament-status";
 import { getTournamentMatches } from "@/lib/matches";
 import { getBracketRoundModel } from "@/lib/bracket-model";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatTeamSize, normalizeTeamSize } from "@/lib/utils";
 import TournamentRegistrationCard from "./tournament-registration-card";
+import AdminStartTournament from "./admin-start-tournament";
 import TournamentPodium from "./tournament-podium";
 import BlueStrikeBracketView from "./bluestrike-bracket-view";
 
@@ -64,7 +65,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   // eslint-disable-next-line react-hooks/purity -- Server-rendered timestamp for tournament status copy.
   const nowMs = Date.now();
 
-  const [captainTeams, matches, activeReservationCount, currentRegistrationIntent] = await Promise.all([
+  const [allCaptainTeams, matches, activeReservationCount, currentRegistrationIntent] = await Promise.all([
     currentProfile ? getCaptainTeamsWithMembers(currentProfile.id) : Promise.resolve([]),
     effectiveStatus === "ongoing" || effectiveStatus === "finished"
       ? getTournamentMatches(tournament.id)
@@ -72,6 +73,11 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     getTournamentActiveReservationCount(tournament.id),
     currentProfile ? getCurrentTournamentRegistrationIntent(tournament.id, currentProfile.id) : Promise.resolve(null),
   ]);
+
+  // Um time 5x5 nao disputa um campeonato 2x2 — so os times do mesmo formato
+  // podem se inscrever.
+  const tournamentTeamSize = normalizeTeamSize(tournament.teamSize);
+  const captainTeams = allCaptainTeams.filter((team) => team.teamSize === tournamentTeamSize);
 
   const registered = tournament.registeredTeamsCount ?? 0;
   const occupiedSpots = registered + activeReservationCount;
@@ -119,7 +125,10 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
   } else if (!currentProfile) {
     registrationDisabledReason = "Entre com sua Steam para inscrever um time.";
   } else if (captainTeams.length === 0) {
-    registrationDisabledReason = "Crie um time antes de tentar se inscrever.";
+    registrationDisabledReason =
+      allCaptainTeams.length > 0
+        ? `Esse campeonato e ${formatTeamSize(tournamentTeamSize)}. Crie um time nesse formato para se inscrever.`
+        : "Crie um time antes de tentar se inscrever.";
   } else if (isFull) {
     registrationDisabledReason = "Esse campeonato já lotou.";
   }
@@ -207,6 +216,10 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                 {formatDate(tournament.startsAt)}
               </div>
             )}
+            <div className="flex items-center gap-1.5 rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-1.5 font-mono text-xs font-bold text-[var(--primary)] backdrop-blur-sm">
+              <Users className="h-3 w-3" />
+              {formatTeamSize(tournament.teamSize)}
+            </div>
             <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white/70 backdrop-blur-sm">
               <Swords className="h-3 w-3" />
               {FORMAT_LABELS[tournament.format]}
@@ -218,7 +231,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
             <div className="flex items-center gap-1.5 rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--primary)] backdrop-blur-sm">
               <Zap className="h-3 w-3" />
               {tournament.entryFee
-                ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))}/player`
+                ? `${formatCurrency(Math.ceil(tournament.entryFee / normalizeTeamSize(tournament.teamSize)))}/player`
                 : "Gratuito"}
             </div>
           </div>
@@ -363,12 +376,13 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                   {/* Info grid */}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {[
+                      { label: "Modalidade", value: formatTeamSize(tournament.teamSize), icon: Users },
                       { label: "Formato", value: FORMAT_LABELS[tournament.format], icon: Swords },
                       { label: "Região", value: tournament.region, icon: MapPin },
                       {
                         label: "Inscrição",
                         value: tournament.entryFee
-                          ? `${formatCurrency(Math.ceil(tournament.entryFee / 5))} / player`
+                          ? `${formatCurrency(Math.ceil(tournament.entryFee / normalizeTeamSize(tournament.teamSize)))} / player`
                           : "Gratuito",
                         icon: Zap,
                       },
@@ -615,6 +629,18 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
           {/* ── Right: Sidebar ── */}
           <div className="space-y-5">
             <div className="sticky top-24 space-y-5">
+              {currentProfile?.isAdmin && (
+                <AdminStartTournament
+                  tournamentId={tournament.id}
+                  tournamentName={tournament.name}
+                  teamSize={tournamentTeamSize}
+                  confirmedTeams={
+                    (tournament.registrations ?? []).filter((r) => r.status === "confirmed").length
+                  }
+                  status={effectiveStatus}
+                />
+              )}
+
               {/* Registration card */}
               <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
                 {/* Card header */}
@@ -654,6 +680,7 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
                     tournamentId={tournament.id}
                     tournamentName={tournament.name}
                     entryFee={tournament.entryFee ?? 0}
+                    teamSize={tournament.teamSize}
                     canRegister={registrationDisabledReason === null}
                     disabledReason={registrationDisabledReason}
                     captainTeams={captainTeams}

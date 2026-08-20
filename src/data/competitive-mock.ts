@@ -285,6 +285,7 @@ const mockTeamsByProfileId: Record<number, Team[]> = {
       joinCode: "bsp-mock",
       captainId: "mock-profile-1",
       isRecruiting: false,
+      teamSize: 5,
       elo: 1640,
       wins: 19,
       losses: 7,

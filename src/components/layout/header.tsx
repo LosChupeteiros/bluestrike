@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import HeaderElo from "./header-elo";
 import NotificationBell from "./notification-bell";
+import UserMenu from "./user-menu";
 
 const navLinks = [
   { href: "/live", label: "Ao vivo", badge: null, live: true },
@@ -379,38 +380,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             {user ? (
               <>
                 <NotificationBell enabled={true} />
-                <Link
-                  href={`/profile/${user.publicId}`}
-                  prefetch
-                  className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 transition-all hover:border-[var(--primary)]/40 hover:bg-[var(--secondary)]"
-                >
-                  <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
-                    <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
-                    <AvatarFallback className="font-black text-[var(--primary)]">
-                      {user.displayName.slice(0, 1).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="min-w-0">
-                    <div className="max-w-[160px] truncate text-sm font-semibold group-hover:text-[var(--primary)] transition-colors">
-                      {user.displayName}
-                    </div>
-                    <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
-                  </div>
-                </Link>
-
-                {user.isAdmin && (
-                  <Link href="/admin" prefetch>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Shield className="w-4 h-4" />
-                      Admin
-                    </Button>
-                  </Link>
-                )}
-
-                <Button asChild variant="ghost" size="sm">
-                  <a href="/api/auth/logout">Sair</a>
-                </Button>
+                <UserMenu user={user} pathname={pathname} />
               </>
             ) : authState === "loading" ? (
               <>

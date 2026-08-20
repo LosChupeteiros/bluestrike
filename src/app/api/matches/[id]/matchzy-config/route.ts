@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { CS2_MAP_POOL } from "@/lib/maps";
+import { getMapPool, getMatchzyMapRef, isWingmanFormat } from "@/lib/maps";
+import { normalizeTeamSize } from "@/lib/utils";
 
 interface VetoRow {
   team_id: string;
@@ -15,10 +16,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { data: match } = await supabase
     .from("matches")
-    .select("id, team1_id, team2_id, bo_type, matchzy_match_id")
+    .select("id, tournament_id, team1_id, team2_id, bo_type, matchzy_match_id")
     .eq("id", matchId)
     .maybeSingle<{
       id: string;
+      tournament_id: string | null;
       team1_id: string | null;
       team2_id: string | null;
       bo_type: 1 | 3 | 5;
@@ -29,7 +31,37 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return Response.json({ error: "Match not found" }, { status: 404 });
   }
 
-  const { team1_id, team2_id, bo_type, matchzy_match_id } = match;
+  const { tournament_id, team1_id, team2_id, bo_type, matchzy_match_id } = match;
+
+  // Formato do campeonato (1x1 ate 5x5). Sem campeonato vinculado, cai no 5x5.
+  const { data: tournamentRow } = tournament_id
+    ? await supabase
+        .from("tournaments")
+        .select("team_size")
+        .eq("id", tournament_id)
+        .maybeSingle<{ team_size: number | null }>()
+    : { data: null };
+
+  const teamSize = normalizeTeamSize(tournamentRow?.team_size);
+  const wingman = isWingmanFormat(teamSize);
+  const mapPool = getMapPool(teamSize);
+
+  // Roster inscrito por time — so quem foi inscrito entra no config do servidor.
+  const { data: registrationRows } = tournament_id
+    ? await supabase
+        .from("tournament_registrations")
+        .select("team_id, roster_profile_ids")
+        .eq("tournament_id", tournament_id)
+        .in("team_id", [team1_id, team2_id])
+        .returns<{ team_id: string; roster_profile_ids: string[] | null }[]>()
+    : { data: null };
+
+  const rosterByTeam = new Map<string, Set<string>>();
+  for (const row of registrationRows ?? []) {
+    if (row.roster_profile_ids?.length) {
+      rosterByTeam.set(row.team_id, new Set(row.roster_profile_ids));
+    }
+  }
 
   // Teams
   const { data: teamRows } = await supabase
@@ -62,6 +94,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   for (const m of members ?? []) {
     const p = profileMap.get(m.profile_id);
     if (!p?.steam_id) continue;
+
+    const roster = rosterByTeam.get(m.team_id);
+    if (roster && !roster.has(m.profile_id)) continue;
+
     const nick = p.steam_persona_name ?? p.steam_id;
     if (m.team_id === team1_id) team1Players[p.steam_id] = nick;
     else team2Players[p.steam_id] = nick;
@@ -80,7 +116,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const bannedNames = new Set(vetoes.filter((v) => v.action === "ban").map((v) => v.map_name));
   const pickedNames = picks.map((v) => v.map_name);
 
-  const deciderEntry = CS2_MAP_POOL.find(
+  const deciderEntry = mapPool.find(
     (m) => !pickedNames.includes(m.name) && !bannedNames.has(m.name)
   );
 
@@ -90,14 +126,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (bo_type === 1) {
     // BO1: all bans, one remaining map is the decider
     if (deciderEntry) {
-      maplist.push(deciderEntry.mapId);
+      maplist.push(getMatchzyMapRef(deciderEntry));
       mapSides.push("knife");
     }
   } else {
     // BO3 / BO5: ordered picks + decider
     for (const pick of picks) {
-      const entry = CS2_MAP_POOL.find((m) => m.name === pick.map_name);
-      maplist.push(entry?.mapId ?? pick.map_name);
+      const entry = mapPool.find((m) => m.name === pick.map_name);
+      maplist.push(entry ? getMatchzyMapRef(entry) : pick.map_name);
 
       if (!pick.picked_side) {
         mapSides.push("knife");
@@ -112,14 +148,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       }
     }
     if (deciderEntry) {
-      maplist.push(deciderEntry.mapId);
+      maplist.push(getMatchzyMapRef(deciderEntry));
       mapSides.push("knife");
     }
   }
 
-  // Fallback: se o veto ainda não terminou (request prematura), jogar de_mirage
+  // Fallback: se o veto ainda nao terminou (request prematura), usa o primeiro
+  // mapa do pool do formato — nao adianta cair em de_mirage num campeonato wingman.
   if (maplist.length === 0) {
-    maplist.push("de_mirage");
+    maplist.push(getMatchzyMapRef(mapPool[0]));
     mapSides.push("knife");
   }
 
@@ -131,12 +168,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     maplist,
     map_sides: mapSides,
     clinch_series: true,
-    players_per_team: Math.max(
-      Object.keys(team1Players).length,
-      Object.keys(team2Players).length,
-    ),
+    // O MatchZy usa isso para saber quando o time esta completo — num 1x1 ele
+    // nao pode esperar 5 jogadores.
+    players_per_team: teamSize,
+    // Liga game_mode 2 no servidor e faz o plugin rodar live_wingman.cfg.
+    ...(wingman ? { wingman: true } : {}),
     cvars: {
-      hostname: `BlueStrike: ${team1Name} vs ${team2Name}`,
+      hostname: `BlueStrike${wingman ? " Wingman" : ""}: ${team1Name} vs ${team2Name}`,
+      // Sem isso o !ready continuaria esperando o minimo de um 5x5.
+      matchzy_minimum_ready_required: String(teamSize * 2),
     },
   };
 

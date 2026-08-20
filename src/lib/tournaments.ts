@@ -1,7 +1,8 @@
 import type { Tournament, TournamentRegistration } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { getTeamsByIds } from "@/lib/teams";
+import { normalizeTeamSize } from "@/lib/utils";
 import { createMatchStartNotifications } from "@/lib/notifications";
 import { randomUUID } from "crypto";
 import {
@@ -23,6 +24,7 @@ interface TournamentRow {
   status: Tournament["status"];
   format: Tournament["format"];
   max_teams: number | null;
+  team_size: number | null;
   min_elo: number | null;
   max_elo: number | null;
   check_in_required: boolean | null;
@@ -67,6 +69,7 @@ interface CreateTournamentInput {
   prizeTotal: number;
   entryFee: number;
   maxTeams: number;
+  teamSize: number;
   format: Tournament["format"];
   status: Tournament["status"];
   minElo: number | null;
@@ -95,6 +98,7 @@ function mapTournamentRow(row: TournamentRow): Tournament {
     status: row.status,
     format: row.format,
     maxTeams: row.max_teams ?? 16,
+    teamSize: row.team_size ?? 5,
     minElo: row.min_elo,
     maxElo: row.max_elo,
     checkInRequired: row.check_in_required ?? true,
@@ -154,6 +158,7 @@ function validateTournamentInput(input: CreateTournamentInput) {
   const bannerUrl = cleanString(input.bannerUrl, 500);
   const region = cleanString(input.region, 16) ?? "BR";
   const maxTeams = Math.max(2, Math.min(input.maxTeams, 128));
+  const teamSize = Math.max(1, Math.min(Math.trunc(input.teamSize), 5));
   const prizeTotal = Math.max(0, Math.trunc(input.prizeTotal));
   const entryFee = Math.max(0, Math.trunc(input.entryFee));
   const checkInWindowMins = Math.max(5, Math.min(input.checkInWindowMins, 180));
@@ -187,6 +192,7 @@ function validateTournamentInput(input: CreateTournamentInput) {
     bannerUrl,
     region,
     maxTeams,
+    teamSize,
     prizeTotal,
     entryFee,
     checkInWindowMins,
@@ -322,6 +328,7 @@ export async function createTournament(adminProfile: UserProfile, input: CreateT
       status: parsed.status,
       format: parsed.format,
       max_teams: parsed.maxTeams,
+      team_size: parsed.teamSize,
       min_elo: parsed.minElo,
       max_elo: parsed.maxElo,
       check_in_required: parsed.checkInRequired,
@@ -582,8 +589,18 @@ export async function registerCurrentCaptainTeamForTournament(input: {
     throw new Error("A inscricao so pode ser feita pelo capitao do time.");
   }
 
-  if (input.rosterProfileIds.length < TEAM_MIN_STARTERS) {
-    throw new Error("Selecione pelo menos 5 jogadores para participar.");
+  const requiredRoster = normalizeTeamSize(tournament.teamSize);
+
+  if (normalizeTeamSize(team.teamSize) !== requiredRoster) {
+    throw new Error(
+      `Esse campeonato e ${requiredRoster}x${requiredRoster} e o time "${team.name}" e ${team.teamSize}x${team.teamSize}. Use um time do mesmo formato.`
+    );
+  }
+
+  if (input.rosterProfileIds.length < requiredRoster) {
+    throw new Error(
+      `Esse campeonato e ${requiredRoster}x${requiredRoster}. Selecione pelo menos ${requiredRoster} jogador${requiredRoster > 1 ? "es" : ""} para participar.`
+    );
   }
 
   const memberIds = new Set((team.members ?? []).map((m) => m.profileId));

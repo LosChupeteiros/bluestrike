@@ -1,11 +1,40 @@
 // Match flow: ready-up → veto → second ready → provision server
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
-import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
+import { getMapPool, getVetoSequence, isWingmanFormat } from "@/lib/maps";
 import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGameServer, sendConsoleCommand, writeDathostLog } from "@/lib/dathost";
 
 // Mirror server cloned for each match. Override via DATHOST_MIRROR_SERVER_ID env var.
 const MIRROR_SERVER_ID = process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1";
+
+// Wingman (1x1 e 2x2) roda em um espelho proprio, que tem os mapas da Workshop
+// do pool de wingman inscritos. Override via DATHOST_WINGMAN_MIRROR_SERVER_ID.
+const WINGMAN_MIRROR_SERVER_ID =
+  process.env.DATHOST_WINGMAN_MIRROR_SERVER_ID ?? "6a877b8a30bd64c3b87c42a0";
+
+/**
+ * Formato do campeonato da partida. Define o pool de mapas, a sequencia de veto
+ * e o servidor espelho usado na clonagem.
+ */
+export async function getMatchTeamSize(matchId: string): Promise<number> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("tournament_id")
+    .eq("id", matchId)
+    .maybeSingle<{ tournament_id: string | null }>();
+
+  if (!match?.tournament_id) return 5;
+
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("team_size")
+    .eq("id", match.tournament_id)
+    .maybeSingle<{ team_size: number | null }>();
+
+  return tournament?.team_size ?? 5;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,8 +115,11 @@ export async function readyUpMatch(
 // Resolves which map to play next, based on veto picks and how many maps have
 // already been started or finished. In BO3/BO5, this advances through the picks
 // in order and falls back to the decider when the picks are exhausted.
-async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapId: string }> {
+async function resolveMatchMap(
+  matchId: string
+): Promise<{ mapName: string; mapId: string; workshopId: string | null }> {
   const supabase = createSupabaseAdminClient();
+  const mapPool = getMapPool(await getMatchTeamSize(matchId));
 
   const [{ data: vetoRows }, { data: playedMaps }] = await Promise.all([
     supabase
@@ -105,7 +137,7 @@ async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapI
 
   const picks = (vetoRows ?? []).filter((v) => v.action === "pick").map((v) => v.map_name);
   const bans = new Set((vetoRows ?? []).filter((v) => v.action === "ban").map((v) => v.map_name));
-  const decider = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name));
+  const decider = mapPool.find((m) => !picks.includes(m.name) && !bans.has(m.name));
 
   // Full sequence of maps the series will play, in order.
   const sequence = [...picks];
@@ -113,9 +145,14 @@ async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapI
 
   const playedCount = playedMaps?.length ?? 0;
   const index = Math.min(playedCount, Math.max(0, sequence.length - 1));
-  const mapName = sequence[index] ?? picks[0] ?? decider?.name ?? "Mirage";
-  const mapEntry = CS2_MAP_POOL.find((m) => m.name === mapName);
-  return { mapName, mapId: mapEntry?.mapId ?? "de_mirage" };
+  const fallback = mapPool[0];
+  const mapName = sequence[index] ?? picks[0] ?? decider?.name ?? fallback.name;
+  const mapEntry = mapPool.find((m) => m.name === mapName) ?? fallback;
+  return {
+    mapName: mapEntry.name,
+    mapId: mapEntry.mapId,
+    workshopId: mapEntry.workshopId ?? null,
+  };
 }
 
 // ── Walkover ──────────────────────────────────────────────────────────────────
@@ -160,11 +197,12 @@ export async function submitVetoAction(
   | { ok: true; done: boolean; pickedMaps: string[]; decider: string | null }
   | { ok: false; error: string }
 > {
-  if (!CS2_MAP_POOL.find((m) => m.name === mapName)) {
+  const supabase = createSupabaseAdminClient();
+  const mapPool = getMapPool(await getMatchTeamSize(matchId));
+
+  if (!mapPool.find((m) => m.name === mapName)) {
     return { ok: false, error: "Mapa inválido." };
   }
-
-  const supabase = createSupabaseAdminClient();
 
   const { data: match } = await supabase
     .from("matches")
@@ -187,7 +225,7 @@ export async function submitVetoAction(
     .returns<{ team_id: string; action: string; map_name: string; veto_order: number }[]>();
 
   const done = existing ?? [];
-  const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5);
+  const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5, mapPool.length);
   const currentStep = done.length;
 
   if (currentStep >= sequence.length) return { ok: false, error: "Veto já finalizado." };
@@ -214,7 +252,7 @@ export async function submitVetoAction(
   const allVetoes = [...done, { action: slot.action, map_name: mapName }];
   const pickedMaps = allVetoes.filter((v) => v.action === "pick").map((v) => v.map_name);
   const allBanned = new Set(allVetoes.filter((v) => v.action === "ban").map((v) => v.map_name));
-  const decider = CS2_MAP_POOL.find((m) => !pickedMaps.includes(m.name) && !allBanned.has(m.name))?.name ?? null;
+  const decider = mapPool.find((m) => !pickedMaps.includes(m.name) && !allBanned.has(m.name))?.name ?? null;
 
   if (isLastStep) {
     const pickedMapsNeedSides = match.bo_type > 1 && pickedMaps.length > 0;
@@ -259,7 +297,8 @@ export async function submitMapSideChoice(
     .returns<{ id: string; team_id: string; action: string; picked_side: "ct" | "t" | null; veto_order: number }[]>();
 
   const done = vetoes ?? [];
-  const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5);
+  const mapPool = getMapPool(await getMatchTeamSize(matchId));
+  const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5, mapPool.length);
   if (done.length < sequence.length) return { ok: false, error: "O veto ainda nÃ£o terminou." };
 
   const target = done.find((v) => v.id === vetoId && v.action === "pick");
@@ -291,6 +330,12 @@ export async function provisionServerAsync(
   mapName: string,
   mapId: string
 ): Promise<void> {
+  // 1x1 e 2x2 rodam wingman com mapas da Workshop, entao clonam de um espelho
+  // proprio — o espelho competitivo nao tem esses mapas inscritos.
+  const teamSize = await getMatchTeamSize(matchId);
+  const wingman = isWingmanFormat(teamSize);
+  const mirrorServerId = wingman ? WINGMAN_MIRROR_SERVER_ID : MIRROR_SERVER_ID;
+
   const supabase = createSupabaseAdminClient();
 
   // Skip if already provisioned or in progress
@@ -307,7 +352,7 @@ export async function provisionServerAsync(
   // Duplicate the mirror server — each match gets its own fresh CS2 server.
   let server: Awaited<ReturnType<typeof duplicateServer>>;
   try {
-    server = await duplicateServer(MIRROR_SERVER_ID, matchId);
+    server = await duplicateServer(mirrorServerId, matchId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[provision/${matchId}] duplicateServer failed:`, msg);
@@ -421,7 +466,8 @@ export async function provisionServerAsync(
   await sendConsoleCommand(server.id, `matchzy_loadmatch_url "${configUrl}"`, matchId);
 
   console.log(
-    `[provision/${matchId}] OK — matchzy_match_id: ${matchzyMatchId}, server: ${server.id}, map: ${mapName} (${mapId}), ip: ${confirmedIp}:${port}`
+    `[provision/${matchId}] OK — modo: ${wingman ? `wingman ${teamSize}x${teamSize}` : "competitivo"}, ` +
+    `matchzy_match_id: ${matchzyMatchId}, server: ${server.id}, map: ${mapName} (${mapId}), ip: ${confirmedIp}:${port}`
   );
 }
 

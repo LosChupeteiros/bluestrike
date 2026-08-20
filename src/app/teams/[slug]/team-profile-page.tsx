@@ -8,6 +8,7 @@ import { getTeamBySlug } from "@/lib/teams";
 import { getRecentMatchesForTeam } from "@/lib/matches";
 import { DeleteTeamButton, EditDescriptionButton } from "./team-management-controls";
 import { TeamProfileTabs } from "./team-profile-tabs";
+import { formatTeamSize } from "@/lib/utils";
 
 interface TeamProfilePageProps {
   params: Promise<{
@@ -51,6 +52,9 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
               <h1 className="text-3xl font-black tracking-tight">{team.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <Badge variant="ongoing">[{team.tag}]</Badge>
+                <span className="rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-0.5 font-mono text-[11px] font-black text-[var(--primary)]">
+                  {formatTeamSize(team.teamSize)}
+                </span>
                 {team.isRecruiting && <Badge variant="open">Recrutando</Badge>}
                 {!team.isActive && <Badge variant="finished">Inativo</Badge>}
                 <span className="text-xs text-[var(--muted-foreground)]">{team.elo} ELO médio</span>
@@ -96,6 +100,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
               isCaptain={isCaptain}
               captainId={team.captainId}
               teamSlug={team.slug}
+              teamSize={team.teamSize}
               recentMatches={recentMatches}
             />
           </div>

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail, PlayerStat } from "@/lib/matches";
-import { CS2_MAP_POOL, getVetoSequence, type MapPresentation } from "@/lib/maps";
+import { getVetoSequence, type MapPresentation } from "@/lib/maps";
 import { playReadyOne, playReadyBoth, playVeto, playVetoDone, playServerReady } from "@/lib/sounds";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,6 +25,9 @@ interface Props {
   isCaptain: boolean;
   isPlayer: boolean;
   isAdmin: boolean;
+  /** Pool do formato do campeonato: competitivo (7 mapas) ou wingman (5). */
+  mapPool: MapPresentation[];
+  isWingman: boolean;
 }
 
 interface PollData {
@@ -257,15 +260,17 @@ function ReadyPanel({
 function VetoPanel({
   matchId, boType, existingVetoes, team1Id, team2Id,
   team1Name, team2Name, team1Tag, team2Tag,
-  userTeamId, isVetoActive, onVetoDone,
+  userTeamId, isVetoActive, onVetoDone, mapPool, isWingman,
 }: {
   matchId: string; boType: 1 | 3 | 5; existingVetoes: VetoEntry[];
   team1Id: string | null; team2Id: string | null;
   team1Name: string; team2Name: string; team1Tag: string; team2Tag: string;
   userTeamId: string | null; isVetoActive: boolean;
   onVetoDone?: () => void;
+  mapPool: MapPresentation[];
+  isWingman: boolean;
 }) {
-  const sequence = getVetoSequence(boType);
+  const sequence = getVetoSequence(boType, mapPool.length);
   const [vetoes, setVetoes] = useState(existingVetoes);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,7 +300,7 @@ function VetoPanel({
   const picks = vetoes.filter((v) => v.action === "pick").map((v) => v.mapName);
   const bans = new Set(vetoes.filter((v) => v.action === "ban").map((v) => v.mapName));
   const decider = isDone
-    ? CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name))?.name ?? null
+    ? mapPool.find((m) => !picks.includes(m.name) && !bans.has(m.name))?.name ?? null
     : null;
 
   const activeTeamName = currentSlot ? (currentSlot.turn === "team1" ? team1Name : team2Name) : null;
@@ -391,9 +396,16 @@ function VetoPanel({
         </div>
       )}
 
-      {/* Map grid */}
-      <div className="grid grid-cols-4 gap-1.5 p-3 sm:grid-cols-5 lg:grid-cols-7">
-        {CS2_MAP_POOL.map((map) => {
+      {/* Map grid — wingman usa 5 cards landscape (a arte da Workshop e 16:9);
+          o competitivo mantem os 7 cards em retrato. */}
+      <div
+        className={`grid gap-1.5 p-3 ${
+          isWingman
+            ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+            : "grid-cols-4 sm:grid-cols-5 lg:grid-cols-7"
+        }`}
+      >
+        {mapPool.map((map) => {
           const vetoEntry = vetoes.find((v) => v.mapName === map.name);
           const isBanned = vetoEntry?.action === "ban";
           const isPicked = vetoEntry?.action === "pick";
@@ -409,8 +421,12 @@ function VetoPanel({
                 : "cursor-default border-[var(--border)]"
               }`}
             >
-              <div className="relative aspect-[3/4]">
-                <Image src={map.localImage} alt={map.name} fill sizes="14vw"
+              <div className={`relative ${isWingman ? "aspect-[16/10]" : "aspect-[3/4]"}`}>
+                <Image
+                  src={map.localImage}
+                  alt={map.name}
+                  fill
+                  sizes={isWingman ? "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw" : "14vw"}
                   className={`object-cover transition-transform duration-300 ${isBanned ? "grayscale" : "group-hover:scale-105"}`}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
@@ -424,11 +440,26 @@ function VetoPanel({
                     <Star className="h-2.5 w-2.5 text-black" />
                   </div>
                 )}
-                <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1">
-                  <div className="text-[9px] font-black uppercase tracking-wide text-white drop-shadow">{map.name}</div>
-                  {isBanned && <div className="text-[8px] font-bold text-red-400">VETADO</div>}
-                  {isPicked && <div className="text-[8px] font-bold text-[var(--primary)]">ESCOLHIDO</div>}
-                  {isDecider && <div className="text-[8px] font-bold text-[var(--primary)]">SOBRA</div>}
+                <div className={`absolute bottom-0 left-0 right-0 ${isWingman ? "px-2 pb-1.5" : "px-1.5 pb-1"}`}>
+                  <div
+                    className={`font-black uppercase tracking-wide text-white drop-shadow ${
+                      isWingman ? "text-xs" : "text-[9px]"
+                    }`}
+                  >
+                    {map.name}
+                  </div>
+
+                  {/* No wingman o servidor carrega pelo ID da Workshop — deixar
+                      visivel ajuda a conferir que o mapa certo vai subir. */}
+                  {isWingman && map.workshopId && !isBanned && (
+                    <div className="font-mono text-[8px] leading-tight text-white/45">
+                      ws {map.workshopId}
+                    </div>
+                  )}
+
+                  {isBanned && <div className={`font-bold text-red-400 ${isWingman ? "text-[9px]" : "text-[8px]"}`}>VETADO</div>}
+                  {isPicked && <div className={`font-bold text-[var(--primary)] ${isWingman ? "text-[9px]" : "text-[8px]"}`}>ESCOLHIDO</div>}
+                  {isDecider && <div className={`font-bold text-[var(--primary)] ${isWingman ? "text-[9px]" : "text-[8px]"}`}>SOBRA</div>}
                 </div>
               </div>
             </button>
@@ -1190,6 +1221,7 @@ function ScoreboardTeam({
 export default function MatchPageClient({
   detail, tournamentId, roundLabel, isFinal,
   userTeamId, isCaptain, isPlayer, isAdmin,
+  mapPool, isWingman,
 }: Props) {
   const router = useRouter();
   const { match, team1Members, team2Members } = detail;
@@ -1211,7 +1243,7 @@ export default function MatchPageClient({
   const isFinished = effectiveStatus === "finished" || effectiveStatus === "walkover" || effectiveStatus === "terminated";
   const isVetoActive = effectiveStatus === "veto";
   const isPreLive = effectiveStatus === "pre_live";
-  const sequence = getVetoSequence(match.boType);
+  const sequence = getVetoSequence(match.boType, mapPool.length);
   const vetoDone = effectiveVetoes.length >= sequence.length;
   const pickedVetoes = effectiveVetoes.filter((v) => v.action === "pick");
   const sidePickDone = match.boType <= 1 || pickedVetoes.every((v) => Boolean(v.pickedSide));
@@ -1222,8 +1254,8 @@ export default function MatchPageClient({
   const picks = pickedVetoes.map((v) => v.mapName);
   const vetoedBans = new Set(effectiveVetoes.filter((v) => v.action === "ban").map((v) => v.mapName));
   const chosenMap = vetoDone
-    ? (CS2_MAP_POOL.find((m) => m.name === picks[0]) ??
-       CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !vetoedBans.has(m.name)) ??
+    ? (mapPool.find((m) => m.name === picks[0]) ??
+       mapPool.find((m) => !picks.includes(m.name) && !vetoedBans.has(m.name)) ??
        null)
     : null;
 
@@ -1623,6 +1655,7 @@ export default function MatchPageClient({
           team1Id={match.team1Id} team2Id={match.team2Id}
           team1Name={t1Name} team2Name={t2Name} team1Tag={t1Tag} team2Tag={t2Tag}
           userTeamId={userTeamId} isVetoActive={isVetoActive}
+          mapPool={mapPool} isWingman={isWingman}
           onVetoDone={doPoll} />
       )}
 

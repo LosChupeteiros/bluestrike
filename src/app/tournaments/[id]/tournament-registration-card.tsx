@@ -22,10 +22,9 @@ import type { Team, TeamMember } from "@/types";
 import type { TournamentRegistrationIntent } from "@/lib/tournament-registration-intents";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatTeamSize, normalizeTeamSize } from "@/lib/utils";
 
 const PIX_EXPIRY_MS = 15 * 60 * 1000;
-const MIN_ROSTER = 5;
 
 const TERMS = `1. O capitao confirma que todos os membros do time leram e aceitaram as regras do campeonato.
 
@@ -52,6 +51,8 @@ interface TournamentRegistrationCardProps {
   tournamentId: string;
   tournamentName: string;
   entryFee: number;
+  /** Jogadores por time do campeonato (1x1 a 5x5) — define o roster minimo. */
+  teamSize: number;
   canRegister: boolean;
   disabledReason: string | null;
   captainTeams: Team[];
@@ -322,12 +323,16 @@ export default function TournamentRegistrationCard({
   tournamentId,
   tournamentName,
   entryFee,
+  teamSize,
   canRegister,
   disabledReason,
   captainTeams,
   registeredTeamIds,
   initialIntent,
 }: TournamentRegistrationCardProps) {
+  const MIN_ROSTER = normalizeTeamSize(teamSize);
+  const rosterNoun = MIN_ROSTER === 1 ? "jogador" : "jogadores";
+
   const router = useRouter();
   const [, startRefreshTransition] = useTransition();
   const [flowStep, setFlowStep] = useState<FlowStep>("idle");
@@ -529,8 +534,8 @@ export default function TournamentRegistrationCard({
 
   const previewTeam = captainTeams.length === 1 ? captainTeams[0] : null;
   const previewStarters = useMemo(
-    () => (previewTeam?.members ?? []).filter((m) => m.isStarter).slice(0, 5),
-    [previewTeam]
+    () => (previewTeam?.members ?? []).filter((m) => m.isStarter).slice(0, MIN_ROSTER),
+    [previewTeam, MIN_ROSTER]
   );
 
   return (
@@ -641,6 +646,9 @@ export default function TournamentRegistrationCard({
                       <span className="truncate text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
                         {team.name}
                       </span>
+                      <span className="shrink-0 rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-0.5 font-mono text-[9px] font-black text-[var(--primary)]">
+                        {formatTeamSize(team.teamSize)}
+                      </span>
                       {alreadyRegistered && (
                         <span className="shrink-0 rounded-full bg-green-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-green-400">
                           Inscrito
@@ -671,7 +679,11 @@ export default function TournamentRegistrationCard({
         open={flowStep === "roster-select"}
         onClose={closeModal}
         title="Escolher jogadores"
-        subtitle={selectedTeam ? `${selectedTeam.name} · selecione pelo menos ${MIN_ROSTER} jogadores` : undefined}
+        subtitle={
+          selectedTeam
+            ? `${selectedTeam.name} · ${formatTeamSize(MIN_ROSTER)} · selecione pelo menos ${MIN_ROSTER} ${rosterNoun}`
+            : undefined
+        }
       >
         <div className="space-y-4 p-5">
           {selectedTeam && (
@@ -726,7 +738,8 @@ export default function TournamentRegistrationCard({
                   : "border-orange-500/20 bg-orange-500/5 text-orange-300"
               }`}>
                 {selectedRoster.length} de {(selectedTeam.members ?? []).length} jogadores selecionados
-                {selectedRoster.length < MIN_ROSTER && ` · selecione mais ${MIN_ROSTER - selectedRoster.length}`}
+                {" · "}minimo {MIN_ROSTER} ({formatTeamSize(MIN_ROSTER)})
+                {selectedRoster.length < MIN_ROSTER && ` · faltam ${MIN_ROSTER - selectedRoster.length}`}
               </div>
 
               {feedback && (
@@ -873,7 +886,7 @@ export default function TournamentRegistrationCard({
               ))}
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--muted-foreground)]">{rosterMembers.length || MIN_ROSTER} players x {formatCurrency(perPlayer)}</span>
+              <span className="text-[var(--muted-foreground)]">{rosterMembers.length || MIN_ROSTER} {rosterNoun} x {formatCurrency(perPlayer)}</span>
               <span className="font-black">{formatCurrency(entryFee)}</span>
             </div>
           </div>

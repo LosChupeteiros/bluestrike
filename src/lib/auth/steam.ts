@@ -1,3 +1,5 @@
+import { normalizeSteamAvatarUrl } from "@/lib/profile";
+
 const STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login";
 const DEFAULT_POST_LOGIN_PATH = "/profile";
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
@@ -198,7 +200,7 @@ export async function fetchSteamAccount(steamApiKey: string, steamId: string): P
   return {
     steamId,
     steamPersonaName: player.personaname,
-    steamAvatarUrl: player.avatarfull ?? player.avatarmedium ?? null,
+    steamAvatarUrl: normalizeSteamAvatarUrl(player.avatarfull ?? player.avatarmedium),
     steamProfileUrl: player.profileurl ?? null,
     steamLevel,
   };

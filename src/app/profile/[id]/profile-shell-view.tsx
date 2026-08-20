@@ -36,7 +36,7 @@ import {
   type UserProfile,
 } from "@/lib/profile";
 import { getPlayerRank } from "@/lib/ranks";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatTeamSize } from "@/lib/utils";
 import type { RecentMatchSummary } from "@/lib/matches";
 import type { Team } from "@/types";
 import type { FaceitTeam } from "@/lib/faceit";
@@ -165,7 +165,7 @@ export default function ProfileShellView({
     ? "Monte sua line, acompanhe seus elencos e abra o hub do time em um clique."
     : `Veja os times em que ${profile.steamPersonaName} esta vinculado.`;
   const emptyTeamsMessage = isOwner
-    ? "Crie seu time com 5 titulares e 1 substituto opcional para competir no hub."
+    ? "Crie um time no formato que voce quer disputar — de 1x1 ate 5x5 — para competir no hub."
     : "Este jogador ainda não tem times ativos vinculados ao perfil.";
 
   const openEditor = useCallback(() => {
@@ -255,7 +255,7 @@ export default function ProfileShellView({
             <div className="flex items-center gap-4">
               <div className="relative">
                 <Avatar className="h-16 w-16 ring-2 ring-[var(--primary)]/30">
-                  <AvatarImage src={profile.steamAvatarUrl ?? undefined} alt={profile.steamPersonaName} />
+                  <AvatarImage src={profile.steamAvatarUrl ?? undefined} alt={profile.steamPersonaName} sizes="192px" />
                   <AvatarFallback className="text-xl font-black">
                     {profile.steamPersonaName.slice(0, 1).toUpperCase()}
                   </AvatarFallback>
@@ -512,7 +512,12 @@ export default function ProfileShellView({
                                   {team.tag}
                                 </div>
                                 <div>
-                                  <div className="text-lg font-black">{team.name}</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-lg font-black">{team.name}</span>
+                                    <span className="rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-0.5 font-mono text-[10px] font-black text-[var(--primary)]">
+                                      {formatTeamSize(team.teamSize)}
+                                    </span>
+                                  </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
                                     <span>{team.wins}V / {team.losses}D</span>
                                     <span>|</span>

@@ -13,12 +13,22 @@ import {
   Plus,
   Shield,
   Sparkles,
+  Swords,
   Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { cn, formatTeamSize, TEAM_SIZE_OPTIONS, type TeamSize } from "@/lib/utils";
+
+const TEAM_SIZE_META: Record<TeamSize, { title: string; hint: string }> = {
+  1: { title: "Duelo", hint: "So voce" },
+  2: { title: "Dupla", hint: "2 titulares" },
+  3: { title: "Trio", hint: "3 titulares" },
+  4: { title: "Squad", hint: "4 titulares" },
+  5: { title: "Competitivo", hint: "5 titulares" },
+};
 
 interface CreateTeamFormProps {
   backHref: string;
@@ -39,6 +49,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
   const router = useRouter();
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
+  const [teamSize, setTeamSize] = useState<TeamSize>(5);
   const [description, setDescription] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -89,6 +100,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
             tag,
             description,
             password: usePassword ? password : null,
+            teamSize,
           }),
         });
 
@@ -172,6 +184,66 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                 {feedback}
               </div>
             )}
+          </section>
+
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+            <div className="mb-5">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
+                <Swords className="h-4 w-4" />
+                Formato
+              </div>
+              <h2 className="text-xl font-black tracking-tight">Modalidade do time</h2>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
+                O time so pode se inscrever em campeonatos da mesma modalidade. Voce pode criar um
+                time para cada formato — um 1x1 e um 5x5 sao times diferentes.
+              </p>
+            </div>
+
+            <div role="radiogroup" aria-label="Modalidade do time" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {TEAM_SIZE_OPTIONS.map((size) => {
+                const active = teamSize === size;
+
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={`Time ${size} contra ${size}`}
+                    onClick={() => setTeamSize(size)}
+                    className={cn(
+                      "group relative flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-all cursor-pointer",
+                      active
+                        ? "border-[var(--primary)]/50 bg-[var(--primary)]/10"
+                        : "border-[var(--border)] bg-[var(--background)]/40 hover:border-[var(--primary)]/30 hover:bg-[var(--secondary)]"
+                    )}
+                  >
+                    {active && (
+                      <CheckCircle2 className="absolute right-2 top-2 h-3.5 w-3.5 text-[var(--primary)]" aria-hidden="true" />
+                    )}
+                    <span
+                      className={cn(
+                        "font-mono text-lg font-black leading-none",
+                        active ? "text-[var(--primary)]" : "text-[var(--foreground)]"
+                      )}
+                    >
+                      {formatTeamSize(size)}
+                    </span>
+                    <span className={cn("text-sm font-bold", active && "text-[var(--primary)]")}>
+                      {TEAM_SIZE_META[size].title}
+                    </span>
+                    <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
+                      {TEAM_SIZE_META[size].hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+              Elenco maximo: <span className="font-mono font-bold text-[var(--foreground)]">{teamSize + 1}</span>{" "}
+              jogadores ({teamSize} titular{teamSize > 1 ? "es" : ""} + 1 reserva).
+            </p>
           </section>
 
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
@@ -295,8 +367,8 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                 },
                 {
                   step: "3",
-                  title: "Feche os 5 titulares",
-                  desc: "Com a line principal completa, a equipe ja fica pronta para se inscrever em campeonatos.",
+                  title: `Feche os ${teamSize} titular${teamSize > 1 ? "es" : ""}`,
+                  desc: `Com a line ${formatTeamSize(teamSize)} completa, a equipe ja fica pronta para se inscrever em campeonatos.`,
                 },
                 {
                   step: "4",
@@ -331,6 +403,10 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Tag</span>
                 <span className="font-mono font-bold">{tag || "-"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--muted-foreground)]">Modalidade</span>
+                <span className="font-mono font-bold text-[var(--primary)]">{formatTeamSize(teamSize)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Acesso</span>

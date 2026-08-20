@@ -325,6 +325,24 @@ export function getPublicDisplayName(profile: Pick<UserProfile, "fullName" | "st
   return profile.fullName?.trim() || profile.steamPersonaName;
 }
 
+/**
+ * A Steam serve o mesmo avatar em tres tamanhos, definidos pelo sufixo do arquivo:
+ * `.jpg` (32px), `_medium.jpg` (64px) e `_full.jpg` (184px, o maior disponivel).
+ * Perfis antigos e integracoes podem ter gravado a versao pequena, que fica
+ * borrada em qualquer avatar acima de 32px. Aqui normalizamos sempre para `_full`.
+ */
+export function normalizeSteamAvatarUrl(url: string | null | undefined) {
+  if (!url) {
+    return null;
+  }
+
+  if (!/(^|\.)steamstatic\.com\//.test(url) && !url.includes("steamcdn-a.akamaihd.net/")) {
+    return url;
+  }
+
+  return url.replace(/(\/[0-9a-f]{40})(_medium|_full)?\.jpg/i, "$1_full.jpg");
+}
+
 export function getProfilePath(publicId: number) {
   return `/profile/${publicId}`;
 }

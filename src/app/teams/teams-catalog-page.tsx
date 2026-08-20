@@ -1,12 +1,13 @@
 ﻿import Link from "next/link";
-import { ExternalLink, Plus, Search, Shield, Sparkles, Swords, Users } from "lucide-react";
+import { ArrowRight, Crown, ExternalLink, Plus, Search, Shield, Sparkles, Swords, UserPlus, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFaceitTeamsByIds, type FaceitTeam } from "@/lib/faceit";
-import { listRegisteredFaceitTeamIds } from "@/lib/profiles";
-import { listPublicTeams } from "@/lib/teams";
+import { getCurrentProfile, listRegisteredFaceitTeamIds } from "@/lib/profiles";
+import { listPublicTeams, getTeamsForProfile, teamMaxMembers, teamMinStarters } from "@/lib/teams";
+import { formatTeamSize } from "@/lib/utils";
 import type { Team } from "@/types";
 
 interface TeamsCatalogPageProps {
@@ -14,6 +15,7 @@ interface TeamsCatalogPageProps {
     q?: string | string[];
     page?: string | string[];
     faceitQ?: string | string[];
+    size?: string | string[];
   }>;
 }
 
@@ -33,12 +35,13 @@ function normalizeSearch(value: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function buildTeamsHref(query: string, page: number, faceitQuery: string) {
+function buildTeamsHref(query: string, page: number, faceitQuery: string, teamSize: number | null) {
   const params = new URLSearchParams();
 
   if (query) params.set("q", query);
   if (page > 1) params.set("page", String(page));
   if (faceitQuery) params.set("faceitQ", faceitQuery);
+  if (teamSize) params.set("size", String(teamSize));
 
   const suffix = params.toString();
   return suffix ? `/teams?${suffix}` : "/teams";
@@ -92,7 +95,12 @@ function TeamIdentity({ team }: { team: Team }) {
         {team.tag}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-bold">{team.name}</div>
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-bold">{team.name}</span>
+          <span className="shrink-0 rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-0.5 font-mono text-[10px] font-black text-[var(--primary)]">
+            {formatTeamSize(team.teamSize)}
+          </span>
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
           <span>{team.members?.length ?? 0} jogadores</span>
           <span className="text-[10px]">/</span>
@@ -146,6 +154,177 @@ function BluestrikeFeaturedCard({ team }: { team: Team }) {
   );
 }
 
+// ── Meu time ──────────────────────────────────────────────────────────────────
+// Ocupa metade do bloco de destaque para o jogador logado achar a propria lineup
+// sem precisar procurar na tabela geral.
+
+function MyTeamCard({ team, isCaptain }: { team: Team; isCaptain: boolean }) {
+  const members = team.members ?? [];
+  const starters = members.filter((member) => member.isStarter);
+  const missingStarters = Math.max(0, teamMinStarters(team.teamSize) - starters.length);
+
+  return (
+    <div className="flex h-full flex-col rounded-2xl border border-[var(--primary)]/30 bg-gradient-to-br from-[var(--primary)]/8 via-[var(--card)] to-[var(--card)] p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)]/35 bg-gradient-to-br from-cyan-950 to-slate-900 text-xs font-black text-[var(--primary)]">
+            {team.tag}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-base font-black tracking-tight">{team.name}</span>
+              <span className="shrink-0 rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-0.5 font-mono text-[10px] font-black text-[var(--primary)]">
+                {formatTeamSize(team.teamSize)}
+              </span>
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+              {isCaptain ? (
+                <>
+                  <Crown className="h-3.5 w-3.5 text-[#f5c842]" aria-hidden="true" />
+                  <span className="font-semibold text-[#f5c842]">Capitao</span>
+                </>
+              ) : (
+                <>
+                  <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Membro</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <Badge variant={missingStarters === 0 ? "open" : "upcoming"} className="shrink-0">
+          {missingStarters === 0 ? "Lineup completa" : `Faltam ${missingStarters}`}
+        </Badge>
+      </div>
+
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)]/40 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">ELO</div>
+          <div className="font-mono text-lg font-black leading-tight text-[var(--primary)]">{team.elo}</div>
+        </div>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)]/40 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">Record</div>
+          <div className="font-mono text-lg font-black leading-tight">
+            {team.wins}<span className="text-[var(--muted-foreground)]">V</span> {team.losses}<span className="text-[var(--muted-foreground)]">D</span>
+          </div>
+        </div>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)]/40 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">Lineup</div>
+          <div className="font-mono text-lg font-black leading-tight">
+            {members.length}<span className="text-sm text-[var(--muted-foreground)]">/{teamMaxMembers(team.teamSize)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-5 flex items-center -space-x-2">
+        {members.slice(0, teamMaxMembers(team.teamSize)).map((member) => {
+          const name = member.profile?.steamPersonaName ?? "?";
+
+          return (
+            <Avatar key={member.id} className="h-9 w-9 border-2 border-[var(--card)] bg-[var(--secondary)]">
+              <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={name} />
+              <AvatarFallback className="text-[10px]">{name.slice(0, 1).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          );
+        })}
+
+        {missingStarters > 0 && (
+          <Link
+            href={`/teams/${team.slug}`}
+            className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed border-[var(--border)] bg-[var(--background)] text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/50 hover:text-[var(--primary)]"
+            aria-label="Convidar jogadores para o time"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        )}
+      </div>
+
+      <div className="mt-auto flex gap-2">
+        <Button asChild variant="gradient" className="flex-1">
+          <Link href={`/teams/${team.slug}`}>
+            Abrir meu time
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="shrink-0">
+          <Link href="/tournaments">Competir</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MyTeamRow({ team, isCaptain }: { team: Team; isCaptain: boolean }) {
+  const members = team.members ?? [];
+  const starters = members.filter((member) => member.isStarter);
+  const missingStarters = Math.max(0, teamMinStarters(team.teamSize) - starters.length);
+
+  return (
+    <Link
+      href={`/teams/${team.slug}`}
+      className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 transition-colors hover:border-[var(--primary)]/35 hover:bg-[var(--secondary)]/60"
+    >
+      <span className="shrink-0 rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-1 font-mono text-[10px] font-black text-[var(--primary)]">
+        {formatTeamSize(team.teamSize)}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-bold">{team.name}</span>
+          {isCaptain && <Crown className="h-3 w-3 shrink-0 text-[#f5c842]" aria-hidden="true" />}
+        </div>
+        <div className="text-[10px] text-[var(--muted-foreground)]">
+          {members.length}/{teamMaxMembers(team.teamSize)} no elenco
+          {missingStarters > 0 && ` · faltam ${missingStarters} titular${missingStarters > 1 ? "es" : ""}`}
+        </div>
+      </div>
+
+      <span className="shrink-0 font-mono text-sm font-black text-[var(--primary)]">{team.elo}</span>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
+    </Link>
+  );
+}
+
+function NoTeamCard({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <div className="flex h-full flex-col justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-5 text-center">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/8">
+        <Shield className="h-6 w-6 text-[var(--primary)]" aria-hidden="true" />
+      </div>
+
+      <h3 className="text-base font-black tracking-tight">
+        {isAuthenticated ? "Voce ainda nao tem time" : "Entre para ver seu time"}
+      </h3>
+      <p className="mx-auto mt-1.5 max-w-xs text-sm text-[var(--muted-foreground)]">
+        {isAuthenticated
+          ? "Crie um time no formato que voce quer disputar — 1x1, 2x2, ate 5x5 — ou entre em um time existente com o codigo de convite."
+          : "Faca login com a Steam para acompanhar sua lineup, o ELO do time e as inscricoes em campeonatos."}
+      </p>
+
+      <div className="mt-4 flex justify-center gap-2">
+        {isAuthenticated ? (
+          <>
+            <Button asChild variant="gradient">
+              <Link href="/teams/create">
+                <Plus className="h-4 w-4" />
+                Criar time
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/players">Procurar jogadores</Link>
+            </Button>
+          </>
+        ) : (
+          <Button asChild variant="gradient">
+            <Link href="/auth/login?next=/teams">Entrar com a Steam</Link>
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BluestrikeTableRow({ team }: { team: Team }) {
   return (
     <Link
@@ -159,6 +338,9 @@ function BluestrikeTableRow({ team }: { team: Team }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-bold">{team.name}</span>
+            <span className="shrink-0 rounded border border-[var(--primary)]/30 bg-[var(--primary)]/12 px-1.5 py-0.5 font-mono text-[10px] font-black text-[var(--primary)]">
+              {formatTeamSize(team.teamSize)}
+            </span>
             {team.isRecruiting && <Badge variant="open">Recrutando</Badge>}
             {!team.isActive && <Badge variant="finished">Inativo</Badge>}
           </div>
@@ -256,17 +438,31 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
   const page = Math.max(1, Number.parseInt(readSearchParam(query.page) || "1", 10) || 1);
   const bluestrikeQuery = readSearchParam(query.q).trim();
   const faceitQuery = readSearchParam(query.faceitQ).trim();
+  const rawSize = Number.parseInt(readSearchParam(query.size), 10);
+  const sizeFilter = rawSize >= 1 && rawSize <= 5 ? rawSize : null;
 
-  const [teamList, registeredFaceitTeamIds] = await Promise.all([
-    listPublicTeams({ query: bluestrikeQuery, page }),
+  const [teamList, registeredFaceitTeamIds, currentProfile] = await Promise.all([
+    listPublicTeams({ query: bluestrikeQuery, page, teamSize: sizeFilter }),
     listRegisteredFaceitTeamIds(120),
+    getCurrentProfile(),
   ]);
+
+  // O jogador pode ter um time por formato (1x1, 2x2, ...). O maior formato vira
+  // o card em evidencia e os demais viram linhas compactas logo abaixo.
+  const myTeams = currentProfile
+    ? [...(await getTeamsForProfile(currentProfile.id))].sort((a, b) => b.teamSize - a.teamSize)
+    : [];
+  const primaryTeam = myTeams[0] ?? null;
+  const otherTeams = myTeams.slice(1);
+  const myTeamIds = new Set(myTeams.map((team) => team.id));
 
   const rawFaceitTeams = await getFaceitTeamsByIds(registeredFaceitTeamIds);
   const faceitTeams = filterFaceitTeams(sortFaceitTeams(rawFaceitTeams), faceitQuery);
   const recruitingTeams = bluestrikeQuery
     ? []
-    : teamList.teams.filter((team) => team.isRecruiting).slice(0, 4);
+    : teamList.teams
+        .filter((team) => team.isRecruiting && !myTeamIds.has(team.id))
+        .slice(0, 2);
 
   return (
     <div className="min-h-screen pb-20 pt-24">
@@ -310,8 +506,42 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
               </div>
             </div>
 
+            <div className="mb-4 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">
+                Formato
+              </span>
+
+              <Link
+                href={buildTeamsHref(bluestrikeQuery, 1, faceitQuery, null)}
+                aria-current={sizeFilter === null ? "true" : undefined}
+                className={`rounded-md border px-2.5 py-1 text-xs font-bold transition-colors ${
+                  sizeFilter === null
+                    ? "border-[var(--primary)]/50 bg-[var(--primary)]/12 text-[var(--primary)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/30 hover:text-[var(--foreground)]"
+                }`}
+              >
+                Todos
+              </Link>
+
+              {[1, 2, 3, 4, 5].map((size) => (
+                <Link
+                  key={size}
+                  href={buildTeamsHref(bluestrikeQuery, 1, faceitQuery, size)}
+                  aria-current={sizeFilter === size ? "true" : undefined}
+                  className={`rounded-md border px-2.5 py-1 font-mono text-xs font-bold transition-colors ${
+                    sizeFilter === size
+                      ? "border-[var(--primary)]/50 bg-[var(--primary)]/12 text-[var(--primary)]"
+                      : "border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/30 hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {formatTeamSize(size)}
+                </Link>
+              ))}
+            </div>
+
             <form action="/teams" className="relative mb-6">
               {faceitQuery && <input type="hidden" name="faceitQ" value={faceitQuery} />}
+              {sizeFilter && <input type="hidden" name="size" value={sizeFilter} />}
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--primary)]" />
               <Input
                 name="q"
@@ -324,19 +554,65 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
               </Button>
             </form>
 
-            {recruitingTeams.length > 0 && (
-              <div className="mb-6">
+            <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="flex flex-col">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-bold">
+                    <Shield className="h-4 w-4 text-[var(--primary)]" />
+                    {myTeams.length > 1 ? "Meus times" : "Meu time"}
+                  </div>
+
+                  {myTeams.length > 0 && (
+                    <Link
+                      href="/teams/create"
+                      className="flex items-center gap-1 text-xs font-semibold text-[var(--muted-foreground)] transition-colors hover:text-[var(--primary)]"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                      Novo formato
+                    </Link>
+                  )}
+                </div>
+
+                <div className="flex flex-1 flex-col gap-2">
+                  {primaryTeam ? (
+                    <>
+                      <MyTeamCard team={primaryTeam} isCaptain={primaryTeam.captainId === currentProfile?.id} />
+
+                      {otherTeams.map((team) => (
+                        <MyTeamRow
+                          key={team.id}
+                          team={team}
+                          isCaptain={team.captainId === currentProfile?.id}
+                        />
+                      ))}
+                    </>
+                  ) : (
+                    <NoTeamCard isAuthenticated={Boolean(currentProfile)} />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col">
                 <div className="mb-3 flex items-center gap-2 text-sm font-bold">
                   <Sparkles className="h-4 w-4 text-[var(--primary)]" />
                   Destaques recrutando
                 </div>
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  {recruitingTeams.map((team) => (
-                    <BluestrikeFeaturedCard key={team.id} team={team} />
-                  ))}
+
+                <div className="flex flex-1 flex-col gap-3">
+                  {recruitingTeams.length > 0 ? (
+                    recruitingTeams.map((team) => <BluestrikeFeaturedCard key={team.id} team={team} />)
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] px-5 py-10 text-center">
+                      <Users className="mb-2 h-8 w-8 text-[var(--muted-foreground)] opacity-40" aria-hidden="true" />
+                      <p className="text-sm font-bold">Nenhum time recrutando</p>
+                      <p className="mt-1 max-w-xs text-xs text-[var(--muted-foreground)]">
+                        Quando uma lineup abrir vaga, ela aparece aqui primeiro.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
 
             <div className="flex-1 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
               <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-[var(--border)] bg-[var(--secondary)] px-4 py-3 text-xs text-[var(--muted-foreground)] md:grid-cols-[1fr_auto_auto_auto]">
@@ -368,7 +644,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
                 <div className="flex gap-2">
                   {teamList.page > 1 ? (
                     <Button asChild variant="outline" size="sm">
-                      <Link href={buildTeamsHref(teamList.query, teamList.page - 1, faceitQuery)}>
+                      <Link href={buildTeamsHref(teamList.query, teamList.page - 1, faceitQuery, sizeFilter)}>
                         Anterior
                       </Link>
                     </Button>
@@ -380,7 +656,7 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
 
                   {teamList.page < teamList.totalPages ? (
                     <Button asChild variant="outline" size="sm">
-                      <Link href={buildTeamsHref(teamList.query, teamList.page + 1, faceitQuery)}>
+                      <Link href={buildTeamsHref(teamList.query, teamList.page + 1, faceitQuery, sizeFilter)}>
                         Proxima
                       </Link>
                     </Button>

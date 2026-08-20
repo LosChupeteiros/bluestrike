@@ -38,6 +38,53 @@ const KNIFE_DEFINDEXES = new Set([
   520, 521, 522, 523, 525, 526,
 ]);
 
+/**
+ * Lado em que cada arma pode ser comprada no CS2. O plugin WeaponPaints grava a
+ * skin por `weapon_team` (2 = TR, 3 = CT), entao um AK so faz sentido no loadout
+ * TR e um M4 so no CT — as demais aparecem nos dois lados.
+ * Defindex sem entrada aqui e tratado como disponivel para os dois times.
+ */
+const CT_ONLY_DEFINDEXES = new Set([
+  3,  // Five-SeveN
+  8,  // AUG
+  10, // FAMAS
+  16, // M4A4
+  27, // MAG-7
+  32, // P2000
+  34, // MP9
+  38, // SCAR-20
+  60, // M4A1-S
+  61, // USP-S
+]);
+
+const T_ONLY_DEFINDEXES = new Set([
+  4,  // Glock-18
+  7,  // AK-47
+  11, // G3SG1
+  13, // Galil AR
+  17, // MAC-10
+  29, // Sawed-Off
+  30, // Tec-9
+  39, // SG 553
+]);
+
+export type WeaponSide = "ct" | "t" | "both";
+
+export function getWeaponSide(defindex: number): WeaponSide {
+  if (CT_ONLY_DEFINDEXES.has(defindex)) return "ct";
+  if (T_ONLY_DEFINDEXES.has(defindex)) return "t";
+  return "both";
+}
+
+/** `weapon_team` do plugin: 3 = CT, 2 = TR. */
+export const CT_TEAM = 3;
+export const T_TEAM = 2;
+
+export function isWeaponAvailableForSide(defindex: number, side: "ct" | "t") {
+  const weaponSide = getWeaponSide(defindex);
+  return weaponSide === "both" || weaponSide === side;
+}
+
 let _catalog: SkinCatalog | null = null;
 let _gloveCatalog: GloveCatalog | null = null;
 let _musicList: MusicEntry[] | null = null;

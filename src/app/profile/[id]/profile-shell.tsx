@@ -104,7 +104,7 @@ export default function ProfileShell({
     ? "Monte sua line, acompanhe seus elencos e abra o hub do time em um clique."
     : `Veja os times em que ${profile.steamPersonaName} está vinculado.`;
   const emptyTeamsMessage = isOwner
-    ? "Crie seu time com 5 titulares e 1 substituto opcional para competir no hub."
+    ? "Crie um time no formato que voce quer disputar — de 1x1 ate 5x5 — para competir no hub."
     : "Este jogador ainda não tem times ativos vinculados ao perfil.";
 
   const openEditor = useCallback(() => {
@@ -192,7 +192,7 @@ export default function ProfileShell({
             <div className="flex items-center gap-4">
               <div className="relative">
                 <Avatar className="h-16 w-16 ring-2 ring-[var(--primary)]/30">
-                  <AvatarImage src={profile.steamAvatarUrl ?? undefined} alt={profile.steamPersonaName} />
+                  <AvatarImage src={profile.steamAvatarUrl ?? undefined} alt={profile.steamPersonaName} sizes="192px" />
                   <AvatarFallback className="text-xl font-black">
                     {profile.steamPersonaName.slice(0, 1).toUpperCase()}
                   </AvatarFallback>
@@ -453,7 +453,7 @@ export default function ProfileShell({
                       <Users className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)] opacity-40" />
                       <h3 className="mb-2 font-semibold">Nenhum time vinculado</h3>
                       <p className="text-sm text-[var(--muted-foreground)]">
-                        Crie seu time com 5 titulares e 1 substituto opcional para competir no hub.
+                        Crie um time no formato que voce quer disputar — de 1x1 ate 5x5 — para competir no hub.
                       </p>
                     </div>
                   )}

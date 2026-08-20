@@ -28,6 +28,8 @@ interface TeamProfileTabsProps {
   isCaptain: boolean;
   captainId: string;
   teamSlug: string;
+  /** Formato do time: define quantos titulares a line precisa ter. */
+  teamSize: number;
   recentMatches: TeamMatchSummary[];
 }
 
@@ -37,6 +39,7 @@ export function TeamProfileTabs({
   isCaptain,
   captainId,
   teamSlug,
+  teamSize,
   recentMatches,
 }: TeamProfileTabsProps) {
   const [activeTab, setActiveTab] = useState<"roster" | "matches">("roster");
@@ -55,8 +58,8 @@ export function TeamProfileTabs({
               <Users className="h-4 w-4" />
               Line principal
             </div>
-            <Badge variant={starters.length >= 5 ? "open" : "upcoming"}>
-              {starters.length}/5 titulares
+            <Badge variant={starters.length >= teamSize ? "open" : "upcoming"}>
+              {starters.length}/{teamSize} titulares
             </Badge>
           </div>
 

@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       tag?: string;
       description?: string | null;
       password?: string | null;
+      teamSize?: number;
     };
 
     const team = await createTeamForCaptain(currentProfile, {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
       tag: body.tag ?? "",
       description: body.description ?? null,
       password: body.password ?? null,
+      teamSize: body.teamSize ?? 5,
     });
 
     return NextResponse.json({

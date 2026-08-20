@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
   images: {
     dangerouslyAllowSVG: true,
+    // 90 e usado nos avatares: sao imagens pequenas (max 184px na Steam),
+    // onde a compressao padrao de 75 aparece como ruido no rosto.
+    qualities: [75, 90],
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [

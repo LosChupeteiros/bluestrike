@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getWeaponPaintsPool } from "@/lib/weaponpaints/mysql";
 import { getCurrentSkins, getCurrentKnife, getCurrentGlove, getCurrentMusic } from "@/lib/weaponpaints/queries";
-import { getSkinsByWeapon, getWeaponList, getKnifeList, getGloveCatalog, getMusicList } from "@/lib/weaponpaints/catalog";
+import { getSkinsByWeapon, getWeaponList, getKnifeList, getGloveCatalog, getMusicList, getWeaponSide } from "@/lib/weaponpaints/catalog";
 import { KnifeCard } from "./components/knife-card";
 import { GloveCard } from "./components/glove-card";
 import { MusicCard } from "./components/music-card";
-import { WeaponCardUnified } from "./components/weapon-card-unified";
+import { WeaponsPanel } from "./components/weapons-panel";
 
 export const metadata: Metadata = {
   title: "Skins",
@@ -116,11 +116,16 @@ export default async function SkinsPage() {
   const gloveCatalog = getGloveCatalog();
   const musicList = getMusicList();
 
-  const weaponEntries = Object.entries(weaponList).map(([defindexStr, defaultSkin]) => ({
-    defindex: Number(defindexStr),
-    defaultSkin,
-    availableSkins: catalog[Number(defindexStr)] ?? {},
-  }));
+  const weaponEntries = Object.entries(weaponList).map(([defindexStr, defaultSkin]) => {
+    const defindex = Number(defindexStr);
+
+    return {
+      defindex,
+      defaultSkin,
+      availableSkins: catalog[defindex] ?? {},
+      side: getWeaponSide(defindex),
+    };
+  });
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -211,24 +216,8 @@ export default async function SkinsPage() {
 
         </div>
 
-        {/* ── Armas (unificado — aplica em ambos os lados) ── */}
-        <div className="mt-4 rounded-xl border border-[var(--border)] p-5 space-y-3">
-          <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
-            <p className="text-base font-black tracking-tight">Armas</p>
-            <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-widest">CT &amp; TR</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
-            {weaponEntries.map(({ defindex, defaultSkin, availableSkins }) => (
-              <WeaponCardUnified
-                key={defindex}
-                defindex={defindex}
-                defaultSkin={defaultSkin}
-                availableSkins={availableSkins}
-                currentSkin={skinsCT[defindex] ?? null}
-              />
-            ))}
-          </div>
-        </div>
+        {/* ── Armas (filtradas por lado — loadout independente de CT e TR) ── */}
+        <WeaponsPanel weapons={weaponEntries} skinsCT={skinsCT} skinsT={skinsT} />
 
       </div>
     </div>

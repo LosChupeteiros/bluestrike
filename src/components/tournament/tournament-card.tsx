@@ -6,7 +6,7 @@ import { Calendar, Users, Trophy, ArrowRight, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { formatDate, formatCurrency } from "@/lib/utils";
+import { formatDate, formatCurrency, formatTeamSize } from "@/lib/utils";
 import { getTournamentBadgeProps } from "@/lib/tournament-status";
 import type { Tournament } from "@/types";
 
@@ -81,6 +81,9 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
                 <Users className="w-3.5 h-3.5" />
                 {registered}/{tournament.maxTeams} times
               </span>
+              <span className="rounded border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--primary)]">
+                {formatTeamSize(tournament.teamSize)}
+              </span>
             </div>
 
             <div className="mb-4">
@@ -136,6 +139,9 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
             </span>
             <span className="flex items-center gap-1">
               <Users className="w-3 h-3" /> {registered}/{tournament.maxTeams}
+            </span>
+            <span className="rounded border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--primary)]">
+              {formatTeamSize(tournament.teamSize)}
             </span>
           </div>
         </div>

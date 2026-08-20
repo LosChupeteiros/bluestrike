@@ -31,6 +31,8 @@ export interface Team {
   passwordHash?: string;
   captainId: string;
   isRecruiting: boolean;
+  /** Formato do time: 1 = 1x1 ... 5 = 5x5. */
+  teamSize: number;
   elo: number;
   wins: number;
   losses: number;
@@ -73,6 +75,8 @@ export interface Tournament {
   status: TournamentStatus;
   format: TournamentFormat;
   maxTeams: number;
+  /** Jogadores por time em quadra: 1 = 1x1 ... 5 = 5x5. */
+  teamSize: number;
   minElo: number | null;
   maxElo: number | null;
   checkInRequired: boolean;

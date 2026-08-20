@@ -1,3 +1,4 @@
+import { normalizeTeamSize } from "@/lib/utils";
 import type { Match, Team } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -38,6 +39,7 @@ interface TeamRow {
   join_code: string;
   captain_id: string;
   is_recruiting: boolean;
+  team_size: number | null;
   elo: number;
   wins: number;
   losses: number;
@@ -58,6 +60,7 @@ function mapTeamRow(row: TeamRow): Team {
     joinCode: row.join_code,
     captainId: row.captain_id,
     isRecruiting: row.is_recruiting,
+    teamSize: normalizeTeamSize(row.team_size),
     elo: row.elo,
     wins: row.wins,
     losses: row.losses,

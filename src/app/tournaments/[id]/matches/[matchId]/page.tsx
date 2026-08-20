@@ -8,6 +8,7 @@ import { getFullMatchDetail, getMatchWebhookInfo } from "@/lib/matches";
 import { getBracketRoundLabel, getBracketRoundModel } from "@/lib/bracket-model";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import MatchPageClient from "./match-page-client";
+import { getMapPool, isWingmanFormat } from "@/lib/maps";
 import WebhookInfoPanel from "./webhook-info-panel";
 
 interface MatchPageProps {
@@ -110,6 +111,8 @@ export default async function MatchDetailPage({ params }: MatchPageProps) {
           isCaptain={isCaptain}
           isPlayer={isPlayer}
           isAdmin={isAdmin}
+          mapPool={getMapPool(tournament.teamSize)}
+          isWingman={isWingmanFormat(tournament.teamSize)}
         />
 
         {isAdmin && webhookInfo && (

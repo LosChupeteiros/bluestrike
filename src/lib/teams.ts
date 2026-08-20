@@ -4,11 +4,20 @@ import type { UserProfile } from "@/lib/profile";
 import { isProfileComplete, getMissingRequiredFields } from "@/lib/profile";
 import { getProfilesByIds } from "@/lib/profiles";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { normalizeTeamSize, type TeamSize } from "@/lib/utils";
 
 const TEAM_PAGE_SIZE = 9;
-const TEAM_MAX_MEMBERS = 6;
-const TEAM_MIN_STARTERS = 5;
 const MAX_TEAMS_PER_PLAYER = 8;
+
+/** Titulares exigidos por formato: um time 2x2 precisa de 2, um 5x5 de 5. */
+function teamMinStarters(teamSize: number) {
+  return normalizeTeamSize(teamSize);
+}
+
+/** Elenco maximo: titulares + 1 reserva, em qualquer formato. */
+function teamMaxMembers(teamSize: number) {
+  return normalizeTeamSize(teamSize) + 1;
+}
 
 interface TeamRow {
   id: string;
@@ -22,6 +31,7 @@ interface TeamRow {
   password_hash: string | null;
   captain_id: string;
   is_recruiting: boolean;
+  team_size: number | null;
   elo: number | null;
   wins: number | null;
   losses: number | null;
@@ -44,12 +54,15 @@ interface CreateTeamInput {
   tag: string;
   description: string | null;
   password: string | null;
+  teamSize: number;
 }
 
 interface TeamListOptions {
   page?: number;
   pageSize?: number;
   query?: string;
+  /** Filtra por formato (1x1 a 5x5). `null` traz todos. */
+  teamSize?: number | null;
 }
 
 function mapTeamRow(row: TeamRow): Team {
@@ -65,6 +78,7 @@ function mapTeamRow(row: TeamRow): Team {
     passwordHash: row.password_hash ?? undefined,
     captainId: row.captain_id,
     isRecruiting: row.is_recruiting,
+    teamSize: normalizeTeamSize(row.team_size),
     elo: row.elo ?? 1000,
     wins: row.wins ?? 0,
     losses: row.losses ?? 0,
@@ -159,6 +173,7 @@ function validateCreateTeamInput(input: CreateTeamInput) {
     tag,
     description,
     password,
+    teamSize: normalizeTeamSize(input.teamSize),
   };
 }
 
@@ -337,8 +352,11 @@ async function createUniqueSlug(baseName: string) {
 }
 
 async function syncRecruitingState(teamId: string) {
-  const members = await fetchTeamMembers([teamId]);
-  const shouldRecruit = members.length < TEAM_MAX_MEMBERS;
+  const [members, [teamRow]] = await Promise.all([
+    fetchTeamMembers([teamId]),
+    fetchTeamRows([teamId]),
+  ]);
+  const shouldRecruit = members.length < teamMaxMembers(teamRow?.team_size ?? 5);
 
   const { error } = await createSupabaseAdminClient()
     .from("teams")
@@ -392,6 +410,12 @@ export async function listPublicTeams(options: TeamListOptions = {}) {
     teamQuery = teamQuery.or(`name.ilike.%${escaped}%,tag.ilike.%${escaped}%,description.ilike.%${escaped}%`);
   }
 
+  const teamSizeFilter = options.teamSize ? normalizeTeamSize(options.teamSize) : null;
+
+  if (teamSizeFilter) {
+    teamQuery = teamQuery.eq("team_size", teamSizeFilter);
+  }
+
   const [{ data, count, error }, { count: recruitingCount, error: recruitingError }] = await Promise.all([
     teamQuery.range(from, to).returns<TeamRow[]>(),
     createSupabaseAdminClient()
@@ -421,6 +445,7 @@ export async function listPublicTeams(options: TeamListOptions = {}) {
     totalPages,
     recruitingCount: recruitingCount ?? 0,
     query,
+    teamSize: teamSizeFilter,
   };
 }
 
@@ -513,6 +538,7 @@ export async function createTeamForCaptain(captain: UserProfile, input: CreateTe
       password_hash: passwordHash,
       captain_id: captain.id,
       is_recruiting: true,
+      team_size: normalizedInput.teamSize,
     })
     .select("*")
     .single<TeamRow>();
@@ -573,12 +599,15 @@ export async function joinTeamByCode(profile: UserProfile, code: string, passwor
   }
 
   const members = team.members ?? [];
+  const maxMembers = teamMaxMembers(team.teamSize);
 
-  if (members.length >= TEAM_MAX_MEMBERS) {
-    throw new Error("Esse time ja atingiu o limite maximo de jogadores.");
+  if (members.length >= maxMembers) {
+    throw new Error(
+      `Esse time e ${team.teamSize}x${team.teamSize} e ja atingiu o limite de ${maxMembers} jogadores.`
+    );
   }
 
-  const isStarter = members.filter((member) => member.isStarter).length < TEAM_MIN_STARTERS;
+  const isStarter = members.filter((member) => member.isStarter).length < teamMinStarters(team.teamSize);
 
   const { error } = await createSupabaseAdminClient()
     .from("team_members")
@@ -741,4 +770,20 @@ export async function getCaptainTeamsWithMembers(captainProfileId: string): Prom
   return attachMembers(teams);
 }
 
-export { TEAM_MAX_MEMBERS, TEAM_MIN_STARTERS, TEAM_PAGE_SIZE };
+export { TEAM_PAGE_SIZE, MAX_TEAMS_PER_PLAYER, teamMaxMembers, teamMinStarters };
+
+/**
+ * Times do jogador em um formato especifico — usado para saber com qual time
+ * ele pode se inscrever num campeonato 1x1, 2x2, etc.
+ */
+export async function getCaptainTeamsBySize(captainProfileId: string, teamSize: number): Promise<Team[]> {
+  const teams = await getCaptainTeamsWithMembers(captainProfileId);
+  const target = normalizeTeamSize(teamSize);
+  return teams.filter((team) => team.teamSize === target);
+}
+
+/** Formatos em que o jogador ainda nao tem time — alimenta o CTA de criar time. */
+export function getMissingTeamSizes(teams: Team[]): TeamSize[] {
+  const owned = new Set(teams.map((team) => team.teamSize));
+  return ([1, 2, 3, 4, 5] as TeamSize[]).filter((size) => !owned.has(size));
+}
