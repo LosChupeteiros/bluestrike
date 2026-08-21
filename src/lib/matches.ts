@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getBracketRoundModel } from "@/lib/bracket-model";
 import { createMatchStartNotifications } from "@/lib/notifications";
 import { normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
+import { getCurrentProfile } from "@/lib/profiles";
 import { randomUUID } from "crypto";
 import { getIntegrationBaseUrl } from "@/lib/api-auth";
 
@@ -542,6 +543,92 @@ function mapVetoRow(row: MapVetoRow): import("@/types").MapVeto {
   };
 }
 
+export interface MatchViewerAccess {
+  /** A partida existe. Quando false, o resto vem zerado. */
+  matchExists: boolean;
+  /** Time do usuário nesta partida, se ele jogar nela. */
+  userTeamId: string | null;
+  isCaptain: boolean;
+  isPlayer: boolean;
+  isAdmin: boolean;
+  /**
+   * Quem pode ver IP, senha e connect string do servidor.
+   * Espectador vê o placar e o status, mas não entra no servidor.
+   */
+  canSeeServerCredentials: boolean;
+}
+
+/**
+ * Resolve o que o usuário logado pode ver de uma partida.
+ *
+ * Existe para que a página da partida e as rotas de API que ela consulta usem
+ * exatamente a mesma regra. Quando essa lógica ficava duplicada, a página
+ * escondia a senha do servidor de espectadores mas a rota de polling continuava
+ * mandando — esconder só no cliente não é controle de acesso.
+ */
+export async function resolveMatchViewerAccess(matchId: string): Promise<MatchViewerAccess> {
+  const denied: MatchViewerAccess = {
+    matchExists: false,
+    userTeamId: null,
+    isCaptain: false,
+    isPlayer: false,
+    isAdmin: false,
+    canSeeServerCredentials: false,
+  };
+
+  const supabase = createSupabaseAdminClient();
+  const { data: match } = await supabase
+    .from("matches")
+    .select("team1_id, team2_id")
+    .eq("id", matchId)
+    .maybeSingle<{ team1_id: string | null; team2_id: string | null }>();
+
+  if (!match) return denied;
+
+  const profile = await getCurrentProfile();
+  const isAdmin = Boolean(profile?.isAdmin);
+
+  if (!profile) {
+    return { ...denied, matchExists: true };
+  }
+
+  const teamIds = [match.team1_id, match.team2_id].filter(Boolean) as string[];
+
+  let userTeamId: string | null = null;
+  let isCaptain = false;
+
+  if (teamIds.length > 0) {
+    const [{ data: memberRow }, { data: captainRow }] = await Promise.all([
+      supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("profile_id", profile.id)
+        .in("team_id", teamIds)
+        .maybeSingle<{ team_id: string }>(),
+      supabase
+        .from("teams")
+        .select("id")
+        .eq("captain_id", profile.id)
+        .in("id", teamIds)
+        .maybeSingle<{ id: string }>(),
+    ]);
+
+    userTeamId = captainRow?.id ?? memberRow?.team_id ?? null;
+    isCaptain = Boolean(captainRow?.id);
+  }
+
+  const isPlayer = Boolean(userTeamId);
+
+  return {
+    matchExists: true,
+    userTeamId,
+    isCaptain,
+    isPlayer,
+    isAdmin,
+    canSeeServerCredentials: isPlayer || isAdmin,
+  };
+}
+
 export async function getFullMatchDetail(matchId: string, includeServerPassword: boolean): Promise<FullMatchDetail | null> {
   const supabase = createSupabaseAdminClient();
 
@@ -578,15 +665,18 @@ export async function getFullMatchDetail(matchId: string, includeServerPassword:
     .eq("match_id", matchId)
     .maybeSingle<DathostServerRow>();
 
+  // Endereço e senha do servidor são credencial de acesso, não placar: só quem
+  // joga a partida (ou admin) recebe. `status` continua aberto porque é ele que
+  // move a UI de "provisionando" para "pronto", inclusive para espectador.
   const server = serverRow
     ? {
-        dathostId: serverRow.dathost_id,
-        ip: serverRow.ip,
-        port: serverRow.port,
-        rawIp: serverRow.raw_ip,
+        dathostId: includeServerPassword ? serverRow.dathost_id : "",
+        ip: includeServerPassword ? serverRow.ip : "",
+        port: includeServerPassword ? serverRow.port : 0,
+        rawIp: includeServerPassword ? serverRow.raw_ip : null,
         password: includeServerPassword ? serverRow.server_password : null,
         connectString: includeServerPassword ? serverRow.connect_string : null,
-        gotvPort: serverRow.gotv_port,
+        gotvPort: includeServerPassword ? serverRow.gotv_port : null,
         status: serverRow.status,
       }
     : null;

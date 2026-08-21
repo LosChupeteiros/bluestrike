@@ -62,15 +62,19 @@ Sem essas variáveis, código que já está escrito não funciona ou falha abert
 
 ## 3. Segurança — rotas ainda sem autenticação
 
-O webhook do MatchZy e o `matchzy-config` de partida de campeonato já foram fechados.
-Estas quatro continuam abertas. Todas são `GET` e todas dependem de "ninguém adivinhar o
-UUID", o que **não é controle de acesso**.
+O webhook do MatchZy, o `matchzy-config` de partida de campeonato e o `status` já foram
+fechados. Estas continuam abertas. Todas são `GET` e todas dependem de "ninguém adivinhar
+o UUID", o que **não é controle de acesso**.
 
-- [ ] **`/api/matches/[id]/status` — ALTA.** Devolve `connect_string` e `password` do
-      servidor da partida (`route.ts:63-64`) para qualquer um, sem sessão. Com o UUID da
-      partida — que aparece na URL pública do match — dá para entrar no servidor de uma
-      partida oficial em andamento. **Corrigir primeiro.** Deve exigir sessão e checar se
-      o usuário é jogador de um dos dois times (ou admin).
+- [x] ~~**`/api/matches/[id]/status` — ALTA.**~~ **Resolvido.** Devolvia `connect_string` e
+      `password` do servidor para qualquer um, sem sessão — com o UUID da partida, que
+      aparece na URL pública, dava para entrar num servidor oficial em andamento. Agora
+      IP, porta, senha e connect string só saem para jogador de um dos dois times ou
+      admin, via `resolveMatchViewerAccess()` (`src/lib/matches.ts`). O mesmo helper passou
+      a ser usado pela página da partida, para as duas regras não divergirem de novo — era
+      justamente essa duplicação que deixava a página escondendo a senha do espectador
+      enquanto a rota de polling continuava mandando. `status`, `ready` e placar seguem
+      públicos, senão a página para de atualizar para quem só assiste.
 - [ ] **`/api/chupeteiromestre/[id]/matchzy-config` — MÉDIA.** Monta o config do MatchZy
       de um lobby PUG, que inclui os **SteamID64 de todos os jogadores**. É exatamente o
       mesmo vazamento que já foi corrigido na rota equivalente de campeonato — falta
