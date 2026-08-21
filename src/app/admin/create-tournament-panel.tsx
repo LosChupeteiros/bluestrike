@@ -103,6 +103,48 @@ function Section({
   );
 }
 
+function BoTypePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: 1 | 3;
+  onChange: (value: 1 | 3) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/30 p-3">
+      <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+        {label}
+      </span>
+      <div role="radiogroup" aria-label={label} className="flex gap-2">
+        {([1, 3] as const).map((option) => {
+          const isActive = option === value;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              onClick={() => onChange(option)}
+              className={`flex min-h-11 flex-1 flex-col items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/50 ${
+                isActive
+                  ? "border-[var(--primary)]/55 bg-[var(--primary)]/10 text-[var(--primary)]"
+                  : "border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/35 hover:text-[var(--foreground)]"
+              }`}
+            >
+              <span className="font-mono text-sm font-black leading-none">BO{option}</span>
+              <span className="mt-1 text-[9px] uppercase tracking-[0.1em]">
+                {option === 1 ? "1 mapa" : "3 mapas"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function CreateTournamentPanel() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,6 +166,8 @@ export default function CreateTournamentPanel() {
   const [entryFee, setEntryFee] = useState("150");
   const [maxTeams, setMaxTeams] = useState("16");
   const [format, setFormat] = useState<string>("single_elimination");
+  const [boType, setBoType] = useState<1 | 3>(1);
+  const [finalBoType, setFinalBoType] = useState<1 | 3>(3);
   const [status, setStatus] = useState<string>("open");
   const [registrationEnds, setRegistrationEnds] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -234,6 +278,8 @@ export default function CreateTournamentPanel() {
           entryFee: entryNumber,
           maxTeams: maxTeamsNumber,
           format,
+          boType,
+          finalBoType,
           status,
           registrationEnds: registrationEnds ? new Date(registrationEnds).toISOString() : null,
           registrationStarts: null,
@@ -506,9 +552,32 @@ export default function CreateTournamentPanel() {
                 </p>
               </div>
 
+              <div>
+                <FieldLabel>Formato das partidas</FieldLabel>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <BoTypePicker
+                    label="Rodadas normais"
+                    value={boType}
+                    onChange={setBoType}
+                  />
+                  <BoTypePicker
+                    label="Grande final"
+                    value={finalBoType}
+                    onChange={setFinalBoType}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  {boType === 1 ? "Mata-mata em mapa único" : "Mata-mata em melhor de 3"} ·{" "}
+                  final em {finalBoType === 1 ? "mapa único" : "melhor de 3"}.
+                  {(boType === 3 || finalBoType === 3) && modeConfig.mapPool !== "competitive"
+                    ? " Séries de vários mapas em modalidade de workshop trocam de mapa dentro da mesma partida."
+                    : ""}
+                </p>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <FieldLabel htmlFor="tournament-format">Formato</FieldLabel>
+                  <FieldLabel htmlFor="tournament-format">Chaveamento</FieldLabel>
                   <select
                     id="tournament-format"
                     value={format}
@@ -728,6 +797,7 @@ export default function CreateTournamentPanel() {
               {[
                 { label: "Modalidade", value: `${modeConfig.label} · ${modeConfig.gameModeLabel}` },
                 { label: "Vagas", value: `${maxTeamsNumber || "—"} times` },
+                { label: "Série", value: `BO${boType} · final BO${finalBoType}` },
                 { label: "Premiação", value: formatCurrency(prizeNumber) },
                 { label: "Inscrição", value: entryNumber > 0 ? formatCurrency(entryNumber) : "Gratuito" },
                 { label: "Por jogador", value: perPlayer > 0 ? formatCurrency(perPlayer) : "—" },

@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
       maxTeams?: number;
       format?: Tournament["format"];
       teamMode?: string;
+      boType?: 1 | 3 | 5;
+      finalBoType?: 1 | 3 | 5;
       status?: Tournament["status"];
       minElo?: number | null;
       maxElo?: number | null;
@@ -48,6 +50,8 @@ export async function POST(request: NextRequest) {
       maxTeams: body.maxTeams ?? 16,
       format: body.format ?? "single_elimination",
       teamMode: body.teamMode ?? "5v5",
+      boType: body.boType ?? 1,
+      finalBoType: body.finalBoType ?? 3,
       status: body.status ?? "upcoming",
       minElo: body.minElo ?? null,
       maxElo: body.maxElo ?? null,

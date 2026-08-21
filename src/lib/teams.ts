@@ -72,6 +72,7 @@ function mapTeamRow(row: TeamRow): Team {
     bannerUrl: row.banner_url,
     joinCode: row.join_code,
     passwordHash: row.password_hash ?? undefined,
+    hasPassword: Boolean(row.password_hash),
     captainId: row.captain_id,
     isRecruiting: row.is_recruiting,
     elo: row.elo ?? 1000,
@@ -373,6 +374,40 @@ async function syncRecruitingState(teamId: string) {
   if (error) {
     throw new Error(`Falha ao atualizar o estado de recrutamento do time: ${error.message}`);
   }
+}
+
+/**
+ * Recalcula vitórias e derrotas a partir das partidas finalizadas.
+ * Recalcular (em vez de incrementar) é idempotente: reprocessar um webhook ou
+ * corrigir uma bracket não infla o retrospecto.
+ */
+export async function syncTeamRecord(teamId: string) {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("matches")
+    .select("winner_id")
+    .or(`team1_id.eq.${teamId},team2_id.eq.${teamId}`)
+    .in("status", ["finished", "walkover"])
+    .not("winner_id", "is", null)
+    .returns<Array<{ winner_id: string | null }>>();
+
+  if (error) {
+    throw new Error(`Falha ao recalcular retrospecto do time: ${error.message}`);
+  }
+
+  const rows = data ?? [];
+  const wins = rows.filter((row) => row.winner_id === teamId).length;
+  const losses = rows.length - wins;
+
+  const { error: updateError } = await createSupabaseAdminClient()
+    .from("teams")
+    .update({ wins, losses })
+    .eq("id", teamId);
+
+  if (updateError) {
+    throw new Error(`Falha ao salvar retrospecto do time: ${updateError.message}`);
+  }
+
+  return { wins, losses };
 }
 
 export async function syncTeamElo(teamId: string) {

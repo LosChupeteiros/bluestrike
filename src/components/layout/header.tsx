@@ -216,13 +216,13 @@ function ProfileMenu({ user }: { user: HeaderUser }) {
 
   const items: PlayerMenuItem[] = [
     {
-      href: `${profileHref}?tab=matches`,
+      href: `${profileHref}#partidas`,
       label: "Minhas partidas",
       hint: "Histórico, placares e variação de ELO",
       icon: Swords,
     },
     {
-      href: `${profileHref}?tab=teams`,
+      href: `${profileHref}#times`,
       label: "Meus times",
       hint: "Lines de 1x1 a 5x5 e convites",
       icon: Users,
@@ -732,8 +732,8 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
 
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { href: `/profile/${user.publicId}?tab=matches`, label: "Partidas", icon: Swords },
-                      { href: `/profile/${user.publicId}?tab=teams`, label: "Times", icon: Users },
+                      { href: `/profile/${user.publicId}#partidas`, label: "Partidas", icon: Swords },
+                      { href: `/profile/${user.publicId}#times`, label: "Times", icon: Users },
                       { href: "/skins", label: "Skins", icon: Sparkles },
                     ].map((shortcut) => {
                       const Icon = shortcut.icon;

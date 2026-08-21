@@ -25,6 +25,13 @@ export interface BracketByeAdvancement {
   slot: 1 | 2;
 }
 
+export interface BracketFormatOptions {
+  /** Formato das rodadas normais (default BO1). */
+  boType?: 1 | 3 | 5;
+  /** Formato da grande final (default BO3). */
+  finalBoType?: 1 | 3 | 5;
+}
+
 export interface GeneratedBracket {
   model: BracketRoundModel;
   matches: BracketMatchDraft[];
@@ -51,7 +58,12 @@ function buildSeedPairs(teams: BracketSeedTeam[], bracketSize: number): Array<[B
   return pairs;
 }
 
-export function buildSeededSingleEliminationBracket(teams: BracketSeedTeam[]): GeneratedBracket {
+export function buildSeededSingleEliminationBracket(
+  teams: BracketSeedTeam[],
+  format: BracketFormatOptions = {}
+): GeneratedBracket {
+  const roundBoType = format.boType ?? 1;
+  const finalBoType = format.finalBoType ?? 3;
   const model = getBracketRoundModel(teams.length);
   const bracketSize = Math.pow(2, model.baseRounds);
   const normalLastRound = model.semifinalRound ?? model.finalRound;
@@ -76,7 +88,7 @@ export function buildSeededSingleEliminationBracket(teams: BracketSeedTeam[]): G
           matchIndex,
           status: isBye ? "walkover" : "pending",
           winnerId,
-          boType: isFinalRound ? 3 : 1,
+          boType: isFinalRound ? finalBoType : roundBoType,
           teamsAssigned: Boolean(team1Id && team2Id),
         });
         continue;
@@ -89,7 +101,7 @@ export function buildSeededSingleEliminationBracket(teams: BracketSeedTeam[]): G
         matchIndex,
         status: "pending",
         winnerId: null,
-        boType: isFinalRound ? 3 : 1,
+        boType: isFinalRound ? finalBoType : roundBoType,
         teamsAssigned: false,
       });
     }
@@ -103,7 +115,7 @@ export function buildSeededSingleEliminationBracket(teams: BracketSeedTeam[]): G
       matchIndex: 0,
       status: "pending",
       winnerId: null,
-      boType: 1,
+      boType: roundBoType,
       teamsAssigned: false,
     });
 
@@ -114,7 +126,7 @@ export function buildSeededSingleEliminationBracket(teams: BracketSeedTeam[]): G
       matchIndex: 0,
       status: "pending",
       winnerId: null,
-      boType: 3,
+      boType: finalBoType,
       teamsAssigned: false,
     });
   }

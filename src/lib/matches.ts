@@ -59,6 +59,7 @@ function mapTeamRow(row: TeamRow): Team {
     logoUrl: row.logo_url,
     bannerUrl: row.banner_url,
     joinCode: row.join_code,
+    hasPassword: false,
     captainId: row.captain_id,
     isRecruiting: row.is_recruiting,
     elo: row.elo,
@@ -387,6 +388,20 @@ export async function submitMatchResult(
   if (updateError) throw new Error(`Falha ao salvar resultado: ${updateError.message}`);
 
   await advanceWinnerByRoundModel(supabase, match, winnerId);
+  await syncRecordsForMatch(match);
+}
+
+/** Recalcula o retrospecto dos dois times depois que uma partida fecha. */
+async function syncRecordsForMatch(match: { team1_id: string | null; team2_id: string | null }): Promise<void> {
+  const { syncTeamRecord } = await import("@/lib/teams");
+  const ids = [match.team1_id, match.team2_id].filter(Boolean) as string[];
+  await Promise.all(
+    ids.map((id) =>
+      syncTeamRecord(id).catch((err: unknown) =>
+        console.error(`[matches/record] falha ao sincronizar retrospecto de ${id}:`, err)
+      )
+    )
+  );
 }
 
 // Public wrapper used by match-flow.ts to advance bracket after a walkover
@@ -397,7 +412,10 @@ export async function advanceWinnerPublic(matchId: string, winnerId: string): Pr
     .select("*")
     .eq("id", matchId)
     .maybeSingle<MatchRow>();
-  if (match) await advanceWinnerByRoundModel(supabase, match, winnerId);
+  if (match) {
+    await advanceWinnerByRoundModel(supabase, match, winnerId);
+    await syncRecordsForMatch(match);
+  }
 }
 
 // Called by the CS2 server webhook — no admin check, auth is done via webhook_secret
@@ -418,6 +436,7 @@ export async function processWebhookResult(
     .eq("id", match.id);
 
   await advanceWinnerByRoundModel(supabase, match, winnerId);
+  await syncRecordsForMatch(match);
 }
 
 export async function getMatchRowByIdForWebhook(matchId: string): Promise<MatchRow | null> {

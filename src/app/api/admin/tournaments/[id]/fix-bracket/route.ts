@@ -79,10 +79,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const { data: tournamentRow } = await supabase
     .from("tournaments")
-    .select("team_mode")
+    .select("team_mode, bo_type, final_bo_type")
     .eq("id", tournamentId)
-    .maybeSingle<{ team_mode: string | null }>();
+    .maybeSingle<{ team_mode: string | null; bo_type: 1 | 3 | 5 | null; final_bo_type: 1 | 3 | 5 | null }>();
   const teamMode = normalizeTeamMode(tournamentRow?.team_mode);
+  const bracketFormat = {
+    boType: tournamentRow?.bo_type ?? 1,
+    finalBoType: tournamentRow?.final_bo_type ?? 3,
+  } as const;
 
   const { data: registrations, error: registrationsError } = await supabase
     .from("tournament_registrations")
@@ -143,7 +147,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
-  const generated = buildSeededSingleEliminationBracket(seedTeams);
+  const generated = buildSeededSingleEliminationBracket(seedTeams, bracketFormat);
   const assignedAt = new Date().toISOString();
   const toInsert = generated.matches.map((match) => ({
     id: randomUUID(),

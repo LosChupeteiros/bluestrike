@@ -1,9 +1,9 @@
 ﻿import Link from "next/link";
-import { ArrowRight, Crown, ExternalLink, KeyRound, Plus, Search, Shield, Sparkles, Swords, Users } from "lucide-react";
+import { ArrowRight, Crown, ExternalLink, KeyRound, Plus, Shield, Sparkles, Swords, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { LiveSearchInput } from "@/components/ui/live-filters";
 import { getFaceitTeamsByIds, type FaceitTeam } from "@/lib/faceit";
 import { listRegisteredFaceitTeamIds } from "@/lib/profiles";
 import { getCurrentProfile } from "@/lib/profiles";
@@ -446,12 +446,13 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
 
         <section className="py-8">
           <div className="bs-bento-card flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
-            <form action="/teams" className="relative min-w-0 flex-1">
-              {faceitQuery && <input name="faceitQ" type="hidden" value={faceitQuery} />}
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-              <Input className="h-12 bg-black/15 pl-11 pr-24" defaultValue={bluestrikeQuery} name="q" placeholder="Buscar time, tag ou jogador..." />
-              <Button className="absolute right-1.5 top-1/2 -translate-y-1/2" size="sm" type="submit">Buscar</Button>
-            </form>
+            <LiveSearchInput
+              param="q"
+              initialValue={bluestrikeQuery}
+              label="Buscar time BlueStrike"
+              placeholder="Buscar time, tag ou jogador..."
+              className="flex-1"
+            />
             <div className="flex rounded-xl border border-[var(--border)] bg-black/15 p-1 text-xs font-black">
               <a className="rounded-lg bg-[var(--primary)]/15 px-4 py-2 text-[var(--primary)]" href="#bluestrike">BlueStrike</a>
               <a className="rounded-lg px-4 py-2 text-[#ff7a00] hover:bg-[#ff7a00]/10" href="#faceit">FACEIT</a>
@@ -505,12 +506,14 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
               <div><p className="bs-eyebrow"><Shield className="h-4 w-4" /> BlueStrike</p><h2 className="mt-3 text-2xl font-black tracking-tight">Times da plataforma</h2><p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">Lineups, retrospecto e ELO construídos nas competições BlueStrike.</p></div>
               <span className="rounded-full border border-[var(--primary)]/25 bg-[var(--primary)]/8 px-3 py-1.5 text-xs font-black text-[var(--primary)]">{teamList.total} ativos</span>
             </div>
-            <form action="/teams" className="relative mb-6 mt-5">
-              {faceitQuery && <input name="faceitQ" type="hidden" value={faceitQuery} />}
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--primary)]" />
-              <Input className="bs-field h-12 pl-11 pr-24" defaultValue={bluestrikeQuery} name="q" placeholder="Buscar time BlueStrike..." />
-              <Button className="absolute right-1.5 top-1/2 -translate-y-1/2" size="sm" type="submit">Buscar</Button>
-            </form>
+            <div className="mb-6 mt-5">
+              <LiveSearchInput
+                param="q"
+                initialValue={bluestrikeQuery}
+                label="Buscar time BlueStrike"
+                placeholder="Buscar time BlueStrike..."
+              />
+            </div>
             {teamList.teams.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--primary)]/20 px-6 py-16 text-center"><Shield className="mx-auto h-9 w-9 text-[var(--primary)]/45" /><h3 className="mt-4 font-black">Nenhum time encontrado</h3></div>
             ) : (
@@ -526,12 +529,14 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
               <div><p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[#ff7a00]"><FaceitGlyph /> FACEIT</p><h2 className="mt-3 text-2xl font-black tracking-tight">Times conectados</h2><p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">Lineups externas vinculadas pelos jogadores da comunidade.</p></div>
               <span className="rounded-full border border-[#ff7a00]/25 bg-[#ff7a00]/8 px-3 py-1.5 text-xs font-black text-[#ff7a00]">{faceitTeams.length} conectados</span>
             </div>
-            <form action="/teams" className="relative mb-6 mt-5">
-              {bluestrikeQuery && <input name="q" type="hidden" value={bluestrikeQuery} />}
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#ff7a00]" />
-              <Input className="bs-field h-12 border-[#ff7a00]/20 pl-11 pr-24" defaultValue={faceitQuery} name="faceitQ" placeholder="Buscar time FACEIT..." />
-              <Button className="absolute right-1.5 top-1/2 -translate-y-1/2" size="sm" type="submit" variant="orange">Buscar</Button>
-            </form>
+            <div className="mb-6 mt-5">
+              <LiveSearchInput
+                param="faceitQ"
+                initialValue={faceitQuery}
+                label="Buscar time FACEIT"
+                placeholder="Buscar time FACEIT..."
+              />
+            </div>
             {faceitTeams.length === 0 ? <FaceitEmptyState hasQuery={Boolean(faceitQuery)} /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{faceitTeams.map((team) => <FaceitTeamCard key={team.teamId} team={team} />)}</div>}
             <Button asChild className="mt-5 w-full" variant="outline"><a href="https://www.faceit.com/pt-br/teams/create" rel="noopener noreferrer" target="_blank"><ExternalLink className="h-4 w-4" /> Criar time na FACEIT</a></Button>
           </section>

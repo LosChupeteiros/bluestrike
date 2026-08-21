@@ -31,6 +31,8 @@ export interface Team {
   joinCode: string;
   /** undefined em leituras públicas — nunca exposto ao cliente */
   passwordHash?: string;
+  /** Derivado: existe senha de entrada, sem expor o hash */
+  hasPassword: boolean;
   captainId: string;
   isRecruiting: boolean;
   elo: number;
@@ -78,6 +80,10 @@ export interface Tournament {
   format: TournamentFormat;
   /** Modalidade disputada: só times dessa modalidade podem se inscrever */
   teamMode: import("@/lib/team-modes").TeamMode;
+  /** Formato das rodadas normais */
+  boType: 1 | 3 | 5;
+  /** Formato da grande final */
+  finalBoType: 1 | 3 | 5;
   maxTeams: number;
   minElo: number | null;
   maxElo: number | null;

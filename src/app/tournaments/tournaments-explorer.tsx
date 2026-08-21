@@ -8,6 +8,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { TEAM_MODE_LIST, type TeamMode } from "@/lib/team-modes";
 import type { Tournament, TournamentStatus } from "@/types";
 
+// "Todos" = tudo que ainda está em jogo. Finalizado só aparece no próprio filtro.
 const STATUS_FILTERS: { label: string; value: TournamentStatus | "all" }[] = [
   { label: "Todos", value: "all" },
   { label: "Inscrições abertas", value: "open" },
@@ -32,11 +33,29 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
       const matchesSearch =
         tournament.name.toLowerCase().includes(normalizedQuery) ||
         (tournament.description ?? "").toLowerCase().includes(normalizedQuery);
-      const matchesStatus = statusFilter === "all" || tournament.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all"
+          ? tournament.status !== "finished"
+          : tournament.status === statusFilter;
       const matchesMode = modeFilter === "all" || tournament.teamMode === modeFilter;
       return matchesSearch && matchesStatus && matchesMode;
     });
   }, [search, statusFilter, modeFilter, tournaments]);
+
+  const sorted = useMemo(() => {
+    const weight = (status: TournamentStatus) =>
+      status === "open" ? 0 : status === "ongoing" ? 1 : status === "upcoming" ? 2 : 3;
+
+    return [...filtered].sort((a, b) => {
+      const statusDelta = weight(a.status) - weight(b.status);
+      if (statusDelta !== 0) return statusDelta;
+      // Campeonato finalizado perde o destaque na ordenação
+      const aFeatured = a.status === "finished" ? 0 : Number(a.featured);
+      const bFeatured = b.status === "finished" ? 0 : Number(b.featured);
+      if (aFeatured !== bFeatured) return bFeatured - aFeatured;
+      return Date.parse(b.startsAt ?? "") - Date.parse(a.startsAt ?? "");
+    });
+  }, [filtered]);
   const openCount = tournaments.filter((tournament) => tournament.status === "open").length;
   const totalPrize = tournaments.reduce((sum, tournament) => sum + tournament.prizeTotal, 0);
 
@@ -167,13 +186,13 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((tournament) => (
+            {sorted.map((tournament) => (
               <TournamentCard key={tournament.id} tournament={tournament} featured />
             ))}
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.map((tournament) => (
+            {sorted.map((tournament) => (
               <TournamentCard key={tournament.id} tournament={tournament} />
             ))}
           </div>

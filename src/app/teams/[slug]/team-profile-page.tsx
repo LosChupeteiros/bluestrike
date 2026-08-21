@@ -1,15 +1,24 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Crown, Shield, Swords, Trophy, UserPlus, Users } from "lucide-react";
+import { ChevronLeft, Crown, Lock, Shield, Swords, Trophy, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 import { getTeamBySlug } from "@/lib/teams";
 import { getTeamMode } from "@/lib/team-modes";
+import { getTournamentsForTeam } from "@/lib/tournaments";
 import { getRecentMatchesForTeam } from "@/lib/matches";
 import { DeleteTeamButton, EditDescriptionButton } from "./team-management-controls";
-import { TeamProfileTabs } from "./team-profile-tabs";
+import { TeamRosterSection } from "./team-roster-section";
+import TeamInviteControls from "./team-invite-controls";
+
+const TOURNAMENT_STATUS_LABEL: Record<string, string> = {
+  upcoming: "Em breve",
+  open: "Inscrições abertas",
+  ongoing: "Em andamento",
+  finished: "Finalizado",
+};
 
 interface TeamProfilePageProps {
   params: Promise<{
@@ -25,7 +34,10 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
     notFound();
   }
 
-  const recentMatches = await getRecentMatchesForTeam(team.id, 10);
+  const [recentMatches, teamTournaments] = await Promise.all([
+    getRecentMatchesForTeam(team.id, 10),
+    getTournamentsForTeam(team.id),
+  ]);
 
   const teamModeConfig = getTeamMode(team.teamMode);
   const starters = team.members?.filter((member) => member.isStarter) ?? [];
@@ -34,6 +46,10 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
   const isCaptain = currentProfile?.id === team.captainId;
   const currentUserIsMember = Boolean(team.members?.some((member) => member.profileId === currentProfile?.id));
   const backHref = currentProfile ? resolveProfilePath(currentProfile) : "/teams";
+  const memberCount = team.members?.length ?? 0;
+  const openSlots = Math.max(0, teamModeConfig.maxMembers - memberCount);
+  // 1x1 nunca aceita pedido de vaga: o elenco maximo e o proprio capitao.
+  const canRequestSlot = openSlots > 0 && !currentUserIsMember && team.isRecruiting;
   const totalMatches = team.wins + team.losses;
   const winRate = totalMatches > 0 ? Math.round((team.wins / totalMatches) * 100) : 0;
 
@@ -100,9 +116,10 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
         </header>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-9">
-            <TeamProfileTabs
+          <div className="lg:col-span-8 xl:col-span-9">
+            <TeamRosterSection
               teamMode={team.teamMode}
+              teamTag={team.tag}
               starters={starters}
               substitutes={substitutes}
               isCaptain={isCaptain}
@@ -112,41 +129,102 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
             />
           </div>
 
-          <aside className="space-y-5 lg:col-span-3">
-            {(team.isRecruiting && !currentUserIsMember) || isCaptain ? (
+          <aside className="space-y-5 lg:col-span-4 xl:col-span-3">
+            {isCaptain && (
               <section className="bs-bento-card border-[var(--primary)]/25 p-5">
-                <p className="bs-eyebrow"><UserPlus className="h-4 w-4" /> Gestão da lineup</p>
-                <div className="mt-5 grid gap-2">
-                  {team.isRecruiting && !currentUserIsMember && <Button asChild className="w-full" variant="gradient"><Link href={`/teams/join/${team.joinCode}`}>Solicitar vaga</Link></Button>}
-                  {isCaptain && <Button asChild className="w-full" variant="outline"><Link href={`/teams/join/${team.joinCode}`}>Compartilhar convite</Link></Button>}
-                  <Button asChild className="w-full" variant="outline"><Link href="/tournaments">Ver campeonatos</Link></Button>
+                <p className="bs-eyebrow"><UserPlus className="h-4 w-4" /> Convidar jogador</p>
+                <div className="mt-4">
+                  <TeamInviteControls
+                    joinCode={team.joinCode}
+                    hasPassword={team.hasPassword}
+                    openSlots={openSlots}
+                    modeLabel={teamModeConfig.label}
+                  />
                 </div>
               </section>
-            ) : null}
+            )}
 
+            {!isCaptain && canRequestSlot && (
+              <section className="bs-bento-card border-[var(--primary)]/25 p-5">
+                <p className="bs-eyebrow"><UserPlus className="h-4 w-4" /> Entrar no time</p>
+                <p className="mt-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                  Esse time tem {openSlots} {openSlots === 1 ? "vaga aberta" : "vagas abertas"} no
+                  formato {teamModeConfig.label}.
+                </p>
+                <Button asChild className="mt-4 w-full" variant="gradient">
+                  <Link href={`/teams/join/${team.joinCode}`}>Solicitar vaga</Link>
+                </Button>
+              </section>
+            )}
+
+            {!isCaptain && !canRequestSlot && !currentUserIsMember && (
+              <section className="bs-bento-card p-5">
+                <p className="bs-eyebrow"><Lock className="h-4 w-4" /> Line fechada</p>
+                <p className="mt-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                  {teamModeConfig.playersPerTeam === 1
+                    ? "Times de 1x1 são individuais — não aceitam outros jogadores."
+                    : `Esse time já preencheu as ${teamModeConfig.maxMembers} vagas do formato ${teamModeConfig.label}.`}
+                </p>
+              </section>
+            )}
+
+            {/* ── Campeonatos do time ── */}
             <section className="bs-bento-card p-5">
-              <div className="mb-4 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--primary)]">
-                <Trophy className="h-4 w-4" />
-                Estatísticas
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--primary)]">
+                  <Trophy className="h-4 w-4" />
+                  Campeonatos
+                </div>
+                {teamTournaments.length > 0 && (
+                  <span className="font-mono text-[11px] text-[var(--muted-foreground)]">
+                    {teamTournaments.length}
+                  </span>
+                )}
               </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">Vitórias</span>
-                  <span className="font-bold">{team.wins}</span>
+
+              {teamTournaments.length === 0 ? (
+                <>
+                  <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+                    Esse time ainda não disputou nenhum campeonato.
+                  </p>
+                  {isCaptain && (
+                    <Button asChild className="mt-4 w-full" variant="outline" size="sm">
+                      <Link href="/tournaments">Ver campeonatos abertos</Link>
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  {teamTournaments.map((entry) => (
+                    <Link
+                      key={entry.id}
+                      href={`/tournaments/${entry.id}`}
+                      className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-black/15 p-2.5 transition-colors hover:border-[var(--primary)]/35"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[#05080d]">
+                        {entry.bannerUrl ? (
+                          <Image alt="" src={entry.bannerUrl} width={36} height={36} className="h-full w-full object-cover" unoptimized />
+                        ) : (
+                          <Trophy className="h-4 w-4 text-[var(--primary)]/60" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-bold transition-colors group-hover:text-[var(--primary)]">
+                          {entry.name}
+                        </span>
+                        <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
+                          <span className="font-mono">{getTeamMode(entry.teamMode).label}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{TOURNAMENT_STATUS_LABEL[entry.status] ?? entry.status}</span>
+                        </span>
+                      </span>
+                      {entry.registrationStatus === "champion" && (
+                        <Trophy className="h-3.5 w-3.5 shrink-0 text-[#f5c842]" aria-label="Campeão" />
+                      )}
+                    </Link>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">Derrotas</span>
-                  <span className="font-bold">{team.losses}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">Line atual</span>
-                  <span className="font-bold">{team.members?.length ?? 0}/6</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[var(--muted-foreground)]">ELO médio</span>
-                  <span className="font-bold text-[var(--primary)]">{team.elo}</span>
-                </div>
-              </div>
+              )}
             </section>
 
             <section className="bs-bento-card p-5">
@@ -155,10 +233,6 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                 Informações
               </div>
               <div className="space-y-2 text-xs text-[var(--muted-foreground)]">
-                <div className="flex justify-between gap-3">
-                  <span>Código de convite</span>
-                  <span className="font-mono text-[var(--foreground)]">{team.joinCode}</span>
-                </div>
                 <div className="flex justify-between gap-3">
                   <span>Criado em</span>
                   <span className="font-medium text-[var(--foreground)]">
@@ -173,11 +247,19 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>Formato</span>
-                  <span className="inline-flex items-center gap-1 font-medium text-[var(--foreground)]"><Swords className="h-3 w-3" /> 5v5</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-[var(--foreground)]">
+                    <Swords className="h-3 w-3" /> {teamModeConfig.label}
+                  </span>
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>Membros</span>
-                  <span className="inline-flex items-center gap-1 font-medium text-[var(--foreground)]"><Users className="h-3 w-3" /> {team.members?.length ?? 0}</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-[var(--foreground)]">
+                    <Users className="h-3 w-3" /> {memberCount}/{teamModeConfig.maxMembers}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span>ELO médio</span>
+                  <span className="font-bold text-[var(--primary)]">{team.elo}</span>
                 </div>
               </div>
             </section>

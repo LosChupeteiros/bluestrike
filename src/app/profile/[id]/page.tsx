@@ -126,7 +126,6 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       defaultEditOpen={isOwner && query.edit === "1"}
       showWelcome={isOwner && query.welcome === "1"}
       showCompletionAlert={isOwner && (query.complete === "1" || !isProfileComplete(profile))}
-      defaultTab={query.tab === "teams" ? "teams" : "matches"}
       showTeamCreatedNotice={isOwner && query.teamCreated === "1"}
       showTeamDeletedNotice={isOwner && query.teamDeleted === "1"}
       faceitRankingPosition={faceitRankingPosition}

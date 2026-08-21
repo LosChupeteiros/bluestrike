@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
+import { useLiveFilters } from "@/components/ui/live-filters";
 
 interface FaceitLevelRangeProps {
   initialMin: number;
@@ -9,8 +10,25 @@ interface FaceitLevelRangeProps {
 }
 
 export default function FaceitLevelRange({ initialMin, initialMax }: FaceitLevelRangeProps) {
+  const { setParams } = useLiveFilters();
   const [minimum, setMinimum] = useState(initialMin);
   const [maximum, setMaximum] = useState(initialMax);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+  }, []);
+
+  // O range dispara muitos eventos ao arrastar — só aplica quando o valor para.
+  function commit(nextMin: number, nextMax: number) {
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => {
+      setParams({
+        faceitMin: nextMin > 1 ? String(nextMin) : null,
+        faceitMax: nextMax < 10 ? String(nextMax) : null,
+      });
+    }, 320);
+  }
 
   return (
     <fieldset className="min-w-0 rounded-xl border border-[var(--border)] bg-black/15 px-3 py-2.5">
@@ -41,7 +59,11 @@ export default function FaceitLevelRange({ initialMin, initialMax }: FaceitLevel
           max={10}
           min={1}
           name="faceitMin"
-          onChange={(event) => setMinimum(Math.min(Number(event.target.value), maximum))}
+          onChange={(event) => {
+            const next = Math.min(Number(event.target.value), maximum);
+            setMinimum(next);
+            commit(next, maximum);
+          }}
           type="range"
           value={minimum}
         />
@@ -51,7 +73,11 @@ export default function FaceitLevelRange({ initialMin, initialMax }: FaceitLevel
           max={10}
           min={1}
           name="faceitMax"
-          onChange={(event) => setMaximum(Math.max(Number(event.target.value), minimum))}
+          onChange={(event) => {
+            const next = Math.max(Number(event.target.value), minimum);
+            setMaximum(next);
+            commit(minimum, next);
+          }}
           type="range"
           value={maximum}
         />
