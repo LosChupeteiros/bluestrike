@@ -8,8 +8,8 @@ import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGame
 // Servidor espelho clonado a cada partida, por modalidade.
 // Todos podem ser sobrescritos por variável de ambiente.
 const MIRROR_SERVER_IDS: Record<TeamMode, string> = {
-  "1v1": process.env.DATHOST_MIRROR_SERVER_ID_1V1 ?? "6a87a8c86a3f53ea0ae0d929",
-  "2v2": process.env.DATHOST_MIRROR_SERVER_ID_2V2 ?? "6a877b8a30bd64c3b87c42a0",
+  "1v1": process.env.DATHOST_MIRROR_SERVER_ID_1V1 ?? "6a87da8230bd64c3b889120e",
+  "2v2": process.env.DATHOST_MIRROR_SERVER_ID_2V2 ?? "6a87dba530bd64c3b8893213",
   "3v3": process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1",
   "4v4": process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1",
   "5v5": process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1",
