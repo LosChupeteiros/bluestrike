@@ -270,6 +270,8 @@ function ProfileMenu({ user }: { user: HeaderUser }) {
       onMouseEnter={() => { cancelClose(); setOpen(true); }}
       onMouseLeave={scheduleClose}
     >
+      {/* Sem cápsula própria: um card dentro da barra de vidro fica redundante.
+          O gatilho encosta na nav e só ganha fundo no hover, igual aos links. */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -277,20 +279,34 @@ function ProfileMenu({ user }: { user: HeaderUser }) {
         aria-haspopup="menu"
         aria-label={`Menu de ${user.displayName}`}
         className={cn(
-          "bs-liquid-control group flex min-h-11 items-center gap-2 rounded-full px-2.5 py-1.5 transition-[border-color,background-color]",
-          open && "border-[var(--primary)]/35 bg-[var(--primary)]/8"
+          "group flex min-h-11 items-center gap-2.5 rounded-full py-1 pl-1 pr-3 transition-colors duration-200",
+          open ? "bg-[var(--primary)]/12" : "hover:bg-[var(--primary)]/[0.07]"
         )}
       >
-        <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
-          <AvatarImage src={user.steamAvatarUrl ?? undefined} alt="" />
-          <AvatarFallback className="font-black text-[var(--primary)]">
-            {user.displayName.slice(0, 1).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <span className="relative shrink-0">
+          <Avatar
+            className={cn(
+              "h-11 w-11 ring-1 transition-[box-shadow] duration-300",
+              open
+                ? "ring-[var(--primary)]/55 shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_14%,transparent)]"
+                : "ring-[color-mix(in_srgb,var(--foreground)_20%,transparent)] group-hover:ring-[var(--primary)]/45 group-hover:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_11%,transparent)]"
+            )}
+          >
+            <AvatarImage src={user.steamAvatarUrl ?? undefined} alt="" sizes="128px" />
+            <AvatarFallback className="text-base font-black text-[var(--primary)]">
+              {user.displayName.slice(0, 1).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {/* Reflexo de vidro no topo do avatar */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(to_bottom,rgb(255_255_255/0.22),rgb(255_255_255/0)_46%)]"
+          />
+        </span>
 
         <div className="min-w-0 text-left">
           <div className={cn(
-            "max-w-[110px] truncate text-xs font-semibold transition-colors",
+            "max-w-[120px] truncate text-[13px] font-bold leading-tight tracking-[-0.01em] transition-colors",
             open ? "text-[var(--primary)]" : "group-hover:text-[var(--primary)]"
           )}>
             {user.displayName}
@@ -614,6 +630,11 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             {user ? (
               <>
                 <NotificationBell enabled={true} />
+                {/* Agrupa os controles sem caixa: separador fino que some nas pontas */}
+                <span
+                  aria-hidden="true"
+                  className="mx-0.5 h-7 w-px bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--foreground)_18%,transparent)] to-transparent"
+                />
                 <ProfileMenu user={user} />
               </>
             ) : authState === "loading" ? (
