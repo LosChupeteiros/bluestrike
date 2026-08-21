@@ -35,7 +35,7 @@ export default function Hero() {
             href="/tournaments"
             image="/assets/banner_bluestrike_home.png"
             brand="BlueStrike"
-            description="!ws, bracket automático e premiação garantida em PIX."
+            description="!ws • !wp, bracket automático e premiação garantida em PIX."
             mark={<BlueStrikeMark />}
           />
           <ModeCard

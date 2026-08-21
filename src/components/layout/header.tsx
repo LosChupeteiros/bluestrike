@@ -150,7 +150,7 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
                 <p className="text-sm font-bold text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors duration-150 flex items-center gap-1.5">
                   BlueStrike
                   <span className="font-mono text-xs px-1 py-0.5 rounded bg-[var(--primary)]/15 text-[var(--primary)] group-hover:bg-[var(--primary)]/25 transition-colors">
-                    !ws
+                    !ws • !wp
                   </span>
                 </p>
                 <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
@@ -230,7 +230,7 @@ function ProfileMenu({ user }: { user: HeaderUser }) {
     {
       href: "/skins",
       label: "Minhas skins",
-      hint: "Loadout CT e TR no servidor !ws",
+      hint: "Loadout CT e TR no servidor !ws e !wp",
       icon: Sparkles,
     },
   ];
@@ -503,7 +503,7 @@ function MobileCampeonatosSection({
             />
             BlueStrike{" "}
             <span className="font-mono text-[10px] px-1 rounded bg-[var(--primary)]/15 text-[var(--primary)]">
-              !ws
+              !ws • !wp
             </span>
           </Link>
 
