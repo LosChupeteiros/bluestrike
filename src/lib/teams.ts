@@ -4,8 +4,10 @@ import type { UserProfile } from "@/lib/profile";
 import { isProfileComplete, getMissingRequiredFields } from "@/lib/profile";
 import { getProfilesByIds } from "@/lib/profiles";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { getTeamMode, normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 
 const TEAM_PAGE_SIZE = 9;
+/** Limites do 5x5 — mantidos para compatibilidade com telas que ainda não recebem modo. */
 const TEAM_MAX_MEMBERS = 6;
 const TEAM_MIN_STARTERS = 5;
 const MAX_TEAMS_PER_PLAYER = 8;
@@ -26,6 +28,7 @@ interface TeamRow {
   wins: number | null;
   losses: number | null;
   is_active: boolean;
+  team_mode: TeamMode | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,12 +47,14 @@ interface CreateTeamInput {
   tag: string;
   description: string | null;
   password: string | null;
+  teamMode?: TeamMode | string | null;
 }
 
 interface TeamListOptions {
   page?: number;
   pageSize?: number;
   query?: string;
+  teamMode?: TeamMode | "all";
 }
 
 function mapTeamRow(row: TeamRow): Team {
@@ -73,6 +78,7 @@ function mapTeamRow(row: TeamRow): Team {
     wins: row.wins ?? 0,
     losses: row.losses ?? 0,
     isActive: row.is_active,
+    teamMode: normalizeTeamMode(row.team_mode),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -145,6 +151,7 @@ function validateCreateTeamInput(input: CreateTeamInput) {
   const tag = normalizeTag(input.tag);
   const description = normalizeDescription(input.description);
   const password = input.password?.trim() ? input.password.trim().slice(0, 32) : null;
+  const teamMode = normalizeTeamMode(input.teamMode);
 
   if (name.length < 3) {
     throw new Error("Informe um nome de time com pelo menos 3 caracteres.");
@@ -163,6 +170,7 @@ function validateCreateTeamInput(input: CreateTeamInput) {
     tag,
     description,
     password,
+    teamMode,
   };
 }
 
@@ -275,7 +283,12 @@ async function isAlreadyMemberOf(profileId: string, teamId: string): Promise<boo
   return data !== null;
 }
 
-async function ensureUniqueTeamIdentity(name: string, tag: string, ignoreTeamId?: string) {
+async function ensureUniqueTeamIdentity(
+  name: string,
+  tag: string,
+  teamMode: TeamMode,
+  ignoreTeamId?: string
+) {
   const client = createSupabaseAdminClient();
 
   const [{ data: sameName, error: nameError }, { data: sameTag, error: tagError }] = await Promise.all([
@@ -283,12 +296,14 @@ async function ensureUniqueTeamIdentity(name: string, tag: string, ignoreTeamId?
       .from("teams")
       .select("id")
       .eq("is_active", true)
+      .eq("team_mode", teamMode)
       .ilike("name", name)
       .returns<Array<{ id: string }>>(),
     client
       .from("teams")
       .select("id")
       .eq("is_active", true)
+      .eq("team_mode", teamMode)
       .ilike("tag", tag)
       .returns<Array<{ id: string }>>(),
   ]);
@@ -304,12 +319,14 @@ async function ensureUniqueTeamIdentity(name: string, tag: string, ignoreTeamId?
   const duplicatedName = (sameName ?? []).some((row) => row.id !== ignoreTeamId);
   const duplicatedTag = (sameTag ?? []).some((row) => row.id !== ignoreTeamId);
 
+  const modeLabel = getTeamMode(teamMode).label;
+
   if (duplicatedName) {
-    throw new Error("Ja existe um time ativo com esse nome.");
+    throw new Error(`Ja existe um time ativo de ${modeLabel} com esse nome.`);
   }
 
   if (duplicatedTag) {
-    throw new Error("Ja existe um time ativo com essa tag.");
+    throw new Error(`Ja existe um time ativo de ${modeLabel} com essa tag.`);
   }
 }
 
@@ -341,8 +358,12 @@ async function createUniqueSlug(baseName: string) {
 }
 
 async function syncRecruitingState(teamId: string) {
-  const members = await fetchTeamMembers([teamId]);
-  const shouldRecruit = members.length < TEAM_MAX_MEMBERS;
+  const [members, [teamRow]] = await Promise.all([
+    fetchTeamMembers([teamId]),
+    fetchTeamRows([teamId]),
+  ]);
+  const maxMembers = getTeamMode(teamRow?.team_mode).maxMembers;
+  const shouldRecruit = members.length < maxMembers;
 
   const { error } = await createSupabaseAdminClient()
     .from("teams")
@@ -381,6 +402,7 @@ export async function listPublicTeams(options: TeamListOptions = {}) {
   const pageSize = Math.max(1, Math.min(options.pageSize ?? TEAM_PAGE_SIZE, 24));
   const page = Math.max(1, options.page ?? 1);
   const query = options.query?.trim() ?? "";
+  const teamMode = options.teamMode ?? "all";
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -390,6 +412,10 @@ export async function listPublicTeams(options: TeamListOptions = {}) {
     .eq("is_active", true)
     .order("is_recruiting", { ascending: false })
     .order("updated_at", { ascending: false });
+
+  if (teamMode !== "all") {
+    teamQuery = teamQuery.eq("team_mode", teamMode);
+  }
 
   if (query) {
     const escaped = query.replace(/[%_,]/g, "");
@@ -503,7 +529,7 @@ export async function createTeamForCaptain(captain: UserProfile, input: CreateTe
     throw new Error(`Voce ja atingiu o limite de ${MAX_TEAMS_PER_PLAYER} times simultaneos.`);
   }
 
-  await ensureUniqueTeamIdentity(normalizedInput.name, normalizedInput.tag);
+  await ensureUniqueTeamIdentity(normalizedInput.name, normalizedInput.tag, normalizedInput.teamMode);
   const slug = await createUniqueSlug(normalizedInput.name);
   const passwordHash = hashTeamPassword(normalizedInput.password);
 
@@ -517,6 +543,7 @@ export async function createTeamForCaptain(captain: UserProfile, input: CreateTe
       password_hash: passwordHash,
       captain_id: captain.id,
       is_recruiting: true,
+      team_mode: normalizedInput.teamMode,
     })
     .select("*")
     .single<TeamRow>();
@@ -577,12 +604,15 @@ export async function joinTeamByCode(profile: UserProfile, code: string, passwor
   }
 
   const members = team.members ?? [];
+  const modeConfig = getTeamMode(team.teamMode);
 
-  if (members.length >= TEAM_MAX_MEMBERS) {
-    throw new Error("Esse time ja atingiu o limite maximo de jogadores.");
+  if (members.length >= modeConfig.maxMembers) {
+    throw new Error(
+      `Esse time de ${modeConfig.label} ja atingiu o limite de ${modeConfig.maxMembers} jogadores.`
+    );
   }
 
-  const isStarter = members.filter((member) => member.isStarter).length < TEAM_MIN_STARTERS;
+  const isStarter = members.filter((member) => member.isStarter).length < modeConfig.playersPerTeam;
 
   const { error } = await createSupabaseAdminClient()
     .from("team_members")

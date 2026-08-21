@@ -34,6 +34,7 @@ import {
   type InGameRole,
   type UserProfile,
 } from "@/lib/profile";
+import { getMapLabel } from "@/lib/maps";
 import { getPlayerRank } from "@/lib/ranks";
 import { cn, formatDate } from "@/lib/utils";
 import type { RecentMatchSummary } from "@/lib/matches";
@@ -83,7 +84,8 @@ export default function ProfileShellView({
   const [isFaceitModalOpen, setIsFaceitModalOpen] = useState(false);
   const [matchesPage, setMatchesPage] = useState(1);
   const searchParamsString = searchParams.toString();
-  const activeTab = searchParams.get("tab") === "teams" ? "teams" : defaultTab;
+  const tabParam = searchParams.get("tab");
+  const activeTab = tabParam === "teams" || tabParam === "matches" ? tabParam : defaultTab;
   const matchesPageSize = 5;
   const matchesTotalPages = Math.max(1, Math.ceil(recentMatches.length / matchesPageSize));
   const visibleRecentMatches = recentMatches.slice((matchesPage - 1) * matchesPageSize, matchesPage * matchesPageSize);
@@ -369,7 +371,7 @@ export default function ProfileShellView({
                               </div>
                               {/* Meta */}
                               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted-foreground)]">
-                                {match.mapName && <span className="font-medium text-[var(--foreground)]/70">{match.mapName.replace("de_", "")}</span>}
+                                {match.mapName && <span className="font-medium text-[var(--foreground)]/70">{getMapLabel(match.mapName)}</span>}
                                 {match.mapName && <span>·</span>}
                                 <span>{match.tournamentName}</span>
                                 {match.playedAt && <><span>·</span><span>{formatDate(match.playedAt)}</span></>}

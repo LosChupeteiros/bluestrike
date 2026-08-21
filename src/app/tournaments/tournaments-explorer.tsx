@@ -5,6 +5,7 @@ import { CalendarDays, LayoutGrid, List, Search, Trophy, WalletCards, X } from "
 import { Input } from "@/components/ui/input";
 import TournamentCard from "@/components/tournament/tournament-card";
 import { cn, formatCurrency } from "@/lib/utils";
+import { TEAM_MODE_LIST, type TeamMode } from "@/lib/team-modes";
 import type { Tournament, TournamentStatus } from "@/types";
 
 const STATUS_FILTERS: { label: string; value: TournamentStatus | "all" }[] = [
@@ -22,6 +23,7 @@ interface TournamentsExplorerProps {
 export default function TournamentsExplorer({ tournaments }: TournamentsExplorerProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TournamentStatus | "all">("all");
+  const [modeFilter, setModeFilter] = useState<TeamMode | "all">("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const filtered = useMemo(() => {
@@ -31,9 +33,10 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
         tournament.name.toLowerCase().includes(normalizedQuery) ||
         (tournament.description ?? "").toLowerCase().includes(normalizedQuery);
       const matchesStatus = statusFilter === "all" || tournament.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesMode = modeFilter === "all" || tournament.teamMode === modeFilter;
+      return matchesSearch && matchesStatus && matchesMode;
     });
-  }, [search, statusFilter, tournaments]);
+  }, [search, statusFilter, modeFilter, tournaments]);
   const openCount = tournaments.filter((tournament) => tournament.status === "open").length;
   const totalPrize = tournaments.reduce((sum, tournament) => sum + tournament.prizeTotal, 0);
 
@@ -132,6 +135,27 @@ export default function TournamentsExplorer({ tournaments }: TournamentsExplorer
           <span className="ml-auto self-center text-xs text-[var(--muted-foreground)]">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
           </span>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
+            <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+              Modalidade
+            </span>
+            {[{ id: "all" as const, label: "Todas" }, ...TEAM_MODE_LIST.map((m) => ({ id: m.id, label: m.label }))].map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setModeFilter(mode.id)}
+                className={cn(
+                  "min-h-9 rounded-full border px-3.5 text-xs font-black transition-all",
+                  modeFilter === mode.id
+                    ? "border-[var(--primary)]/55 bg-[var(--primary)]/12 text-[var(--primary)]"
+                    : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
+                )}
+              >
+                {mode.label}
+              </button>
+            ))}
           </div>
         </div>
 

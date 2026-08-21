@@ -1,7 +1,8 @@
 import type { Tournament, TournamentRegistration } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { getTeamsByIds } from "@/lib/teams";
+import { getTeamMode, normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 import { createMatchStartNotifications } from "@/lib/notifications";
 import { randomUUID } from "crypto";
 import {
@@ -22,6 +23,7 @@ interface TournamentRow {
   banner_url: string | null;
   status: Tournament["status"];
   format: Tournament["format"];
+  team_mode: TeamMode | null;
   max_teams: number | null;
   min_elo: number | null;
   max_elo: number | null;
@@ -68,6 +70,7 @@ interface CreateTournamentInput {
   entryFee: number;
   maxTeams: number;
   format: Tournament["format"];
+  teamMode: TeamMode | string;
   status: Tournament["status"];
   minElo: number | null;
   maxElo: number | null;
@@ -94,6 +97,7 @@ function mapTournamentRow(row: TournamentRow): Tournament {
     bannerUrl: row.banner_url,
     status: row.status,
     format: row.format,
+    teamMode: normalizeTeamMode(row.team_mode),
     maxTeams: row.max_teams ?? 16,
     minElo: row.min_elo,
     maxElo: row.max_elo,
@@ -153,6 +157,7 @@ function validateTournamentInput(input: CreateTournamentInput) {
   const tags = normalizeArray(input.tags, 32).slice(0, 8);
   const bannerUrl = cleanString(input.bannerUrl, 500);
   const region = cleanString(input.region, 16) ?? "BR";
+  const teamMode = normalizeTeamMode(input.teamMode);
   const maxTeams = Math.max(2, Math.min(input.maxTeams, 128));
   const prizeTotal = Math.max(0, Math.trunc(input.prizeTotal));
   const entryFee = Math.max(0, Math.trunc(input.entryFee));
@@ -186,6 +191,7 @@ function validateTournamentInput(input: CreateTournamentInput) {
     tags,
     bannerUrl,
     region,
+    teamMode,
     maxTeams,
     prizeTotal,
     entryFee,
@@ -321,6 +327,7 @@ export async function createTournament(adminProfile: UserProfile, input: CreateT
       banner_url: parsed.bannerUrl,
       status: parsed.status,
       format: parsed.format,
+      team_mode: parsed.teamMode,
       max_teams: parsed.maxTeams,
       min_elo: parsed.minElo,
       max_elo: parsed.maxElo,
@@ -494,6 +501,7 @@ export async function ensureTournamentBracketGenerated(tournament: Tournament): 
     status: match.status,
     winner_id: match.winnerId,
     bo_type: match.boType,
+    team_mode: tournament.teamMode,
     webhook_secret: randomUUID(),
     ...(match.teamsAssigned ? { teams_assigned_at: assignedAt } : {}),
   }));
@@ -582,8 +590,18 @@ export async function registerCurrentCaptainTeamForTournament(input: {
     throw new Error("A Inscrição so pode ser feita pelo capitao do time.");
   }
 
-  if (input.rosterProfileIds.length < TEAM_MIN_STARTERS) {
-    throw new Error("Selecione pelo menos 5 jogadores para participar.");
+  const modeConfig = getTeamMode(tournament.teamMode);
+
+  if (team.teamMode !== tournament.teamMode) {
+    throw new Error(
+      `Esse campeonato e de ${modeConfig.label}. Inscreva um time de ${modeConfig.label}.`
+    );
+  }
+
+  if (input.rosterProfileIds.length < modeConfig.playersPerTeam) {
+    throw new Error(
+      `Selecione pelo menos ${modeConfig.playersPerTeam} ${modeConfig.playersPerTeam === 1 ? "jogador" : "jogadores"} para participar.`
+    );
   }
 
   const memberIds = new Set((team.members ?? []).map((m) => m.profileId));

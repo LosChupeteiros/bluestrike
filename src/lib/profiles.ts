@@ -10,6 +10,7 @@ import {
 } from "@/lib/profile";
 import { getFaceitTeams, type FaceitTeam } from "@/lib/faceit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { normalizeSteamAvatarUrl } from "@/lib/steam-avatar";
 
 export interface ProfileRow {
   id: string;
@@ -51,7 +52,7 @@ export function mapProfileRow(row: ProfileRow): UserProfile {
     publicId: row.public_id,
     steamId: row.steam_id,
     steamPersonaName: row.steam_persona_name,
-    steamAvatarUrl: row.steam_avatar_url,
+    steamAvatarUrl: normalizeSteamAvatarUrl(row.steam_avatar_url),
     steamProfileUrl: row.steam_profile_url,
     steamLevel: row.steam_level ?? 0,
     elo: row.elo ?? 1000,
@@ -567,7 +568,7 @@ export async function listFaceitRanking(limit = 50): Promise<FaceitRankingEntry[
     id: row.id,
     publicId: row.public_id,
     nickname: row.steam_persona_name,
-    avatar: row.steam_avatar_url,
+    avatar: normalizeSteamAvatarUrl(row.steam_avatar_url),
     faceitNickname: row.faceit_nickname ?? row.steam_persona_name,
     faceitAvatar: row.faceit_avatar,
     faceitElo: row.faceit_elo,

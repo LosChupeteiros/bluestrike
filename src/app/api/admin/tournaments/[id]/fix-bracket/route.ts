@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { buildSeededSingleEliminationBracket, type BracketByeAdvancement, type BracketSeedTeam } from "@/lib/bracket-generation";
 import { getCurrentProfile } from "@/lib/profiles";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { normalizeTeamMode } from "@/lib/team-modes";
 
 type MatchRow = {
   id: string;
@@ -76,6 +77,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id: tournamentId } = await params;
   const supabase = createSupabaseAdminClient();
 
+  const { data: tournamentRow } = await supabase
+    .from("tournaments")
+    .select("team_mode")
+    .eq("id", tournamentId)
+    .maybeSingle<{ team_mode: string | null }>();
+  const teamMode = normalizeTeamMode(tournamentRow?.team_mode);
+
   const { data: registrations, error: registrationsError } = await supabase
     .from("tournament_registrations")
     .select("team_id, registered_at")
@@ -147,6 +155,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     status: match.status,
     winner_id: match.winnerId,
     bo_type: match.boType,
+    team_mode: teamMode,
     webhook_secret: randomUUID(),
     ...(match.teamsAssigned ? { teams_assigned_at: assignedAt } : {}),
   }));

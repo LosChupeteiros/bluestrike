@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KickMemberButton } from "./team-management-controls";
 import { getProfilePath } from "@/lib/profile";
 import { cn, formatDate } from "@/lib/utils";
+import { getTeamMode, type TeamMode } from "@/lib/team-modes";
 import type { TeamMember } from "@/types";
 import type { TeamMatchSummary } from "@/lib/matches";
 
@@ -24,6 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 interface TeamProfileTabsProps {
+  teamMode: TeamMode;
   starters: TeamMember[];
   substitutes: TeamMember[];
   isCaptain: boolean;
@@ -33,6 +35,7 @@ interface TeamProfileTabsProps {
 }
 
 export function TeamProfileTabs({
+  teamMode,
   starters,
   substitutes,
   isCaptain,
@@ -41,6 +44,7 @@ export function TeamProfileTabs({
   recentMatches,
 }: TeamProfileTabsProps) {
   const [activeTab, setActiveTab] = useState<"roster" | "matches">("roster");
+  const modeConfig = getTeamMode(teamMode);
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
@@ -56,12 +60,17 @@ export function TeamProfileTabs({
               <Users className="h-4 w-4" />
               Line principal
             </div>
-            <Badge variant={starters.length >= 5 ? "open" : "upcoming"}>
-              {starters.length}/5 titulares
-            </Badge>
+            <div className="flex items-center gap-2">
+              <span className="rounded-md border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-2 py-0.5 font-mono text-[10px] font-black text-[var(--primary)]">
+                {modeConfig.label}
+              </span>
+              <Badge variant={starters.length >= modeConfig.playersPerTeam ? "open" : "upcoming"}>
+                {starters.length}/{modeConfig.playersPerTeam} {modeConfig.playersPerTeam === 1 ? "titular" : "titulares"}
+              </Badge>
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {starters.map((member) => {
               const displayName = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "Jogador";
               const role = member.inGameRole ? (ROLE_LABELS[member.inGameRole] ?? member.inGameRole) : "Sem função";

@@ -21,6 +21,13 @@ interface AvatarImageProps {
   src?: string | null;
   alt?: string;
   className?: string;
+  /**
+   * Largura de referência para o `srcset`. O padrão cobre avatares de até ~96px
+   * em telas 2x. Avatares grandes (header de perfil, pódio) precisam passar um
+   * valor maior, senão o next/image serve uma versão reduzida e a foto fica
+   * pixelada — a Steam entrega no máximo 184x184.
+   */
+  sizes?: string;
 }
 
 // Uses next/image with fill so remote patterns (Steam CDN) are respected
@@ -28,7 +35,7 @@ interface AvatarImageProps {
 // The fallback div is a static sibling; the absolute-positioned image
 // naturally paints on top of it once loaded.
 const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
-  ({ src, alt = "", className }, ref) => {
+  ({ src, alt = "", className, sizes = "192px" }, ref) => {
     const [failed, setFailed] = React.useState(false);
 
     React.useEffect(() => {
@@ -43,7 +50,8 @@ const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
         src={src}
         alt={alt}
         fill
-        sizes="64px"
+        sizes={sizes}
+        quality={95}
         className={cn("object-cover", className)}
         onError={() => setFailed(true)}
       />

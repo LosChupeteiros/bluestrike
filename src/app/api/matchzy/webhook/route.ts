@@ -1,5 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { computePayloadHash, processSeriesEnd } from "@/lib/matchzy";
+import { getMatchTeamMode, sendMatchConsoleCommand } from "@/lib/match-flow";
+import { getTeamMode } from "@/lib/team-modes";
 
 export async function POST(req: Request) {
   // Parse payload
@@ -48,7 +50,7 @@ export async function POST(req: Request) {
 
   // 5. Processar evento
   try {
-    await handleMatchzyEvent(eventType, matchzyMatchId, matchRow, supabase);
+    await handleMatchzyEvent(eventType, matchzyMatchId, matchRow, supabase, payload);
 
     await supabase
       .from("matchzy_webhook_events")
@@ -67,11 +69,33 @@ export async function POST(req: Request) {
   return Response.json({ ok: true });
 }
 
+/** Lê o placar de um payload de round_end, independente do formato exato. */
+function readRoundScores(payload: Record<string, unknown>): { t1: number; t2: number } | null {
+  const team1 = payload.team1 as Record<string, unknown> | undefined;
+  const team2 = payload.team2 as Record<string, unknown> | undefined;
+  const t1 = Number(team1?.score ?? team1?.series_score ?? NaN);
+  const t2 = Number(team2?.score ?? team2?.series_score ?? NaN);
+  if (Number.isNaN(t1) || Number.isNaN(t2)) return null;
+  return { t1, t2 };
+}
+
+/**
+ * O 1x1 roda sem compra, então `mp_free_armor 1` precisa ser reenviado quando a
+ * partida efetivamente sobe (going_live) e logo no começo — 0x0, 1x0 ou 0x1 —
+ * porque o MatchZy reseta cvars ao iniciar a série.
+ */
+async function ensureFreeArmor(matchId: string): Promise<void> {
+  const mode = await getMatchTeamMode(matchId);
+  if (!getTeamMode(mode).freeArmor) return;
+  await sendMatchConsoleCommand(matchId, "mp_free_armor 1");
+}
+
 async function handleMatchzyEvent(
   eventType: string,
   matchzyMatchId: number,
   matchRow: { id: string; status: string; winner_id: string | null } | null,
-  supabase: ReturnType<typeof createSupabaseAdminClient>
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  payload: Record<string, unknown>
 ): Promise<void> {
   switch (eventType) {
     case "series_start": {
@@ -93,6 +117,18 @@ async function handleMatchzyEvent(
           .from("dathost_servers")
           .update({ status: "live" })
           .eq("match_id", matchRow.id);
+        await ensureFreeArmor(matchRow.id);
+      }
+      break;
+    }
+
+    case "round_end": {
+      // Reenvia mp_free_armor no início da partida (0x0, 1x0 ou 0x1)
+      if (matchRow?.id) {
+        const scores = readRoundScores(payload);
+        if (!scores || scores.t1 + scores.t2 <= 1) {
+          await ensureFreeArmor(matchRow.id);
+        }
       }
       break;
     }
@@ -108,7 +144,6 @@ async function handleMatchzyEvent(
     }
 
     // Eventos informativos — apenas log via tabela de eventos, sem side-effects
-    case "round_end":
     case "map_result":
     case "player_disconnect":
     case "demo_upload_ended":

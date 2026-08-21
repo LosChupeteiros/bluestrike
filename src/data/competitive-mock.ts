@@ -289,6 +289,7 @@ const mockTeamsByProfileId: Record<number, Team[]> = {
       wins: 19,
       losses: 7,
       isActive: true,
+      teamMode: "5v5" as const,
       createdAt: "2026-02-10",
       updatedAt: "2026-02-10",
       members: mockProfileSeeds.slice(0, 5).map((seed, i) => ({

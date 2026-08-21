@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
       name?: string;
       tag?: string;
       description?: string | null;
+      teamMode?: string | null;
       password?: string | null;
     };
 
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
       name: body.name ?? "",
       tag: body.tag ?? "",
       description: body.description ?? null,
+      teamMode: body.teamMode ?? null,
       password: body.password ?? null,
     });
 

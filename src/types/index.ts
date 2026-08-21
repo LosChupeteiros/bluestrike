@@ -14,6 +14,8 @@ export type RegistrationStatus = "pending" | "confirmed" | "eliminated" | "champ
 export type TeamMemberRole = "awper" | "igl" | "entry-fragger" | "rifler" | "lurker" | "support" | "coach";
 export type NotificationType = "match_start" | "checkin_reminder" | "result" | "system" | "team_invite";
 
+export type { TeamMode } from "@/lib/team-modes";
+
 // ---------------------------------------------------------------------------
 // Team
 // ---------------------------------------------------------------------------
@@ -35,6 +37,8 @@ export interface Team {
   wins: number;
   losses: number;
   isActive: boolean;
+  /** Modalidade do time: 1v1, 2v2, 3v3, 4v4 ou 5v5 */
+  teamMode: import("@/lib/team-modes").TeamMode;
   createdAt: string;
   updatedAt: string;
   /** Carregado via join quando necessário */
@@ -72,6 +76,8 @@ export interface Tournament {
   entryFee?: number;
   status: TournamentStatus;
   format: TournamentFormat;
+  /** Modalidade disputada: só times dessa modalidade podem se inscrever */
+  teamMode: import("@/lib/team-modes").TeamMode;
   maxTeams: number;
   minElo: number | null;
   maxElo: number | null;
@@ -121,6 +127,8 @@ export interface Match {
   round: number;
   matchIndex: number;
   boType: 1 | 3 | 5;
+  /** Herdado do campeonato — define map pool, wingman e lados */
+  teamMode: import("@/lib/team-modes").TeamMode;
   status: MatchStatus;
   winnerId: string | null;
   scheduledAt: string | null;

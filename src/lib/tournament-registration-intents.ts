@@ -1,7 +1,8 @@
 import type { Team } from "@/types";
 import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getTeamsByIds, TEAM_MIN_STARTERS } from "@/lib/teams";
+import { getTeamsByIds } from "@/lib/teams";
+import { getTeamMode } from "@/lib/team-modes";
 import { getTournamentById, isTournamentRegistrationOpen } from "@/lib/tournaments";
 
 export const BLUES_STRIKE_PAYMENT_REFERENCE_PREFIX = "bluestrike:";
@@ -246,8 +247,18 @@ async function validateTeamEligibility(params: {
     throw new Error("A Inscrição so pode ser feita pelo capitao do time.");
   }
 
-  if (params.rosterProfileIds.length < TEAM_MIN_STARTERS) {
-    throw new Error("Selecione pelo menos 5 jogadores para participar.");
+  const modeConfig = getTeamMode(tournament.teamMode);
+
+  if (params.team.teamMode !== tournament.teamMode) {
+    throw new Error(
+      `Esse campeonato e de ${modeConfig.label}. Inscreva um time de ${modeConfig.label}.`
+    );
+  }
+
+  if (params.rosterProfileIds.length < modeConfig.playersPerTeam) {
+    throw new Error(
+      `Selecione pelo menos ${modeConfig.playersPerTeam} ${modeConfig.playersPerTeam === 1 ? "jogador" : "jogadores"} para participar.`
+    );
   }
 
   const memberIds = new Set((params.team.members ?? []).map((m) => m.profileId));

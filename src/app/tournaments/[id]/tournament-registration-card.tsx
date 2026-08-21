@@ -22,10 +22,11 @@ import type { Team, TeamMember } from "@/types";
 import type { TournamentRegistrationIntent } from "@/lib/tournament-registration-intents";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { getTeamMode, type TeamMode } from "@/lib/team-modes";
 import { formatCurrency } from "@/lib/utils";
 
 const PIX_EXPIRY_MS = 15 * 60 * 1000;
-const MIN_ROSTER = 5;
+
 
 const TERMS = `1. O capitao confirma que todos os membros do time leram e aceitaram as regras do campeonato.
 
@@ -49,6 +50,7 @@ interface PixData {
 }
 
 interface TournamentRegistrationCardProps {
+  teamMode: TeamMode;
   tournamentId: string;
   tournamentName: string;
   entryFee: number;
@@ -322,6 +324,7 @@ export default function TournamentRegistrationCard({
   tournamentId,
   tournamentName,
   entryFee,
+  teamMode,
   canRegister,
   disabledReason,
   captainTeams,
@@ -342,9 +345,18 @@ export default function TournamentRegistrationCard({
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [pixPaid, setPixPaid] = useState(false);
 
+  const modeConfig = getTeamMode(teamMode);
+  const MIN_ROSTER = modeConfig.playersPerTeam;
+
+  // Só times da modalidade do campeonato podem ser inscritos.
+  const eligibleTeams = useMemo(
+    () => captainTeams.filter((team) => team.teamMode === teamMode),
+    [captainTeams, teamMode]
+  );
+
   const selectedTeam = useMemo(
-    () => captainTeams.find((t) => t.id === selectedTeamId) ?? null,
-    [captainTeams, selectedTeamId]
+    () => eligibleTeams.find((t) => t.id === selectedTeamId) ?? null,
+    [eligibleTeams, selectedTeamId]
   );
 
   const rosterMembers = useMemo<TeamMember[]>(
@@ -390,8 +402,8 @@ export default function TournamentRegistrationCard({
   }, [flowStep, intent, pixData, pixPaid, tournamentId]);
 
   function handleStartRegistration() {
-    if (captainTeams.length === 1) {
-      const team = captainTeams[0]!;
+    if (eligibleTeams.length === 1) {
+      const team = eligibleTeams[0]!;
       const defaultRoster = (team.members ?? [])
         .filter((m) => m.isStarter)
         .slice(0, MIN_ROSTER)
@@ -527,7 +539,7 @@ export default function TournamentRegistrationCard({
       ? "Inscrever meu time"
       : "Confirmar Inscrição";
 
-  const previewTeam = captainTeams.length === 1 ? captainTeams[0] : null;
+  const previewTeam = eligibleTeams.length === 1 ? eligibleTeams[0] : null;
   const previewStarters = useMemo(
     () => (previewTeam?.members ?? []).filter((m) => m.isStarter).slice(0, 5),
     [previewTeam]
@@ -555,10 +567,27 @@ export default function TournamentRegistrationCard({
           {ctaLabel}
         </Button>
 
+        {/* Nenhum time da modalidade — atalho direto para criar */}
+        {eligibleTeams.length === 0 && !canResumeIntent && (
+          <div className="rounded-xl border border-orange-500/25 bg-orange-500/8 px-3 py-3 text-xs text-orange-200">
+            <div className="flex items-start gap-2">
+              <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Você não tem time de{" "}
+                <span className="font-black text-orange-100">{modeConfig.label}</span>. Esse
+                campeonato só aceita lines dessa modalidade.
+              </span>
+            </div>
+            <Button asChild size="sm" variant="outline" className="mt-3 w-full">
+              <a href={`/teams/create?mode=${teamMode}`}>Criar time de {modeConfig.label}</a>
+            </Button>
+          </div>
+        )}
+
         {/* Show single team preview or multi-team hint */}
-        {captainTeams.length > 0 && !canResumeIntent && (
+        {eligibleTeams.length > 0 && !canResumeIntent && (
           <div className="rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-3 text-xs">
-            {captainTeams.length === 1 && previewTeam ? (
+            {eligibleTeams.length === 1 && previewTeam ? (
               <>
                 <div className="mb-2 flex items-center gap-2">
                   <TeamMark team={previewTeam} />
@@ -582,7 +611,7 @@ export default function TournamentRegistrationCard({
               <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
                 <Users className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
                 <span>
-                  Voce tem <span className="font-bold text-[var(--foreground)]">{captainTeams.length} times</span> disponíveis para inscrever.
+                  Voce tem <span className="font-bold text-[var(--foreground)]">{eligibleTeams.length} times</span> disponíveis para inscrever.
                 </span>
               </div>
             )}
@@ -616,7 +645,7 @@ export default function TournamentRegistrationCard({
         subtitle="Selecione qual dos seus times vai participar."
       >
         <div className="space-y-2 p-5">
-          {captainTeams.map((team) => {
+          {eligibleTeams.map((team) => {
             const alreadyRegistered = registeredTeamIds.includes(team.id);
             const memberCount = (team.members ?? []).length;
             const starterCount = (team.members ?? []).filter((m) => m.isStarter).length;
@@ -671,7 +700,7 @@ export default function TournamentRegistrationCard({
         open={flowStep === "roster-select"}
         onClose={closeModal}
         title="Escolher jogadores"
-        subtitle={selectedTeam ? `${selectedTeam.name} · selecione pelo menos ${MIN_ROSTER} jogadores` : undefined}
+        subtitle={selectedTeam ? `${selectedTeam.name} · selecione ${MIN_ROSTER === 1 ? "o jogador" : `pelo menos ${MIN_ROSTER} jogadores`}` : undefined}
       >
         <div className="space-y-4 p-5">
           {selectedTeam && (

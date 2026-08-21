@@ -1,12 +1,14 @@
 ﻿import Link from "next/link";
-import { ExternalLink, Plus, Search, Shield, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Crown, ExternalLink, KeyRound, Plus, Search, Shield, Sparkles, Swords, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getFaceitTeamsByIds, type FaceitTeam } from "@/lib/faceit";
 import { listRegisteredFaceitTeamIds } from "@/lib/profiles";
-import { listPublicTeams } from "@/lib/teams";
+import { getCurrentProfile } from "@/lib/profiles";
+import { listPublicTeams, getTeamsForProfile } from "@/lib/teams";
+import { getTeamMode, TEAM_MODE_LIST } from "@/lib/team-modes";
 import type { Team } from "@/types";
 
 interface TeamsCatalogPageProps {
@@ -146,6 +148,181 @@ function BluestrikeFeaturedCard({ team }: { team: Team }) {
   );
 }
 
+function TeamModeChip({ team }: { team: Team }) {
+  const mode = getTeamMode(team.teamMode);
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[10px] font-black leading-none text-[var(--primary)]">
+      {mode.label}
+    </span>
+  );
+}
+
+/** Vagas do elenco como slots — leitura rápida de quem já fechou a line. */
+function RosterSlots({ team }: { team: Team }) {
+  const mode = getTeamMode(team.teamMode);
+  const filled = team.members?.length ?? 0;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1" aria-hidden="true">
+        {Array.from({ length: mode.maxMembers }).map((_, index) => (
+          <span
+            key={index}
+            className={
+              index < filled
+                ? index < mode.playersPerTeam
+                  ? "h-1.5 w-4 rounded-full bg-[var(--primary)]"
+                  : "h-1.5 w-4 rounded-full bg-[var(--primary)]/40"
+                : "h-1.5 w-4 rounded-full bg-[var(--border)]"
+            }
+          />
+        ))}
+      </div>
+      <span className="font-mono text-[10px] font-bold text-[var(--muted-foreground)]">
+        {filled}/{mode.maxMembers}
+      </span>
+    </div>
+  );
+}
+
+function MyTeamCard({ team, isCaptain }: { team: Team; isCaptain: boolean }) {
+  const mode = getTeamMode(team.teamMode);
+  const filled = team.members?.length ?? 0;
+  const readyToCompete = filled >= mode.playersPerTeam;
+
+  return (
+    <Link className="group block" href={`/teams/${team.slug}`}>
+      <div className="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 transition-all hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/[0.04]">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)]/20 bg-gradient-to-br from-cyan-950 to-slate-900 text-xs font-black text-[var(--primary)]">
+          {team.tag}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-black transition-colors group-hover:text-[var(--primary)]">
+              {team.name}
+            </span>
+            <TeamModeChip team={team} />
+            {isCaptain && (
+              <Crown className="h-3.5 w-3.5 shrink-0 text-[#f5c842]" aria-label="Você é o capitão" />
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <RosterSlots team={team} />
+            <span
+              className={
+                readyToCompete
+                  ? "text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-400"
+                  : "text-[10px] font-bold uppercase tracking-[0.12em] text-orange-400"
+              }
+            >
+              {readyToCompete
+                ? "Pronto para competir"
+                : `Faltam ${mode.playersPerTeam - filled}`}
+            </span>
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <div className="font-mono text-base font-black text-[var(--primary)]">{team.elo}</div>
+          <div className="text-[10px] text-[var(--muted-foreground)]">{team.wins}V {team.losses}D</div>
+        </div>
+
+        <ArrowRight className="h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-all group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" />
+      </div>
+    </Link>
+  );
+}
+
+function MyTeamsPanel({
+  teams,
+  currentProfileId,
+}: {
+  teams: Team[];
+  currentProfileId: string | null;
+}) {
+  const usedModes = new Set(teams.map((team) => team.teamMode));
+  const missingModes = TEAM_MODE_LIST.filter((mode) => !usedModes.has(mode.id));
+
+  return (
+    <section className="bg-[var(--background)] p-5 sm:p-7">
+      <div className="flex min-h-28 items-start justify-between gap-4">
+        <div>
+          <p className="bs-eyebrow"><Swords className="h-4 w-4" /> Minha área</p>
+          <h2 className="mt-3 text-2xl font-black tracking-tight">Meus times</h2>
+          <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
+            Uma line por modalidade: 1x1, 2x2, 3x3, 4x4 e 5x5 correm em paralelo.
+          </p>
+        </div>
+        {teams.length > 0 && (
+          <span className="shrink-0 rounded-full border border-[var(--primary)]/25 bg-[var(--primary)]/8 px-3 py-1.5 text-xs font-black text-[var(--primary)]">
+            {teams.length} {teams.length === 1 ? "time" : "times"}
+          </span>
+        )}
+      </div>
+
+      {!currentProfileId ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-[var(--primary)]/20 px-6 py-14 text-center">
+          <KeyRound className="mx-auto h-9 w-9 text-[var(--primary)]/45" />
+          <h3 className="mt-4 font-black">Entre para ver seus times</h3>
+          <p className="mx-auto mt-2 max-w-xs text-sm text-[var(--muted-foreground)]">
+            Faça login com a Steam para criar lines, receber convites e inscrever seu time nos campeonatos.
+          </p>
+          <Button asChild className="mt-5" variant="gradient">
+            <Link href="/auth/login?next=/teams">Entrar com a Steam</Link>
+          </Button>
+        </div>
+      ) : teams.length === 0 ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-[var(--primary)]/20 px-6 py-14 text-center">
+          <Shield className="mx-auto h-9 w-9 text-[var(--primary)]/45" />
+          <h3 className="mt-4 font-black">Você ainda não tem time</h3>
+          <p className="mx-auto mt-2 max-w-xs text-sm text-[var(--muted-foreground)]">
+            Crie a sua line ou entre em uma equipe com um código de convite para disputar campeonatos.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button asChild variant="gradient">
+              <Link href="/teams/create"><Plus className="h-4 w-4" /> Criar time</Link>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 space-y-3">
+            {teams.map((team) => (
+              <MyTeamCard
+                key={team.id}
+                team={team}
+                isCaptain={team.captainId === currentProfileId}
+              />
+            ))}
+          </div>
+
+          {missingModes.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--secondary)]/30 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                Modalidades sem time
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {missingModes.map((mode) => (
+                  <Link
+                    key={mode.id}
+                    href={`/teams/create?mode=${mode.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-black transition-colors hover:border-[var(--primary)]/45 hover:text-[var(--primary)]"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {mode.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function FaceitTeamCard({ team }: { team: FaceitTeam }) {
   return (
     <a
@@ -220,10 +397,21 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
   const bluestrikeQuery = readSearchParam(query.q).trim();
   const faceitQuery = readSearchParam(query.faceitQ).trim();
 
-  const [teamList, registeredFaceitTeamIds] = await Promise.all([
+  const currentProfile = await getCurrentProfile();
+
+  const [teamList, registeredFaceitTeamIds, myTeams] = await Promise.all([
     listPublicTeams({ query: bluestrikeQuery, page }),
     listRegisteredFaceitTeamIds(120),
+    currentProfile ? getTeamsForProfile(currentProfile.id) : Promise.resolve([]),
   ]);
+
+  const sortedMyTeams = [...myTeams].sort((a, b) => {
+    const modeDelta =
+      TEAM_MODE_LIST.findIndex((m) => m.id === a.teamMode) -
+      TEAM_MODE_LIST.findIndex((m) => m.id === b.teamMode);
+    if (modeDelta !== 0) return modeDelta;
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
 
   const rawFaceitTeams = await getFaceitTeamsByIds(registeredFaceitTeamIds);
   const faceitTeams = filterFaceitTeams(sortFaceitTeams(rawFaceitTeams), faceitQuery);
@@ -272,17 +460,44 @@ export default async function TeamsCatalogPage({ searchParams }: TeamsCatalogPag
           </div>
         </section>
 
-        {recruitingTeams.length > 0 && (
-          <section className="pb-10" id="bluestrike">
-            <div className="mb-5 flex items-end justify-between gap-4">
-              <div><p className="bs-eyebrow"><Sparkles className="h-4 w-4" /> Recrutando</p><h2 className="mt-2 text-2xl font-black tracking-tight">Times em destaque</h2></div>
-              <span className="text-xs text-[var(--muted-foreground)]">Vagas abertas agora</span>
+        {/* Meia tela para os meus times, meia para quem está recrutando */}
+        <div
+          className="mb-10 grid overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--border)] lg:grid-cols-2 lg:gap-px"
+          data-reveal
+        >
+          <MyTeamsPanel teams={sortedMyTeams} currentProfileId={currentProfile?.id ?? null} />
+
+          <section className="border-t border-[var(--border)] bg-[var(--background)] p-5 sm:p-7 lg:border-l lg:border-t-0" id="recrutando">
+            <div className="flex min-h-28 items-start justify-between gap-4">
+              <div>
+                <p className="bs-eyebrow"><Sparkles className="h-4 w-4" /> Recrutando</p>
+                <h2 className="mt-3 text-2xl font-black tracking-tight">Times com vaga aberta</h2>
+                <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
+                  Lines que ainda não fecharam o elenco e estão aceitando reforço agora.
+                </p>
+              </div>
+              {recruitingTeams.length > 0 && (
+                <span className="shrink-0 rounded-full border border-emerald-500/25 bg-emerald-500/8 px-3 py-1.5 text-xs font-black text-emerald-400">
+                  {teamList.recruitingCount} abertos
+                </span>
+              )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {recruitingTeams.map((team) => <BluestrikeFeaturedCard key={team.id} team={team} />)}
-            </div>
+
+            {recruitingTeams.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-[var(--border)] px-6 py-14 text-center">
+                <Users className="mx-auto h-9 w-9 text-[var(--muted-foreground)]/50" />
+                <h3 className="mt-4 font-black">Nenhuma vaga aberta agora</h3>
+                <p className="mx-auto mt-2 max-w-xs text-sm text-[var(--muted-foreground)]">
+                  Todos os times ativos estão com o elenco fechado. Crie o seu e chame a sua line.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {recruitingTeams.map((team) => <BluestrikeFeaturedCard key={team.id} team={team} />)}
+              </div>
+            )}
           </section>
-        )}
+        </div>
 
         <div className="grid overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--border)] lg:grid-cols-2 lg:gap-px" data-reveal>
           <section className="bg-[var(--background)] p-5 sm:p-7" id="bluestrike">
