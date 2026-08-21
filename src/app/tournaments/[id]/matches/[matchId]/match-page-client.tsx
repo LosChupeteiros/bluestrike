@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
   Trophy, Crown, Swords, Clock, Check, Copy, Wifi,
@@ -1300,7 +1300,16 @@ export default function MatchPageClient({
   const [reloadingStats, setReloadingStats] = useState(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [showReloadButton, setShowReloadButton] = useState(false);
-  const [selectedMapNumber, setSelectedMapNumber] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+  // `?map=N` vem dos links do perfil: cada mapa da série aponta para a mesma
+  // partida já com o mapa certo aberto.
+  const requestedMap = (() => {
+    const raw = searchParams.get("map");
+    if (raw === null) return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isInteger(parsed) ? parsed : null;
+  })();
+  const [selectedMapNumber, setSelectedMapNumber] = useState<number | null>(requestedMap);
 
   const effectiveStatus = poll?.status ?? match.status;
   const effectiveReadyTeam1 = poll?.readyTeam1 ?? match.readyTeam1;
@@ -1424,6 +1433,15 @@ export default function MatchPageClient({
     if (!isFinished || selectedMapNumber !== null || detail.matchMaps.length === 0) return;
     setSelectedMapNumber(detail.matchMaps[0].mapOrder);
   }, [detail.matchMaps, isFinished, selectedMapNumber]);
+
+  // Rola até o scoreboard quando o usuário chega por um link de mapa específico.
+  const scrolledToMapRef = useRef(false);
+  useEffect(() => {
+    if (requestedMap === null || scrolledToMapRef.current || !isFinished) return;
+    scrolledToMapRef.current = true;
+    const node = document.getElementById("scoreboard");
+    if (node) node.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [requestedMap, isFinished]);
 
   return (
     <div className="space-y-5">
@@ -1631,7 +1649,7 @@ export default function MatchPageClient({
         const t2Won = match.winnerId === match.team2Id;
         const mapScore = selectedMap;
         return (
-          <div className="space-y-4">
+          <div className="scroll-mt-28 space-y-4" id="scoreboard">
             {/* ── Seletor de mapas da série ── */}
             {mapOptions.length > 1 && (
               <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">

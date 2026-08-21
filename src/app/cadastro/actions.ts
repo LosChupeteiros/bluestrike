@@ -21,6 +21,8 @@ export async function saveProfile(
     // Zod v4 rejects for z.string().optional() fields.
     const rawBio = formData.get("bio");
     const rawInGameRole = formData.get("inGameRole");
+    const rawPixKeyType = formData.get("pixKeyType");
+    const rawPixKey = formData.get("pixKey");
 
     const input = {
       fullName: formData.get("fullName")?.toString() ?? "",
@@ -28,6 +30,10 @@ export async function saveProfile(
       phone: formData.get("phone")?.toString() ?? "",
       birthDate: formData.get("birthDate")?.toString() ?? "",
       email: formData.get("email")?.toString() ?? "",
+      ...(rawPixKeyType != null && rawPixKeyType.toString()
+        ? { pixKeyType: rawPixKeyType.toString() }
+        : {}),
+      ...(rawPixKey != null ? { pixKey: rawPixKey.toString() } : {}),
       ...(rawBio != null ? { bio: rawBio.toString() } : {}),
       ...(rawInGameRole != null ? { inGameRole: rawInGameRole.toString() } : {}),
     } as ProfileUpdateInput; // runtime shape matches what profileUpdateSchema.parse() accepts

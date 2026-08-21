@@ -29,7 +29,6 @@ import {
   calculateProfileCompletion,
   getEloBand,
   getMissingRequiredFields,
-  getProfileAge,
   roleLabel,
   type UserProfile,
 } from "@/lib/profile";
@@ -56,6 +55,8 @@ interface ProfileShellViewProps {
   defaultEditOpen: boolean;
   showWelcome: boolean;
   showCompletionAlert: boolean;
+  /** Idade calculada no servidor — a data de nascimento não é enviada ao cliente */
+  publicAge: number | null;
   showTeamCreatedNotice: boolean;
   showTeamDeletedNotice: boolean;
   faceitRankingPosition?: number | null;
@@ -71,6 +72,7 @@ export default function ProfileShellView({
   defaultEditOpen,
   showWelcome,
   showCompletionAlert,
+  publicAge,
   showTeamCreatedNotice,
   showTeamDeletedNotice,
   faceitRankingPosition,
@@ -149,7 +151,7 @@ export default function ProfileShellView({
   );
 
   const completion = calculateProfileCompletion(profile);
-  const age = getProfileAge(profile.birthDate);
+  const age = publicAge;
   const currentBand = getEloBand(profile.elo);
   const playerRank = getPlayerRank(profile.elo);
   const missingFields = getMissingRequiredFields(profile);
@@ -324,13 +326,17 @@ export default function ProfileShellView({
                   {recentMatches.length > 0 ? (
                     <div className="overflow-hidden rounded-[1.4rem] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-sm)]">
                     {visibleRecentMatches.map((match) => {
+                      // Todos os mapas da série levam para a mesma partida,
+                      // já com o mapa daquela linha selecionado.
+                      const mapQuery = match.mapNumber !== null ? `?map=${match.mapNumber}` : "";
                       const href = match.tournamentId
-                        ? `/tournaments/${match.tournamentId}/matches/${match.matchId}`
+                        ? `/tournaments/${match.tournamentId}/matches/${match.matchId}${mapQuery}`
                         : `/matches/${match.matchId}`;
                       const isFinished = match.status === "finished";
+                      const isSeries = match.seriesMapCount > 1;
                       const didWin = match.eloDelta !== null ? match.eloDelta > 0 : match.isWinner;
                       return (
-                        <Link key={match.matchId} href={href} className="group block border-b border-[var(--border)] last:border-b-0">
+                        <Link key={`${match.matchId}-${match.mapNumber ?? 0}`} href={href} className="group block border-b border-[var(--border)] last:border-b-0">
                           <div className="flex min-h-[4.5rem] items-center gap-3 px-4 py-3.5 transition-colors duration-300 hover:bg-[var(--primary)]/[0.04]">
                             {/* Result indicator */}
                             {/* Faixa de resultado */}
@@ -358,6 +364,14 @@ export default function ProfileShellView({
                                 <span className="truncate font-mono text-[13px] font-bold transition-colors group-hover:text-[var(--primary)]">
                                   {match.team1Tag} <span className="text-[var(--muted-foreground)]">vs</span> {match.team2Tag}
                                 </span>
+                                {isSeries && (
+                                  <span
+                                    className="shrink-0 rounded bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[10px] font-black tabular-nums text-[var(--primary)]"
+                                    title="Placar da série (mapas vencidos)"
+                                  >
+                                    {match.seriesTeam1Score}–{match.seriesTeam2Score}
+                                  </span>
+                                )}
                                 {match.eloDelta !== null && (
                                   <span
                                     className={cn(
@@ -373,6 +387,14 @@ export default function ProfileShellView({
                               </div>
 
                               <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                                {isSeries && (
+                                  <>
+                                    <span className="shrink-0 rounded bg-[var(--secondary)] px-1.5 py-0.5 font-mono text-[9px] font-black text-[var(--foreground)]/75">
+                                      MAPA {match.mapPosition}/{match.seriesMapCount}
+                                    </span>
+                                    <span aria-hidden="true">·</span>
+                                  </>
+                                )}
                                 {match.mapName && (
                                   <span className="shrink-0 font-medium text-[var(--foreground)]/65">
                                     {getMapLabel(match.mapName)}

@@ -2,12 +2,12 @@
 
 import { useActionState, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ShieldCheck } from "lucide-react";
+import { Banknote, ChevronLeft, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatCpf, formatPhone, type UserProfile } from "@/lib/profile";
+import { formatCpf, formatPhone, PIX_KEY_TYPES, type PixKeyType, type UserProfile } from "@/lib/profile";
 import { saveProfile } from "./actions";
 
 interface CadastroFormProps {
@@ -51,6 +51,15 @@ export default function CadastroForm({ profile, isWelcome }: CadastroFormProps) 
   const [phoneDigits, setPhoneDigits] = useState((profile.phone ?? "").replace(/\D/g, "").slice(0, 11));
   const [birthDate, setBirthDate] = useState(profile.birthDate ?? "");
   const [email, setEmail] = useState(profile.email ?? "");
+  const [pixKeyType, setPixKeyType] = useState<PixKeyType | null>(profile.pixKeyType);
+  const [pixKey, setPixKey] = useState(profile.pixKeyType === "random" ? (profile.pixKey ?? "") : "");
+
+  // CPF/celular/e-mail reaproveitam o que já está no cadastro
+  const derivedPixKey =
+    pixKeyType === "cpf" ? cpfDigits
+    : pixKeyType === "phone" ? phoneDigits
+    : pixKeyType === "email" ? email.trim()
+    : "";
 
   const formattedCpf = useMemo(() => formatCpf(cpfDigits), [cpfDigits]);
   const formattedPhone = useMemo(() => formatPhone(phoneDigits), [phoneDigits]);
@@ -226,6 +235,69 @@ export default function CadastroForm({ profile, isWelcome }: CadastroFormProps) 
               />
               <input type="hidden" name="phone" value={phoneDigits} />
             </div>
+          </div>
+
+
+          {/* ── Chave PIX (premiação) ── */}
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--secondary)]/25 p-4 sm:p-5">
+            <div className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#f5c842]">
+              <Banknote className="h-3.5 w-3.5" aria-hidden="true" />
+              Chave PIX
+            </div>
+            <p className="mb-4 text-xs leading-relaxed text-[var(--muted-foreground)]">
+              É por aqui que a premiação cai quando seu time vence. Visível só para você e para a
+              organização — nunca aparece no seu perfil público.
+            </p>
+
+            <div
+              role="radiogroup"
+              aria-label="Tipo de chave PIX"
+              className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4"
+            >
+              {PIX_KEY_TYPES.map((option) => {
+                const isActive = pixKeyType === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    onClick={() => setPixKeyType(isActive ? null : option.value)}
+                    className={`flex min-h-11 flex-col items-center justify-center rounded-xl border px-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/45 ${
+                      isActive
+                        ? "border-[#f5c842]/55 bg-[#f5c842]/10 text-[#f5c842]"
+                        : "border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:border-[#f5c842]/35 hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    <span className="text-xs font-black leading-none">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <input type="hidden" name="pixKeyType" value={pixKeyType ?? ""} />
+
+            {pixKeyType === "random" ? (
+              <Input
+                name="pixKey"
+                value={pixKey}
+                onChange={(event) => setPixKey(event.target.value)}
+                placeholder="Cole a chave aleatória do seu banco"
+                autoComplete="off"
+                maxLength={140}
+              />
+            ) : (
+              <>
+                <input type="hidden" name="pixKey" value={derivedPixKey} />
+                <p className="rounded-xl border border-[var(--border)] bg-black/20 px-4 py-3 text-xs text-[var(--muted-foreground)]">
+                  {pixKeyType
+                    ? derivedPixKey
+                      ? `Vamos usar ${PIX_KEY_TYPES.find((o) => o.value === pixKeyType)?.label.toLowerCase()} do cadastro acima.`
+                      : "Preencha o campo correspondente acima para usar essa chave."
+                    : "Escolha um tipo de chave para receber a premiação."}
+                </p>
+              </>
+            )}
           </div>
 
           {errorMessage && (

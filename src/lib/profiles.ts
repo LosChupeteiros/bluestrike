@@ -11,6 +11,7 @@ import {
 import { getFaceitTeams, type FaceitTeam } from "@/lib/faceit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { normalizeSteamAvatarUrl } from "@/lib/steam-avatar";
+import { toPublicProfile } from "@/lib/profile";
 
 export interface ProfileRow {
   id: string;
@@ -24,6 +25,8 @@ export interface ProfileRow {
   full_name: string | null;
   cpf: string | null;
   phone: string | null;
+  pix_key_type: import("@/lib/profile").PixKeyType | null;
+  pix_key: string | null;
   birth_date: string | null;
   email: string | null;
   bio: string | null;
@@ -58,6 +61,8 @@ export function mapProfileRow(row: ProfileRow): UserProfile {
     elo: row.elo ?? 1000,
     fullName: row.full_name,
     cpf: row.cpf,
+    pixKeyType: row.pix_key_type ?? null,
+    pixKey: row.pix_key ?? null,
     phone: row.phone,
     birthDate: row.birth_date,
     email: row.email,
@@ -194,6 +199,8 @@ export async function updateProfile(profileId: string, input: ProfileUpdateInput
     .update({
       full_name: parsedInput.fullName,
       cpf: parsedInput.cpf,
+      pix_key_type: parsedInput.pixKeyType,
+      pix_key: parsedInput.pixKey,
       phone: parsedInput.phone,
       birth_date: parsedInput.birthDate,
       email: parsedInput.email,
@@ -290,7 +297,8 @@ export async function listPublicProfiles(options: PlayersListOptions = {}) {
     throw new Error(`Falha ao listar jogadores: ${error.message}`);
   }
 
-  const profiles = (data ?? []).map(mapProfileRow);
+  // Catálogo público: nenhum dado pessoal sai daqui.
+  const profiles = (data ?? []).map((row) => toPublicProfile(mapProfileRow(row)));
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 

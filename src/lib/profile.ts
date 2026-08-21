@@ -56,6 +56,15 @@ export const IN_GAME_ROLES: Array<{
   },
 ];
 
+export type PixKeyType = "cpf" | "phone" | "email" | "random";
+
+export const PIX_KEY_TYPES: Array<{ value: PixKeyType; label: string; hint: string }> = [
+  { value: "cpf", label: "CPF", hint: "Usa o CPF do seu cadastro" },
+  { value: "phone", label: "Celular", hint: "Usa o celular do seu cadastro" },
+  { value: "email", label: "E-mail", hint: "Usa o e-mail do seu cadastro" },
+  { value: "random", label: "Chave aleatória", hint: "Chave EVP gerada pelo banco" },
+];
+
 export interface UserProfile {
   id: string;
   publicId: number;
@@ -70,6 +79,9 @@ export interface UserProfile {
   phone: string | null;
   birthDate: string | null;
   email: string | null;
+  /** Chave PIX para receber premiação — dado pessoal, nunca público */
+  pixKeyType: PixKeyType | null;
+  pixKey: string | null;
   bio: string | null;
   inGameRole: InGameRole | null;
   isAdmin: boolean;
@@ -89,6 +101,33 @@ export interface UserProfile {
   faceitWinRate: number | null;
   faceitHsRate: number | null;
   faceitStatsSyncedAt: string | null;
+}
+
+/**
+ * Campos pessoais que NUNCA podem sair do servidor para alguém que não seja o
+ * próprio dono do perfil. A página pública é um client component, então tudo
+ * que é passado como prop vai parar no HTML — inclusive para visitante anônimo.
+ */
+export const PRIVATE_PROFILE_FIELDS = [
+  "cpf",
+  "phone",
+  "birthDate",
+  "email",
+  "pixKey",
+  "pixKeyType",
+] as const satisfies ReadonlyArray<keyof UserProfile>;
+
+/** Remove dados pessoais antes de enviar o perfil para o cliente. */
+export function toPublicProfile(profile: UserProfile): UserProfile {
+  return {
+    ...profile,
+    cpf: null,
+    phone: null,
+    birthDate: null,
+    email: null,
+    pixKey: null,
+    pixKeyType: null,
+  };
 }
 
 export const REQUIRED_PROFILE_FIELDS = [
@@ -363,6 +402,17 @@ export const profileUpdateSchema = z.object({
     .min(1, "Informe seu e-mail.")
     .email("E-mail inválido.")
     .max(254, "E-mail muito longo."),
+  pixKeyType: z
+    .enum(["cpf", "phone", "email", "random"])
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+  pixKey: z
+    .string()
+    .trim()
+    .max(140, "Chave PIX muito longa.")
+    .optional()
+    .transform((value) => value || null),
   bio: z
     .string()
     .trim()
@@ -379,6 +429,17 @@ export const profileUpdateSchema = z.object({
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
 
 export const profileBioSchema = z.object({
+  pixKeyType: z
+    .enum(["cpf", "phone", "email", "random"])
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+  pixKey: z
+    .string()
+    .trim()
+    .max(140, "Chave PIX muito longa.")
+    .optional()
+    .transform((value) => value || null),
   bio: z
     .string()
     .trim()

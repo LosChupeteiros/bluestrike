@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Check, ShieldCheck, Trophy, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Lock, ShieldCheck, Trophy, Zap } from "lucide-react";
 import type { Metadata } from "next";
 import { sanitizeNextPath } from "@/lib/auth/steam";
 import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
@@ -70,7 +70,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 Campeonatos de CS2, ELO, times e premiações em PIX reunidos em uma única identidade competitiva.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                {["Conta Steam verificada", "Anti-cheat integrado", "Histórico competitivo"].map((item) => (
+                {["Conta Steam verificada", "1x1 até 5x5", "Premiação em PIX"].map((item) => (
                   <span key={item} className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/28 px-3 py-2 text-xs text-white/76 backdrop-blur-md">
                     <Check className="h-3.5 w-3.5 text-green-400" /> {item}
                   </span>
@@ -95,24 +95,48 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 <a href={steamLoginHref} className="flex h-14 w-full items-center justify-center gap-3 rounded-full border border-[#5f7d99]/42 bg-[#1b2838] text-sm font-bold text-white shadow-[0_14px_34px_rgba(13,26,40,.26)] transition-[transform,background-color,border-color] duration-300 hover:-translate-y-0.5 hover:border-[#78a7cf]/58 hover:bg-[#25384b] active:translate-y-0">
                   <SteamIcon /> Entrar com Steam
                 </a>
-                <button type="button" disabled className="flex h-12 w-full cursor-not-allowed items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]/38 text-sm font-semibold text-[var(--muted-foreground)] opacity-55">
-                  Outras formas de acesso em breve
-                </button>
+                <p className="text-center text-xs leading-5 text-[var(--muted-foreground)]">
+                  A Steam é o único login: é ela que garante que a SteamID do servidor é a mesma
+                  do perfil aqui.
+                </p>
               </div>
 
-              <div className="mt-7 rounded-2xl border border-[var(--border)] bg-[var(--field)] p-4 shadow-[var(--inset-shadow)]">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]"><ShieldCheck className="h-4 w-4" /></span>
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--foreground)]">Cadastro competitivo protegido</div>
-                    <p className="mt-1.5 text-xs leading-5 text-[var(--muted-foreground)]">Após o primeiro acesso, completamos os dados necessários para liberar seu perfil.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-[var(--muted-foreground)]">
-                <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-green-400" /> Login seguro</span>
-                <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-green-400" /> Sessão protegida</span>
+              <div className="mt-7 space-y-2.5">
+                {[
+                  {
+                    icon: ShieldCheck,
+                    title: "Só a Steam entra em campo",
+                    body: "Nada de senha nova: a autenticação acontece no domínio da Valve e o BlueStrike só recebe a confirmação.",
+                  },
+                  {
+                    icon: Lock,
+                    title: "Seus dados ficam privados",
+                    body: "CPF, celular e chave PIX são usados para inscrição e premiação. Nunca aparecem no seu perfil público.",
+                  },
+                  {
+                    icon: Trophy,
+                    title: "Do 1x1 ao 5x5",
+                    body: "Uma line por modalidade, veto de mapas, servidor dedicado e prêmio pago em PIX.",
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.title}
+                      className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--field)] p-3.5 shadow-[var(--inset-shadow)]"
+                    >
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--foreground)]">
+                          {item.title}
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{item.body}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <p className="mt-7 text-xs leading-5 text-[var(--muted-foreground)]">

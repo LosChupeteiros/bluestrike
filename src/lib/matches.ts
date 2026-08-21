@@ -809,9 +809,19 @@ export interface RecentMatchSummary {
   tournamentName: string;
   team1Tag: string;
   team2Tag: string;
+  /** Placar de rounds do mapa desta linha */
   team1Score: number;
   team2Score: number;
   mapName: string | null;
+  /** Índice do mapa dentro da série (null quando não há stats por mapa) */
+  mapNumber: number | null;
+  /** Posição do mapa na série, começando em 1 */
+  mapPosition: number | null;
+  /** Total de mapas jogados na série — > 1 indica BO3/BO5 */
+  seriesMapCount: number;
+  /** Mapas vencidos por cada lado na série inteira */
+  seriesTeam1Score: number;
+  seriesTeam2Score: number;
   playedAt: string | null;
   status: string;
   isWinner: boolean;
@@ -847,13 +857,14 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
   if (profileData?.steam_id) {
     type RawRecentStatRow = {
       match_id: string;
+      mapnumber: number | null;
       team_name: string | null;
       map_team1_score: number | null;
       map_team2_score: number | null;
       mapname: string | null;
     };
 
-    const statSelect = "match_id, team_name, map_team1_score, map_team2_score, mapname";
+    const statSelect = "match_id, mapnumber, team_name, map_team1_score, map_team2_score, mapname";
     const [steamResult, nameResult] = await Promise.all([
       supabase
         .from("matchzy_player_stats")
@@ -872,20 +883,43 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
     const rawRows = [...(steamResult.data ?? []), ...(nameResult.data ?? [])];
 
     if (rawRows && rawRows.length > 0) {
-      // Deduplicate by match_id
-      const matchIdToData = new Map<string, { teamName: string | null; team1Score: number; team2Score: number; mapname: string | null }>();
+      // Uma linha POR MAPA: numa série BO3 o perfil precisa mostrar os 3 mapas,
+      // não só o primeiro. A chave de dedupe é match + mapnumber.
+      type MapEntry = {
+        matchId: string;
+        mapNumber: number;
+        teamName: string | null;
+        team1Score: number;
+        team2Score: number;
+        mapname: string | null;
+      };
+
+      const mapsByKey = new Map<string, MapEntry>();
       for (const row of rawRows) {
-        if (!matchIdToData.has(row.match_id)) {
-          matchIdToData.set(row.match_id, {
-            teamName: row.team_name,
-            team1Score: row.map_team1_score ?? 0,
-            team2Score: row.map_team2_score ?? 0,
-            mapname: row.mapname,
-          });
-        }
+        const mapNumber = row.mapnumber ?? 0;
+        const key = `${row.match_id}:${mapNumber}`;
+        if (mapsByKey.has(key)) continue;
+        mapsByKey.set(key, {
+          matchId: row.match_id,
+          mapNumber,
+          teamName: row.team_name,
+          team1Score: row.map_team1_score ?? 0,
+          team2Score: row.map_team2_score ?? 0,
+          mapname: row.mapname,
+        });
       }
 
-      const matchIds = [...matchIdToData.keys()];
+      const mapsByMatch = new Map<string, MapEntry[]>();
+      for (const entry of mapsByKey.values()) {
+        const list = mapsByMatch.get(entry.matchId) ?? [];
+        list.push(entry);
+        mapsByMatch.set(entry.matchId, list);
+      }
+      for (const list of mapsByMatch.values()) {
+        list.sort((a, b) => a.mapNumber - b.mapNumber);
+      }
+
+      const matchIds = [...mapsByMatch.keys()];
       const { data: matchRows } = await supabase
         .from("matches")
         .select("id, tournament_id, team1_id, team2_id, winner_id, status, finished_at, started_at")
@@ -919,27 +953,43 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
 
         const eloByMatchId = new Map((eloRows ?? []).map((r) => [r.match_id, r] as const));
 
-        return matchRows.map((m) => {
-          const data = matchIdToData.get(m.id);
-          const myTeamName = data?.teamName ?? null;
+        return matchRows.flatMap((m) => {
+          const maps = mapsByMatch.get(m.id) ?? [];
+          if (maps.length === 0) return [];
+
           const winnerTeam = m.winner_id ? teamMap.get(m.winner_id) : null;
-          const isWinner = Boolean(myTeamName && winnerTeam && myTeamName.toLowerCase() === winnerTeam.name.toLowerCase());
+          const myTeamName = maps[0]?.teamName ?? null;
+          const isWinner = Boolean(
+            myTeamName && winnerTeam && myTeamName.toLowerCase() === winnerTeam.name.toLowerCase()
+          );
           const eloEntry = eloByMatchId.get(m.id);
-          return {
+
+          // Placar da série = mapas vencidos por cada lado
+          const seriesTeam1Score = maps.filter((map) => map.team1Score > map.team2Score).length;
+          const seriesTeam2Score = maps.filter((map) => map.team2Score > map.team1Score).length;
+
+          return maps.map((map, index): RecentMatchSummary => ({
             matchId: m.id,
             tournamentId: m.tournament_id,
             tournamentName: m.tournament_id ? (tournamentMap.get(m.tournament_id) ?? "BlueStrike") : "BlueStrike",
             team1Tag: m.team1_id ? (teamMap.get(m.team1_id)?.tag ?? "???") : "???",
             team2Tag: m.team2_id ? (teamMap.get(m.team2_id)?.tag ?? "???") : "???",
-            team1Score: data?.team1Score ?? 0,
-            team2Score: data?.team2Score ?? 0,
-            mapName: data?.mapname ?? null,
+            team1Score: map.team1Score,
+            team2Score: map.team2Score,
+            mapName: map.mapname,
+            mapNumber: map.mapNumber,
+            mapPosition: index + 1,
+            seriesMapCount: maps.length,
+            seriesTeam1Score,
+            seriesTeam2Score,
             playedAt: m.finished_at ?? m.started_at,
             status: m.status,
             isWinner,
-            eloDelta: eloEntry?.delta ?? null,
-            eloAfter: eloEntry?.elo_after ?? null,
-          };
+            // O ELO é da série inteira: só entra na primeira linha para não
+            // parecer que o jogador ganhou o mesmo delta em cada mapa.
+            eloDelta: index === 0 ? (eloEntry?.delta ?? null) : null,
+            eloAfter: index === 0 ? (eloEntry?.elo_after ?? null) : null,
+          }));
         });
       }
     }
@@ -1014,6 +1064,12 @@ export async function getRecentMatchesForProfile(profileId: string, limit = 10):
       team1Score: mapData?.team1_score ?? 0,
       team2Score: mapData?.team2_score ?? 0,
       mapName: mapData?.map_name ?? null,
+      // Caminho legado (match_player_stats) não tem detalhe por mapa.
+      mapNumber: null,
+      mapPosition: null,
+      seriesMapCount: 1,
+      seriesTeam1Score: mapData?.team1_score ?? 0,
+      seriesTeam2Score: mapData?.team2_score ?? 0,
       playedAt: m.finished_at ?? m.started_at,
       status: m.status,
       isWinner: Boolean(myTeamId && m.winner_id === myTeamId),
