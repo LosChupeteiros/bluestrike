@@ -283,6 +283,7 @@ const mockTeamsByProfileId: Record<number, Team[]> = {
       logoUrl: null,
       bannerUrl: null,
       joinCode: "bsp-mock",
+      hasPassword: false,
       captainId: "mock-profile-1",
       isRecruiting: false,
       elo: 1640,

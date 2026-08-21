@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Radio, Trophy } from "lucide-react";
+import { ArrowRight, Radio, Trophy, Users } from "lucide-react";
 import { listTournaments } from "@/lib/tournaments";
 import { getFaceitChampionships } from "@/lib/faceit";
 
@@ -8,7 +8,7 @@ type Campaign = {
   id: string;
   href: string;
   name: string;
-  status: "open" | "ongoing" | "upcoming" | "finished" | "faceit";
+  status: "open" | "ongoing" | "upcoming" | "faceit";
   statusLabel: string;
   prize: number;
   meta: string;
@@ -16,11 +16,10 @@ type Campaign = {
 };
 
 const statusClass = {
-  open: "border-green-400/25 bg-green-500/15 text-green-300",
-  ongoing: "border-[var(--primary)]/25 bg-[var(--primary)]/15 text-[var(--primary)]",
+  open: "border-green-400/30 bg-green-500/15 text-green-300",
+  ongoing: "border-[var(--primary)]/30 bg-[var(--primary)]/15 text-[var(--primary)]",
   upcoming: "border-white/15 bg-white/10 text-white/70",
-  finished: "border-white/15 bg-white/10 text-white/70",
-  faceit: "border-orange-400/25 bg-orange-500/15 text-orange-300",
+  faceit: "border-orange-400/30 bg-orange-500/15 text-orange-300",
 } as const;
 
 function formatPrize(value: number) {
@@ -42,30 +41,31 @@ export default async function FeaturedTournaments() {
     ]);
 
     campaigns = [
-      ...tournaments.map((t): Campaign => ({
-        id: t.id,
-        href: `/tournaments/${t.id}`,
-        name: t.name,
-        status: t.status,
-        statusLabel:
-          t.status === "open"
-            ? "Inscrições abertas"
-            : t.status === "ongoing"
-              ? "Em andamento"
-              : t.status === "upcoming"
-                ? "Em breve"
-                : "Finalizado",
-        prize: t.prizeTotal,
-        meta:
-          t.status === "open"
-            ? `${t.registeredTeamsCount ?? 0}/${t.maxTeams} vagas`
-            : t.status === "ongoing"
-              ? "Campeonato em disputa"
-              : t.startsAt
-                ? `Início ${new Date(t.startsAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`
-                : "Acompanhe os detalhes",
-        image: t.bannerUrl || "/assets/banner_bluestrike_home.png",
-      })),
+      // Campeonato finalizado sai da vitrine — vai só para a aba de finalizados.
+      ...tournaments
+        .filter((t) => t.status !== "finished")
+        .map((t): Campaign => ({
+          id: t.id,
+          href: `/tournaments/${t.id}`,
+          name: t.name,
+          status: t.status as "open" | "ongoing" | "upcoming",
+          statusLabel:
+            t.status === "open"
+              ? "Inscrições abertas"
+              : t.status === "ongoing"
+                ? "Em andamento"
+                : "Em breve",
+          prize: t.prizeTotal,
+          meta:
+            t.status === "open"
+              ? `${t.registeredTeamsCount ?? 0}/${t.maxTeams} vagas`
+              : t.status === "ongoing"
+                ? "Em disputa"
+                : t.startsAt
+                  ? `Início ${new Date(t.startsAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`
+                  : "Em preparação",
+          image: t.bannerUrl || "/assets/banner_bluestrike_home.png",
+        })),
       ...faceit.map((c): Campaign => ({
         id: `faceit-${c.id}`,
         href: `/tournaments/faceit-${c.id}`,
@@ -78,7 +78,7 @@ export default async function FeaturedTournaments() {
       })),
     ]
       .sort((a, b) => {
-        const order = { open: 0, ongoing: 1, faceit: 2, upcoming: 3, finished: 4 };
+        const order = { open: 0, ongoing: 1, faceit: 2, upcoming: 3 };
         return order[a.status] - order[b.status];
       })
       .slice(0, 3);
@@ -114,41 +114,57 @@ export default async function FeaturedTournaments() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-flow-dense grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {campaigns.map((campaign) => (
             <Link
               key={campaign.id}
               href={campaign.href}
-              className="bs-dark-card group relative min-h-[360px] overflow-hidden text-white transition-transform duration-300 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+              className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-1 hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
             >
-              <Image
-                src={campaign.image}
-                alt=""
-                fill
-                sizes="(max-width: 767px) 100vw, 33vw"
-                className="object-cover opacity-52 transition-[transform,opacity] duration-700 ease-out group-hover:scale-[1.035] group-hover:opacity-70"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/45 to-black" />
-              <div className="relative flex min-h-[360px] flex-col justify-between p-6 sm:p-7">
-                <span className={`w-fit rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.1em] ${statusClass[campaign.status]}`}>
+              {/* Banner encaixado, sem véu escuro por cima */}
+              <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-[#0b0f14]">
+                <Image
+                  src={campaign.image}
+                  alt=""
+                  fill
+                  sizes="(max-width: 767px) 100vw, 33vw"
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                />
+                {/* Só o suficiente para o badge respirar sobre imagens claras */}
+                <span
+                  className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent"
+                  aria-hidden="true"
+                />
+                <span
+                  className={`absolute left-4 top-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.1em] backdrop-blur-sm ${statusClass[campaign.status]}`}
+                >
+                  {campaign.status === "ongoing" && (
+                    <Radio className="mr-1 inline h-3 w-3 animate-pulse" aria-hidden="true" />
+                  )}
                   {campaign.statusLabel}
                 </span>
-                <div className="flex min-h-[12rem] flex-col justify-end">
-                  <h3 className="flex min-h-[4rem] max-w-[17ch] items-end text-2xl font-black uppercase leading-[1.02] tracking-[-0.04em] text-white sm:text-3xl">
-                    {campaign.name}
-                  </h3>
-                  <div className="mt-6 flex items-end justify-between gap-4 border-t border-white/15 pt-4">
-                    <div>
-                      <div className="tabular text-2xl font-black tracking-[-0.04em] text-white">{formatPrize(campaign.prize)}</div>
-                      <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white/45">
-                        Prêmio total no PIX
-                      </div>
+              </div>
+
+              {/* Conteúdo abaixo do risco */}
+              <div className="flex flex-1 flex-col border-t border-[var(--border)] p-5">
+                <h3 className="line-clamp-2 min-h-[2.6rem] text-lg font-black uppercase leading-[1.15] tracking-[-0.03em] transition-colors group-hover:text-[var(--primary)] sm:text-xl">
+                  {campaign.name}
+                </h3>
+
+                <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+                  <div>
+                    <div className="tabular font-mono text-2xl font-black leading-none tracking-[-0.04em] text-[#f5c842]">
+                      {formatPrize(campaign.prize)}
                     </div>
-                    <div className="flex items-center gap-2 text-right text-xs font-medium text-white/70">
-                      {campaign.status === "ongoing" && <Radio className="h-3.5 w-3.5 text-red-400" aria-hidden="true" />}
-                      {campaign.meta}
+                    <div className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-[#f5c842]/60">
+                      Prêmio total no PIX
                     </div>
                   </div>
+
+                  <span className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-black/25 px-2.5 py-1.5 text-[11px] font-bold text-[var(--muted-foreground)]">
+                    <Users className="h-3 w-3" aria-hidden="true" />
+                    {campaign.meta}
+                  </span>
                 </div>
               </div>
             </Link>

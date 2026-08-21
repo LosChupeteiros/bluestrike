@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail, PlayerStat } from "@/lib/matches";
-import { findDeciderMap, getMapLabel, getMapPoolForMode, getVetoSequence, type MapPresentation } from "@/lib/maps";
+import { findDeciderMap, getMapLabel, getMapPoolForMode, getMapPresentation, getVetoSequence, type MapPresentation } from "@/lib/maps";
 import { getTeamMode, type TeamMode } from "@/lib/team-modes";
 import { playReadyOne, playReadyBoth, playVeto, playVetoDone, playServerReady } from "@/lib/sounds";
 
@@ -1112,6 +1112,94 @@ function DeadlinePanel({ teamsAssignedAt }: { teamsAssignedAt: string | null }) 
   );
 }
 
+// ── Reset da partida (admin) ─────────────────────────────────────────────────
+
+function AdminResetPanel({ matchId, currentStatus }: { matchId: string; currentStatus: string }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "ok" | "error"; message: string } | null>(null);
+
+  async function reset() {
+    setLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/matches/${matchId}/reset`, { method: "POST" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setFeedback({ type: "error", message: data.error ?? "Não foi possível resetar." });
+        return;
+      }
+      setConfirming(false);
+      setFeedback({ type: "ok", message: "Partida devolvida ao veto. Servidor e vetos foram limpos." });
+      router.refresh();
+    } catch {
+      setFeedback({ type: "error", message: "Erro de rede ao resetar a partida." });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-orange-500/25 bg-orange-500/[0.04] p-5">
+      <h3 className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-orange-300">
+        <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+        Resetar partida (Admin)
+      </h3>
+      <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+        Volta para o estado logo após o check-in e antes do veto. Apaga vetos, mapas, stats e o
+        servidor provisionado. Status atual:{" "}
+        <span className="font-mono font-bold text-[var(--foreground)]">{currentStatus}</span>.
+      </p>
+
+      {confirming ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={reset}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-orange-500 px-4 text-xs font-black text-black transition-colors hover:brightness-110 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            {loading ? "Resetando..." : "Confirmar reset"}
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => setConfirming(false)}
+            className="inline-flex min-h-10 items-center rounded-xl border border-[var(--border)] px-4 text-xs font-bold text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-orange-500/40 px-4 text-xs font-black text-orange-300 transition-colors hover:bg-orange-500/10"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Voltar para o veto
+        </button>
+      )}
+
+      {feedback && (
+        <p
+          role="status"
+          aria-live="polite"
+          className={`mt-3 rounded-lg border px-3 py-2 text-xs ${
+            feedback.type === "ok"
+              ? "border-green-500/20 bg-green-500/10 text-green-200"
+              : "border-red-500/20 bg-red-500/10 text-red-200"
+          }`}
+        >
+          {feedback.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
 function kd(k: number, d: number) { return (k / Math.max(d, 1)).toFixed(2); }
@@ -1360,7 +1448,7 @@ export default function MatchPageClient({
             </div>
 
             {/* 5-col: [players] [team1] [score/VS] [team2] [players] */}
-            <div className="grid grid-cols-[1fr_72px_1fr] items-center gap-x-2 md:grid-cols-[5fr_7fr_96px_7fr_5fr]">
+            <div className="grid grid-cols-[1fr_minmax(96px,auto)_1fr] items-center gap-x-3 md:grid-cols-[5fr_7fr_minmax(150px,auto)_7fr_5fr] md:gap-x-4">
 
               {/* Col 1 — Team 1 players: avatar → nick, left-aligned */}
               <div className="hidden min-w-0 flex-col gap-1.5 md:flex">
@@ -1410,12 +1498,12 @@ export default function MatchPageClient({
                   <div className="flex flex-col items-center justify-center gap-1">
                     {showScore ? (
                       <div className="flex flex-col items-center gap-1">
-                        <div className="flex items-baseline gap-1.5 tabular-nums">
-                          <span className={`text-4xl font-black leading-none ${dispT1! > dispT2! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-white/52" : "text-white"}`}>
+                        <div className="bs-score-pop flex items-baseline gap-2 tabular-nums sm:gap-3">
+                          <span className={`font-mono text-5xl font-black leading-[0.85] tracking-[-0.05em] sm:text-6xl lg:text-7xl ${dispT1! > dispT2! ? "text-green-400 drop-shadow-[0_0_22px_rgba(74,222,128,0.45)]" : isFinished ? "text-white/45" : "text-white"}`}>
                             {dispT1}
                           </span>
-                          <span className="text-xl font-black text-white/22">:</span>
-                          <span className={`text-4xl font-black leading-none ${dispT2! > dispT1! ? "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.5)]" : isFinished ? "text-white/52" : "text-white"}`}>
+                          <span className="text-2xl font-black text-white/20 sm:text-3xl">:</span>
+                          <span className={`font-mono text-5xl font-black leading-[0.85] tracking-[-0.05em] sm:text-6xl lg:text-7xl ${dispT2! > dispT1! ? "text-green-400 drop-shadow-[0_0_22px_rgba(74,222,128,0.45)]" : isFinished ? "text-white/45" : "text-white"}`}>
                             {dispT2}
                           </span>
                         </div>
@@ -1543,48 +1631,152 @@ export default function MatchPageClient({
         const t2Won = match.winnerId === match.team2Id;
         const mapScore = selectedMap;
         return (
-          <div className="space-y-3">
-            {/* Header com mapa e placar de rounds */}
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-yellow-400" />
-                <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Scoreboard</span>
+          <div className="space-y-4">
+            {/* ── Seletor de mapas da série ── */}
+            {mapOptions.length > 1 && (
+              <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
+                  <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--primary)]">
+                    <Swords className="h-3.5 w-3.5" aria-hidden="true" />
+                    Mapas da série
+                  </span>
+                  <span className="font-mono text-[11px] text-[var(--muted-foreground)]">
+                    {mapOptions.length} {mapOptions.length === 1 ? "mapa" : "mapas"}
+                  </span>
+                </div>
+
+                <div className="grid gap-2 p-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {mapOptions.map((m, index) => {
+                    const active = m.mapOrder === mapScore?.mapOrder;
+                    const presentation = m.mapName ? getMapPresentation(m.mapName) : null;
+                    const t1Won = m.winnerId != null && m.winnerId === match.team1Id;
+                    const t2Won = m.winnerId != null && m.winnerId === match.team2Id;
+
+                    return (
+                      <button
+                        key={m.mapOrder}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setSelectedMapNumber(m.mapOrder)}
+                        className={`group relative flex min-h-[5.5rem] overflow-hidden rounded-xl border text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/50 ${
+                          active
+                            ? "border-[var(--primary)]/60 shadow-[0_0_22px_color-mix(in_srgb,var(--primary)_14%,transparent)]"
+                            : "border-[var(--border)] hover:border-[var(--primary)]/35"
+                        }`}
+                      >
+                        {/* Arte do mapa como fundo */}
+                        {presentation && (
+                          <Image
+                            src={presentation.localImage}
+                            alt=""
+                            fill
+                            sizes="240px"
+                            className={`object-cover transition-[opacity,transform] duration-500 ${
+                              active ? "opacity-40 scale-[1.03]" : "opacity-18 group-hover:opacity-30"
+                            }`}
+                          />
+                        )}
+                        <span
+                          className={`absolute inset-0 transition-colors ${
+                            active
+                              ? "bg-gradient-to-r from-[var(--card)] via-[var(--card)]/75 to-[var(--card)]/35"
+                              : "bg-gradient-to-r from-[var(--card)] via-[var(--card)]/88 to-[var(--card)]/60"
+                          }`}
+                          aria-hidden="true"
+                        />
+
+                        <span className="relative flex w-full items-center gap-3 px-3.5 py-3">
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-black transition-colors ${
+                              active
+                                ? "bg-[var(--primary)] text-black"
+                                : "bg-[var(--secondary)] text-[var(--muted-foreground)]"
+                            }`}
+                          >
+                            {index + 1}
+                          </span>
+
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={`block truncate text-sm font-black transition-colors ${
+                                active ? "text-[var(--primary)]" : "text-[var(--foreground)]"
+                              }`}
+                            >
+                              {getMapLabel(m.mapName)}
+                            </span>
+                            <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                              Mapa {index + 1}
+                            </span>
+                          </span>
+
+                          {m.team1Score !== null && m.team2Score !== null && (
+                            <span className="shrink-0 font-mono text-base font-black tabular-nums">
+                              <span className={t1Won ? "text-emerald-400" : "text-[var(--muted-foreground)]"}>
+                                {m.team1Score}
+                              </span>
+                              <span className="mx-0.5 text-[var(--muted-foreground)]/40">:</span>
+                              <span className={t2Won ? "text-emerald-400" : "text-[var(--muted-foreground)]"}>
+                                {m.team2Score}
+                              </span>
+                            </span>
+                          )}
+                        </span>
+
+                        {/* Indicador do mapa ativo */}
+                        <span
+                          className={`absolute inset-x-0 bottom-0 h-0.5 origin-left bg-[var(--primary)] transition-transform duration-300 ${
+                            active ? "scale-x-100" : "scale-x-0"
+                          }`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ── Cabeçalho do scoreboard ── */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <Trophy className="h-4 w-4 text-[#f5c842]" aria-hidden="true" />
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  Scoreboard
+                </span>
                 {mapScore?.mapName && (
-                  <span className="rounded bg-[var(--secondary)] px-2 py-0.5 text-[10px] font-mono text-[var(--muted-foreground)]">
+                  <span className="rounded-md border border-[var(--border)] bg-[var(--secondary)] px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--foreground)]">
                     {getMapLabel(mapScore.mapName)}
                   </span>
                 )}
               </div>
+
               {mapScore && mapScore.team1Score !== null && mapScore.team2Score !== null && (
-                <span className="text-xs font-black tabular-nums text-[var(--muted-foreground)]">
-                  <span className={mapScore.winnerId === match.team1Id ? "text-green-400" : ""}>{mapScore.team1Score}</span>
-                  {" : "}
-                  <span className={mapScore.winnerId === match.team2Id ? "text-green-400" : ""}>{mapScore.team2Score}</span>
+                <span className="flex items-baseline gap-2 font-mono tabular-nums">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                    {t1Tag}
+                  </span>
+                  <span
+                    className={`text-2xl font-black leading-none ${
+                      mapScore.winnerId === match.team1Id ? "text-emerald-400" : "text-[var(--foreground)]"
+                    }`}
+                  >
+                    {mapScore.team1Score}
+                  </span>
+                  <span className="text-sm font-black text-[var(--muted-foreground)]/40">:</span>
+                  <span
+                    className={`text-2xl font-black leading-none ${
+                      mapScore.winnerId === match.team2Id ? "text-emerald-400" : "text-[var(--foreground)]"
+                    }`}
+                  >
+                    {mapScore.team2Score}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                    {t2Tag}
+                  </span>
                 </span>
               )}
             </div>
-            {mapOptions.length > 1 && (
-              <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1">
-                {mapOptions.map((m, index) => {
-                  const active = m.mapOrder === mapScore?.mapOrder;
-                  return (
-                    <button
-                      key={m.mapOrder}
-                      type="button"
-                      onClick={() => setSelectedMapNumber(m.mapOrder)}
-                      className={`rounded-lg px-3 py-1.5 text-[10px] font-black transition-colors ${
-                        active
-                          ? "bg-[var(--primary)] text-black"
-                          : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
-                      }`}
-                    >
-                      Mapa {index + 1}
-                      {m.mapName ? ` · ${getMapLabel(m.mapName)}` : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+
             {statsForBoard.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 <ScoreboardTeam players={t1Stats} teamTag={t1Tag} teamName={t1Name} isWinner={t1Won} mvpSteamId={mvpSteamId} onOpenProfile={(href) => router.push(href)} />
@@ -1660,6 +1852,10 @@ export default function MatchPageClient({
             team1={{ id: match.team1Id, name: t1Name }}
             team2={{ id: match.team2Id, name: t2Name }} />
         </div>
+      )}
+
+      {isAdmin && match.team1Id && match.team2Id && (
+        <AdminResetPanel matchId={match.id} currentStatus={effectiveStatus} />
       )}
 
       {/* ── Admin Dathost console ── */}

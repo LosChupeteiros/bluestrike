@@ -3,8 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  Search,
-  SlidersHorizontal,
   Sparkles,
   Users,
   Zap,
@@ -19,6 +17,7 @@ import {
 } from "@/lib/profile";
 import { listPublicProfiles } from "@/lib/profiles";
 import { getPlayerRank } from "@/lib/ranks";
+import { LiveSearchInput, LiveSelect } from "@/components/ui/live-filters";
 import FaceitLevelRange from "./faceit-level-range";
 import ViewToggle from "./view-toggle";
 
@@ -264,35 +263,37 @@ export default async function PlayersPage({
         </section>
 
         <section className="py-8" data-reveal>
-          <form action="/players" className="bs-inset grid gap-3 p-3 xl:grid-cols-[minmax(250px,1.5fr)_0.7fr_0.75fr_1.1fr_auto]">
-            <label className="relative min-w-0">
-              <span className="sr-only">Buscar jogador</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-              <input autoComplete="off" className="bs-bento-card h-full min-h-14 w-full rounded-2xl pl-10 pr-4 text-sm outline-none transition focus:border-[var(--primary)]/55" defaultValue={result.query} name="q" placeholder="Buscar nickname ou nome FACEIT..." />
-            </label>
+          <div className="bs-inset grid gap-3 p-3 xl:grid-cols-[minmax(250px,1.6fr)_0.75fr_0.8fr_1.15fr]">
+            <LiveSearchInput
+              param="q"
+              initialValue={result.query}
+              label="Buscar jogador"
+              placeholder="Buscar nickname ou nome FACEIT..."
+              className="[&>input]:min-h-14 [&>input]:h-full"
+            />
 
-            <label className="bs-bento-card rounded-2xl px-4 py-2">
-              <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Função</span>
-              <select className="mt-1 w-full bg-transparent text-sm font-bold outline-none [&>option]:bg-[#0b111b]" defaultValue={role ?? ""} name="role">
-                <option value="">Todas</option>
-                {IN_GAME_ROLES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
-            </label>
+            <LiveSelect
+              param="role"
+              label="Função"
+              value={role ?? ""}
+              options={[
+                { value: "", label: "Todas" },
+                ...IN_GAME_ROLES.map((item) => ({ value: item.value, label: item.label })),
+              ]}
+            />
 
-            <label className="bs-bento-card rounded-2xl px-4 py-2">
-              <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Faixa de ELO</span>
-              <select className="mt-1 w-full bg-transparent text-sm font-bold outline-none [&>option]:bg-[#0b111b]" defaultValue={eloBand} name="elo">
-                <option value="">Qualquer</option>
-                {ELO_BANDS.map((band) => <option key={band.key} value={band.key}>{band.label}</option>)}
-              </select>
-            </label>
+            <LiveSelect
+              param="elo"
+              label="Faixa de ELO"
+              value={eloBand}
+              options={[
+                { value: "", label: "Qualquer" },
+                ...ELO_BANDS.map((band) => ({ value: band.key, label: band.label })),
+              ]}
+            />
 
             <FaceitLevelRange initialMax={faceitMax} initialMin={faceitMin} />
-            {view === "list" && <input name="view" type="hidden" value="list" />}
-            <button className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[var(--primary)] px-5 text-sm font-black text-white shadow-[0_10px_26px_color-mix(in_srgb,var(--primary)_22%,transparent)] transition hover:brightness-110" type="submit">
-              <SlidersHorizontal className="h-4 w-4" /> Aplicar
-            </button>
-          </form>
+          </div>
         </section>
 
         <section>

@@ -240,28 +240,35 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
               </p>
             </div>
 
-            <label className="mb-4 flex cursor-pointer items-center gap-3">
-              <div
-                role="checkbox"
-                aria-checked={usePassword}
-                tabIndex={0}
-                onClick={() => setUsePassword((value) => !value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setUsePassword((value) => !value);
-                  }
-                }}
-                className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
+            {/* Botao inteiro e clicavel — antes so a caixinha respondia ao clique */}
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={usePassword}
+              onClick={() => setUsePassword((value) => !value)}
+              className={`mb-4 flex w-full min-h-12 items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/50 ${
+                usePassword
+                  ? "border-[var(--primary)]/45 bg-[var(--primary)]/[0.07]"
+                  : "border-[var(--border)] bg-[var(--secondary)]/30 hover:border-[var(--primary)]/30"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
                   usePassword
                     ? "border-[var(--primary)] bg-[var(--primary)]"
                     : "border-[var(--border)] bg-transparent"
                 }`}
               >
                 {usePassword && <CheckCircle2 className="h-3 w-3 text-black" />}
-              </div>
-              <span className="text-sm font-medium">Proteger entrada com senha</span>
-            </label>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">Proteger entrada com senha</span>
+                <span className="mt-0.5 block text-xs text-[var(--muted-foreground)]">
+                  Quem receber o link do convite precisa digitar a senha para entrar
+                </span>
+              </span>
+            </button>
 
             {usePassword && (
               <div className="relative">

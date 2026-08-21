@@ -24,6 +24,8 @@ interface TournamentRow {
   status: Tournament["status"];
   format: Tournament["format"];
   team_mode: TeamMode | null;
+  bo_type: 1 | 3 | 5 | null;
+  final_bo_type: 1 | 3 | 5 | null;
   max_teams: number | null;
   min_elo: number | null;
   max_elo: number | null;
@@ -71,6 +73,8 @@ interface CreateTournamentInput {
   maxTeams: number;
   format: Tournament["format"];
   teamMode: TeamMode | string;
+  boType: 1 | 3 | 5;
+  finalBoType: 1 | 3 | 5;
   status: Tournament["status"];
   minElo: number | null;
   maxElo: number | null;
@@ -98,6 +102,8 @@ function mapTournamentRow(row: TournamentRow): Tournament {
     status: row.status,
     format: row.format,
     teamMode: normalizeTeamMode(row.team_mode),
+    boType: row.bo_type ?? 1,
+    finalBoType: row.final_bo_type ?? 3,
     maxTeams: row.max_teams ?? 16,
     minElo: row.min_elo,
     maxElo: row.max_elo,
@@ -158,6 +164,8 @@ function validateTournamentInput(input: CreateTournamentInput) {
   const bannerUrl = cleanString(input.bannerUrl, 500);
   const region = cleanString(input.region, 16) ?? "BR";
   const teamMode = normalizeTeamMode(input.teamMode);
+  const boType = ([1, 3, 5] as const).includes(input.boType) ? input.boType : 1;
+  const finalBoType = ([1, 3, 5] as const).includes(input.finalBoType) ? input.finalBoType : 3;
   const maxTeams = Math.max(2, Math.min(input.maxTeams, 128));
   const prizeTotal = Math.max(0, Math.trunc(input.prizeTotal));
   const entryFee = Math.max(0, Math.trunc(input.entryFee));
@@ -192,6 +200,8 @@ function validateTournamentInput(input: CreateTournamentInput) {
     bannerUrl,
     region,
     teamMode,
+    boType,
+    finalBoType,
     maxTeams,
     prizeTotal,
     entryFee,
@@ -304,6 +314,72 @@ export async function getTournamentById(tournamentId: string) {
   return syncTournamentStatus(withRegistrations);
 }
 
+export interface TeamTournamentEntry {
+  id: string;
+  name: string;
+  bannerUrl: string | null;
+  status: Tournament["status"];
+  teamMode: TeamMode;
+  prizeTotal: number;
+  startsAt: string | null;
+  registrationStatus: TournamentRegistration["status"];
+  registeredAt: string;
+}
+
+/** Campeonatos em que o time está (ou esteve) inscrito — usado no perfil do time. */
+export async function getTournamentsForTeam(teamId: string): Promise<TeamTournamentEntry[]> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: registrations, error } = await supabase
+    .from("tournament_registrations")
+    .select("tournament_id, status, registered_at")
+    .eq("team_id", teamId)
+    .neq("status", "withdrawn")
+    .order("registered_at", { ascending: false })
+    .returns<Array<{ tournament_id: string; status: TournamentRegistration["status"]; registered_at: string }>>();
+
+  if (error) {
+    throw new Error(`Falha ao buscar campeonatos do time: ${error.message}`);
+  }
+
+  const rows = registrations ?? [];
+  if (rows.length === 0) return [];
+
+  const { data: tournaments } = await supabase
+    .from("tournaments")
+    .select("id, name, banner_url, status, team_mode, prize_total, starts_at")
+    .in("id", rows.map((r) => r.tournament_id))
+    .returns<Array<{
+      id: string;
+      name: string;
+      banner_url: string | null;
+      status: Tournament["status"];
+      team_mode: string | null;
+      prize_total: number | null;
+      starts_at: string | null;
+    }>>();
+
+  const byId = new Map((tournaments ?? []).map((t) => [t.id, t]));
+
+  return rows
+    .map((registration) => {
+      const tournament = byId.get(registration.tournament_id);
+      if (!tournament) return null;
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        bannerUrl: tournament.banner_url,
+        status: tournament.status,
+        teamMode: normalizeTeamMode(tournament.team_mode),
+        prizeTotal: tournament.prize_total ?? 0,
+        startsAt: tournament.starts_at,
+        registrationStatus: registration.status,
+        registeredAt: registration.registered_at,
+      } satisfies TeamTournamentEntry;
+    })
+    .filter((entry): entry is TeamTournamentEntry => entry !== null);
+}
+
 export async function createTournament(adminProfile: UserProfile, input: CreateTournamentInput) {
   if (!adminProfile.isAdmin) {
     throw new Error("Apenas administradores podem cadastrar campeonatos.");
@@ -328,6 +404,8 @@ export async function createTournament(adminProfile: UserProfile, input: CreateT
       status: parsed.status,
       format: parsed.format,
       team_mode: parsed.teamMode,
+      bo_type: parsed.boType,
+      final_bo_type: parsed.finalBoType,
       max_teams: parsed.maxTeams,
       min_elo: parsed.minElo,
       max_elo: parsed.maxElo,
@@ -486,7 +564,10 @@ export async function ensureTournamentBracketGenerated(tournament: Tournament): 
   const existing = existingRows ?? [];
   if (existing.some(hasLockedBracketRow)) return false;
 
-  const generated = buildSeededSingleEliminationBracket(seedTeams);
+  const generated = buildSeededSingleEliminationBracket(seedTeams, {
+    boType: tournament.boType,
+    finalBoType: tournament.finalBoType,
+  });
   const expectedMatches = applyByeAdvancementsToDrafts(generated.matches, generated.byeAdvancements);
   if (bracketMatchesExpectedShape(existing, expectedMatches)) return false;
 
@@ -549,7 +630,10 @@ export async function ensureTournamentBracketGeneratedById(tournamentId: string)
   if (generated) return true;
 
   const seedTeams = await getBracketSeedTeams(tournament);
-  const expectedCount = buildSeededSingleEliminationBracket(seedTeams).matches.length;
+  const expectedCount = buildSeededSingleEliminationBracket(seedTeams, {
+    boType: tournament.boType,
+    finalBoType: tournament.finalBoType,
+  }).matches.length;
   const { count } = await createSupabaseAdminClient()
     .from("matches")
     .select("*", { count: "exact", head: true })

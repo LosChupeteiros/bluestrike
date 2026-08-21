@@ -6,9 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   BookOpen,
-  ChevronRight,
+  Crown,
   ExternalLink,
   Gamepad2,
+  Plus,
   Settings,
   ShieldCheck,
   Swords,
@@ -20,7 +21,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileEditModal from "./profile-edit-modal";
 import RankGuideModal from "./rank-guide-modal";
 import FaceitConnectModal from "./faceit-connect-modal";
@@ -31,10 +31,10 @@ import {
   getMissingRequiredFields,
   getProfileAge,
   roleLabel,
-  type InGameRole,
   type UserProfile,
 } from "@/lib/profile";
 import { getMapLabel } from "@/lib/maps";
+import { getTeamMode } from "@/lib/team-modes";
 import { getPlayerRank } from "@/lib/ranks";
 import { cn, formatDate } from "@/lib/utils";
 import type { RecentMatchSummary } from "@/lib/matches";
@@ -56,7 +56,6 @@ interface ProfileShellViewProps {
   defaultEditOpen: boolean;
   showWelcome: boolean;
   showCompletionAlert: boolean;
-  defaultTab: "matches" | "teams";
   showTeamCreatedNotice: boolean;
   showTeamDeletedNotice: boolean;
   faceitRankingPosition?: number | null;
@@ -72,7 +71,6 @@ export default function ProfileShellView({
   defaultEditOpen,
   showWelcome,
   showCompletionAlert,
-  defaultTab,
   showTeamCreatedNotice,
   showTeamDeletedNotice,
   faceitRankingPosition,
@@ -84,8 +82,6 @@ export default function ProfileShellView({
   const [isFaceitModalOpen, setIsFaceitModalOpen] = useState(false);
   const [matchesPage, setMatchesPage] = useState(1);
   const searchParamsString = searchParams.toString();
-  const tabParam = searchParams.get("tab");
-  const activeTab = tabParam === "teams" || tabParam === "matches" ? tabParam : defaultTab;
   const matchesPageSize = 5;
   const matchesTotalPages = Math.max(1, Math.ceil(recentMatches.length / matchesPageSize));
   const visibleRecentMatches = recentMatches.slice((matchesPage - 1) * matchesPageSize, matchesPage * matchesPageSize);
@@ -136,23 +132,6 @@ export default function ProfileShellView({
     if (matchesPage > matchesTotalPages) setMatchesPage(matchesTotalPages);
   }, [matchesPage, matchesTotalPages]);
 
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const tab = value === "teams" ? "teams" : "matches";
-      const nextSearchParams = new URLSearchParams(searchParams.toString());
-
-      if (tab === "matches") {
-        nextSearchParams.delete("tab");
-      } else {
-        nextSearchParams.set("tab", tab);
-      }
-
-      const nextHref = nextSearchParams.toString() ? `${pathname}?${nextSearchParams.toString()}` : pathname;
-      window.history.replaceState(null, "", nextHref);
-    },
-    [pathname, searchParams]
-  );
-
   const updateOverlayParam = useCallback(
     (key: "edit" | "guide", open: boolean) => {
       const nextSearchParams = new URLSearchParams(searchParams.toString());
@@ -175,11 +154,8 @@ export default function ProfileShellView({
   const playerRank = getPlayerRank(profile.elo);
   const missingFields = getMissingRequiredFields(profile);
   const role = roleLabel(profile.inGameRole);
-  const teamsDescription = isOwner
-    ? "Monte sua line, acompanhe seus elencos e abra o hub do time em um clique."
-    : `Veja os times em que ${profile.steamPersonaName} esta vinculado.`;
   const emptyTeamsMessage = isOwner
-    ? "Crie seu time com 5 titulares e 1 substituto opcional para competir no hub."
+    ? "Crie uma line em qualquer modalidade — de 1x1 a 5x5 — para competir no hub."
     : "Este jogador ainda não tem times ativos vinculados ao perfil.";
 
   const openEditor = useCallback(() => {
@@ -330,13 +306,21 @@ export default function ProfileShellView({
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <Tabs value={activeTab} onValueChange={handleTabChange}>
-                <TabsList className="mb-6 border border-[var(--border)] bg-[var(--card)]">
-                  <TabsTrigger value="matches">Ultimas partidas</TabsTrigger>
-                  <TabsTrigger value="teams">Times</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="matches">
+              {/* Metade e metade: partidas de um lado, times do outro */}
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                {/* ── Últimas partidas ── */}
+                <section className="min-w-0 scroll-mt-28" id="partidas">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--primary)]">
+                      <Swords className="h-3.5 w-3.5" aria-hidden="true" />
+                      Últimas partidas
+                    </h2>
+                    {recentMatches.length > 0 && (
+                      <span className="font-mono text-[11px] text-[var(--muted-foreground)]">
+                        {recentMatches.length}
+                      </span>
+                    )}
+                  </div>
                   {recentMatches.length > 0 ? (
                     <div className="overflow-hidden rounded-[1.4rem] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-sm)]">
                     {visibleRecentMatches.map((match) => {
@@ -347,46 +331,73 @@ export default function ProfileShellView({
                       const didWin = match.eloDelta !== null ? match.eloDelta > 0 : match.isWinner;
                       return (
                         <Link key={match.matchId} href={href} className="group block border-b border-[var(--border)] last:border-b-0">
-                          <div className="flex min-h-[5.25rem] items-center gap-4 px-5 py-4 transition-colors duration-300 hover:bg-[var(--secondary)]/45">
+                          <div className="flex min-h-[4.5rem] items-center gap-3 px-4 py-3.5 transition-colors duration-300 hover:bg-[var(--primary)]/[0.04]">
                             {/* Result indicator */}
+                            {/* Faixa de resultado */}
+                            <span
+                              className={cn(
+                                "h-11 w-1 shrink-0 rounded-full",
+                                !isFinished ? "bg-blue-400" : didWin ? "bg-emerald-400" : "bg-red-400"
+                              )}
+                              aria-hidden="true"
+                            />
+
                             <div className={cn(
-                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-xs font-black",
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-black",
                               !isFinished
-                                ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                                ? "bg-blue-500/12 text-blue-400"
                                 : didWin
-                                  ? "border-green-500/30 bg-green-500/10 text-green-400"
-                                  : "border-red-500/30 bg-red-500/10 text-red-400"
+                                  ? "bg-emerald-500/12 text-emerald-400"
+                                  : "bg-red-500/12 text-red-400"
                             )}>
                               {!isFinished ? "AO" : didWin ? "V" : "D"}
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              {/* Score line */}
-                              <div className="flex items-center gap-1.5 font-mono text-sm font-bold transition-colors group-hover:text-[var(--primary)]">
-                                <span>{match.team1Tag}</span>
-                                <span className="text-[var(--muted-foreground)]">{match.team1Score}</span>
-                                <span className="text-[var(--muted-foreground)]">×</span>
-                                <span className="text-[var(--muted-foreground)]">{match.team2Score}</span>
-                                <span>{match.team2Tag}</span>
-                              </div>
-                              {/* Meta */}
-                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted-foreground)]">
-                                {match.mapName && <span className="font-medium text-[var(--foreground)]/70">{getMapLabel(match.mapName)}</span>}
-                                {match.mapName && <span>·</span>}
-                                <span>{match.tournamentName}</span>
-                                {match.playedAt && <><span>·</span><span>{formatDate(match.playedAt)}</span></>}
+                              <div className="flex items-center gap-2">
+                                <span className="truncate font-mono text-[13px] font-bold transition-colors group-hover:text-[var(--primary)]">
+                                  {match.team1Tag} <span className="text-[var(--muted-foreground)]">vs</span> {match.team2Tag}
+                                </span>
                                 {match.eloDelta !== null && (
+                                  <span
+                                    className={cn(
+                                      "shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-black tabular-nums",
+                                      match.eloDelta >= 0
+                                        ? "bg-emerald-500/12 text-emerald-400"
+                                        : "bg-red-500/12 text-red-400"
+                                    )}
+                                  >
+                                    {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                                {match.mapName && (
+                                  <span className="shrink-0 font-medium text-[var(--foreground)]/65">
+                                    {getMapLabel(match.mapName)}
+                                  </span>
+                                )}
+                                {match.mapName && <span aria-hidden="true">·</span>}
+                                <span className="truncate">{match.tournamentName}</span>
+                                {match.playedAt && (
                                   <>
-                                    <span>·</span>
-                                    <span className={cn("font-bold tabular-nums", match.eloDelta >= 0 ? "text-green-400" : "text-red-400")}>
-                                      {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} elo
-                                    </span>
+                                    <span aria-hidden="true">·</span>
+                                    <span className="shrink-0">{formatDate(match.playedAt)}</span>
                                   </>
                                 )}
                               </div>
                             </div>
 
-                            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--primary)]" />
+                            <div className="shrink-0 text-right font-mono tabular-nums">
+                              <span className={cn("text-lg font-black", didWin && isFinished ? "text-emerald-400" : "text-[var(--foreground)]")}>
+                                {match.team1Score}
+                              </span>
+                              <span className="mx-1 text-[var(--muted-foreground)]/40">:</span>
+                              <span className={cn("text-lg font-black", !didWin && isFinished ? "text-red-400" : "text-[var(--foreground)]")}>
+                                {match.team2Score}
+                              </span>
+                            </div>
                           </div>
                         </Link>
                       );
@@ -426,90 +437,115 @@ export default function ProfileShellView({
                       </p>
                     </div>
                   )}
-                </TabsContent>
+                </section>
 
-                <TabsContent value="teams" className="space-y-8">
-
-                  {/* ── Times BlueStrike ── */}
+                {/* ── Times ── */}
+                <section className="min-w-0 space-y-6 scroll-mt-28" id="times">
                   <div>
-                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
-                          <Users className="h-4 w-4" />
-                          Times BlueStrike
-                        </div>
-                        <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{teamsDescription}</p>
-                      </div>
-                      {isOwner && (
-                        <Button asChild variant="gradient" size="sm" className="gap-2">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--primary)]">
+                        <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                        Times
+                      </h2>
+                      {isOwner ? (
+                        <Button asChild variant="gradient" size="sm" className="h-8 gap-1.5 px-3 text-xs">
                           <Link href="/teams/create">
-                            <Users className="h-4 w-4" />
+                            <Plus className="h-3.5 w-3.5" />
                             Criar time
                           </Link>
                         </Button>
+                      ) : (
+                        teams.length > 0 && (
+                          <span className="font-mono text-[11px] text-[var(--muted-foreground)]">
+                            {teams.length}
+                          </span>
+                        )
                       )}
                     </div>
 
                     {teams.length > 0 ? (
-                      <div className="space-y-5">
-                        {teams.map((team) => (
-                          <div key={team.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-                            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 font-black text-[var(--primary)]">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                        {teams.map((team) => {
+                          const mode = getTeamMode(team.teamMode);
+                          const members = team.members ?? [];
+                          const isTeamCaptain = team.captainId === profile.id;
+
+                          return (
+                            <div
+                              key={team.id}
+                              className="group flex min-w-0 flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 transition-colors hover:border-[var(--primary)]/35"
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)]/20 bg-gradient-to-br from-cyan-950 to-slate-900 text-[11px] font-black text-[var(--primary)]">
                                   {team.tag}
-                                </div>
-                                <div>
-                                  <div className="text-lg font-black">{team.name}</div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
-                                    <span>{team.wins}V / {team.losses}D</span>
-                                    <span>|</span>
-                                    <span>{team.elo} ELO</span>
+                                </span>
+
+                                <div className="min-w-0 flex-1">
+                                  {/* O nome do time também abre o time */}
+                                  <Link
+                                    href={`/teams/${team.slug}`}
+                                    className="flex items-center gap-1.5 truncate text-sm font-black transition-colors hover:text-[var(--primary)]"
+                                  >
+                                    <span className="truncate">{team.name}</span>
+                                    {isTeamCaptain && (
+                                      <Crown className="h-3 w-3 shrink-0 text-[#f5c842]" aria-label="Capitão" />
+                                    )}
+                                  </Link>
+
+                                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    <span className="rounded border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[9px] font-black leading-none text-[var(--primary)]">
+                                      {mode.label}
+                                    </span>
+                                    <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                                      {team.wins}V·{team.losses}D
+                                    </span>
+                                    <span className="font-mono text-[10px] font-bold text-[var(--primary)]">
+                                      {team.elo} ELO
+                                    </span>
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant={team.isRecruiting ? "open" : "secondary"}>
-                                  {team.isRecruiting ? "Recrutando" : "Line fechada"}
-                                </Badge>
-                                <Button asChild variant="outline" size="sm">
-                                  <Link href={`/teams/${team.slug}`}>Abrir time</Link>
+
+                              {/* Só as fotos, lado a lado — economiza altura */}
+                              <div className="mt-3.5 flex items-center justify-between gap-3">
+                                <div className="flex items-center -space-x-2">
+                                  {members.slice(0, 6).map((member) => {
+                                    const nick =
+                                      member.profile?.steamPersonaName ?? member.profile?.fullName ?? "-";
+                                    return (
+                                      <Avatar
+                                        key={member.id}
+                                        className="h-7 w-7 border-2 border-[var(--card)]"
+                                        title={nick}
+                                      >
+                                        <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={nick} sizes="64px" />
+                                        <AvatarFallback className="text-[9px] font-bold">
+                                          {nick.slice(0, 1).toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                    );
+                                  })}
+                                  {members.length === 0 && (
+                                    <span className="text-[10px] text-[var(--muted-foreground)]">Sem elenco</span>
+                                  )}
+                                  <span className="pl-3.5 font-mono text-[10px] text-[var(--muted-foreground)]">
+                                    {members.length}/{mode.maxMembers}
+                                  </span>
+                                </div>
+
+                                <Button asChild variant="outline" size="sm" className="h-8 shrink-0 px-3 text-xs">
+                                  <Link href={`/teams/${team.slug}`}>Abrir</Link>
                                 </Button>
                               </div>
                             </div>
-                            <div className="space-y-2">
-                              {team.members?.map((member) => {
-                                const nick = member.profile?.steamPersonaName ?? member.profile?.fullName ?? "-";
-                                const avatar = member.profile?.steamAvatarUrl ?? undefined;
-                                const elo = member.profile?.elo ?? 0;
-                                const isCaptain = member.profileId === team.captainId;
-                                const memberRole = roleLabel(member.inGameRole as InGameRole | null);
-                                return (
-                                  <div key={member.id} className="flex items-center gap-3 rounded-xl bg-[var(--secondary)]/85 p-3">
-                                    <Avatar className="h-9 w-9">
-                                      <AvatarImage src={avatar} alt={nick} />
-                                      <AvatarFallback className="text-xs font-bold">{nick.slice(0, 1).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="truncate text-sm font-semibold text-[var(--foreground)]">{nick}</div>
-                                      <div className="text-xs text-[var(--muted-foreground)]">{memberRole}</div>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      {isCaptain && <Badge variant="gold">Capitao</Badge>}
-                                      <span className="text-xs font-bold text-[var(--primary)]">{elo} ELO</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-6 py-10 text-center">
-                        <Users className="mx-auto mb-4 h-10 w-10 text-[var(--muted-foreground)] opacity-40" />
-                        <h3 className="mb-1 font-semibold">Nenhum time vinculado</h3>
-                        <p className="text-sm text-[var(--muted-foreground)]">{emptyTeamsMessage}</p>
+                      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-10 text-center">
+                        <Users className="mx-auto mb-3 h-9 w-9 text-[var(--muted-foreground)] opacity-40" />
+                        <h3 className="mb-1 text-sm font-bold">Nenhum time vinculado</h3>
+                        <p className="text-xs text-[var(--muted-foreground)]">{emptyTeamsMessage}</p>
                       </div>
                     )}
                   </div>
@@ -626,8 +662,8 @@ export default function ProfileShellView({
                       )}
                     </div>
                   )}
-                </TabsContent>
-              </Tabs>
+                </section>
+              </div>
             </div>
 
             <div className="space-y-5">

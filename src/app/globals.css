@@ -620,6 +620,27 @@ body {
   .bs-page { padding-top: 5.75rem; }
 }
 
+/* Entrada do podio: degraus sobem em sequencia */
+@keyframes bs-podium-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bs-podium-step {
+  animation: bs-podium-rise 0.62s var(--ease-out-quint) both;
+}
+
+/* Placar da partida: entra com um leve pop */
+@keyframes bs-score-pop {
+  from { opacity: 0; transform: scale(0.9); }
+  60%  { transform: scale(1.04); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.bs-score-pop {
+  animation: bs-score-pop 0.55s var(--ease-out-quint) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after {
@@ -631,6 +652,8 @@ body {
   .animate-marquee,
   .animate-cash-rise,
   .animate-float,
+  .bs-podium-step,
+  .bs-score-pop,
   .animate-pulse-glow {
     animation: none !important;
     opacity: 1 !important;
