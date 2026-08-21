@@ -225,6 +225,21 @@ export async function createCs2Match(
   });
 }
 
+/**
+ * Comandos de console carregam segredos (token de integração e segredo da
+ * partida). O log do Dathost é visível no painel admin, então o valor é
+ * mascarado antes de ser gravado — o comando em si continua útil para debug.
+ */
+function redactConsoleCommand(command: string): string {
+  return command
+    // matchzy_loadmatch_url "<url>" "Authorization" "Bearer <segredo>"
+    .replace(/(Bearer\s+)[^"\s]+/gi, "$1***")
+    // .../webhook/<token>
+    .replace(/(\/api\/matchzy\/webhook\/)[^"\s]+/gi, "$1***")
+    // matchzy_remote_log_header_value "<valor>"
+    .replace(/(matchzy_remote_log_header_value\s+")[^"]*(")/gi, "$1***$2");
+}
+
 // Sends a console command to a game server (multipart/form-data, not JSON).
 export async function sendConsoleCommand(
   serverId: string,
@@ -245,7 +260,7 @@ export async function sendConsoleCommand(
     matchId,
     method: "POST",
     url,
-    requestBody: { line: command },
+    requestBody: { line: redactConsoleCommand(command) },
     responseStatus: res.status,
     responseBody: res.status !== 200 ? await res.text().catch(() => null) : undefined,
   });

@@ -1,11 +1,19 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { cleanupMatchServer, getMatchzyStats, processSeriesEnd } from "@/lib/matchzy";
 import { writeRollingDathostLog } from "@/lib/dathost";
+import { getSession } from "@/lib/auth/session";
 
 // In-process dedup: prevents concurrent processSeriesEnd for the same match
 const processing = new Set<string>();
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // A rota mora em /admin por histórico, mas quem consome é o placar ao vivo de
+  // qualquer espectador logado — por isso exige sessão, não admin.
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  }
+
   const { id: matchId } = await params;
   const supabase = createSupabaseAdminClient();
 

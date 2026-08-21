@@ -4,9 +4,8 @@ import type { Metadata } from "next";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getTournamentById } from "@/lib/tournaments";
-import { getFullMatchDetail, getMatchWebhookInfo } from "@/lib/matches";
+import { getFullMatchDetail, getMatchWebhookInfo, resolveMatchViewerAccess } from "@/lib/matches";
 import { getBracketRoundLabel, getBracketRoundModel } from "@/lib/bracket-model";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import MatchPageClient from "./match-page-client";
 import WebhookInfoPanel from "./webhook-info-panel";
 
@@ -26,56 +25,21 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
 export default async function MatchDetailPage({ params }: MatchPageProps) {
   const { id: tournamentId, matchId } = await params;
 
-  const [currentProfile, tournament] = await Promise.all([
+  // Quem é o usuário nesta partida. Mesma regra usada pela rota de polling
+  // (/api/matches/[id]/status) — jogador e admin veem os dados de conexão do
+  // servidor, espectador acompanha só o placar e o status.
+  const [currentProfile, tournament, access] = await Promise.all([
     getCurrentProfile(),
     getTournamentById(tournamentId),
+    resolveMatchViewerAccess(matchId),
   ]);
 
   if (!tournament) notFound();
 
-  // Determine if the current user is a player in this match
-  // (players can see connect info; spectators cannot)
-  let userTeamId: string | null = null;
-  let isCaptain = false;
-
-  if (currentProfile) {
-    const supabase = createSupabaseAdminClient();
-
-    // Check team_members
-    const { data: detail0 } = await supabase
-      .from("matches")
-      .select("team1_id, team2_id")
-      .eq("id", matchId)
-      .maybeSingle<{ team1_id: string | null; team2_id: string | null }>();
-
-    if (detail0) {
-      const teamIds = [detail0.team1_id, detail0.team2_id].filter(Boolean) as string[];
-
-      const [{ data: memberRow }, { data: captainRow }] = await Promise.all([
-        supabase
-          .from("team_members")
-          .select("team_id")
-          .eq("profile_id", currentProfile.id)
-          .in("team_id", teamIds)
-          .maybeSingle<{ team_id: string }>(),
-        supabase
-          .from("teams")
-          .select("id")
-          .eq("captain_id", currentProfile.id)
-          .in("id", teamIds)
-          .maybeSingle<{ id: string }>(),
-      ]);
-
-      userTeamId = captainRow?.id ?? memberRow?.team_id ?? null;
-      isCaptain = Boolean(captainRow?.id);
-    }
-  }
-
-  const isPlayer = Boolean(userTeamId);
-  const isAdmin = Boolean(currentProfile?.isAdmin);
+  const { userTeamId, isCaptain, isPlayer, isAdmin, canSeeServerCredentials } = access;
 
   const [detail, webhookInfo] = await Promise.all([
-    getFullMatchDetail(matchId, isPlayer || isAdmin),
+    getFullMatchDetail(matchId, canSeeServerCredentials),
     isAdmin ? getMatchWebhookInfo(matchId) : Promise.resolve(null),
   ]);
 

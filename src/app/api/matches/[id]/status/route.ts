@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { resolveMatchViewerAccess } from "@/lib/matches";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -16,6 +17,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     .maybeSingle<{ status: string; ready_team1: boolean; ready_team2: boolean }>();
 
   if (!match) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Status, ready e placar são informação pública da partida — qualquer um que
+  // abre a página acompanha. Já IP, porta e senha do servidor são credencial de
+  // acesso: com elas dá para entrar numa partida oficial em andamento. Só
+  // jogador dos dois times e admin recebem.
+  const { canSeeServerCredentials } = await resolveMatchViewerAccess(matchId);
 
   const { data: serverRow } = await supabase
     .from("dathost_servers")
@@ -55,13 +62,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     matchzyConfigSent,
     server: serverRow
       ? {
+          // O status do servidor continua visível: é o que move a UI de
+          // "provisionando" para "pronto", inclusive para espectador.
           status: serverRow.status,
-          rawIp: serverRow.raw_ip,
-          ip: serverRow.ip,
-          port: serverRow.port,
-          gotvPort: serverRow.gotv_port,
-          connectString: serverRow.connect_string,
-          password: serverRow.server_password,
+          rawIp: canSeeServerCredentials ? serverRow.raw_ip : null,
+          ip: canSeeServerCredentials ? serverRow.ip : "",
+          port: canSeeServerCredentials ? serverRow.port : 0,
+          gotvPort: canSeeServerCredentials ? serverRow.gotv_port : null,
+          connectString: canSeeServerCredentials ? serverRow.connect_string : null,
+          password: canSeeServerCredentials ? serverRow.server_password : null,
         }
       : null,
   });

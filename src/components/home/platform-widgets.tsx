@@ -458,7 +458,7 @@ export function SkinsUnlocked() {
       <div className="relative flex min-h-[20rem] max-w-md flex-col justify-between p-6 sm:p-7">
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/12 bg-black/42 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white/72 backdrop-blur-sm"><Server className="h-3.5 w-3.5 text-[var(--primary)]" /> Servidor BlueStrike</span>
         <div className="flex items-center gap-3">
-          <span className="rounded-xl border border-[var(--primary)]/32 bg-black/52 px-3 py-2 font-mono text-xl font-black text-[var(--primary)] backdrop-blur-sm">!ws</span>
+          <span className="rounded-xl border border-[var(--primary)]/32 bg-black/52 px-3 py-2 font-mono text-xl font-black text-[var(--primary)] backdrop-blur-sm">!ws • !wp</span>
           <span><strong className="block text-white">Skins liberadas</strong><span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-green-400"><ShieldCheck className="h-3.5 w-3.5" /> Configuração aplicada</span></span>
         </div>
       </div>

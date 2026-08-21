@@ -20,6 +20,13 @@ const columns = [
       { label: "Skins", href: "/skins" },
     ],
   },
+  {
+    heading: "Institucional",
+    links: [
+      { label: "Termos de Uso", href: "/terms" },
+      { label: "Política de Privacidade", href: "/privacy" },
+    ],
+  },
 ];
 
 const railWords = ["Competir", "Evoluir", "Conquistar", "PIX na hora", "Fair play", "BlueStrike"];
@@ -57,7 +64,7 @@ export default function Footer() {
       <BrandRail />
 
       <div className="bs-shell pb-10 pt-20">
-        <div className="grid gap-12 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] md:gap-16">
+        <div className="grid gap-12 md:grid-cols-2 md:gap-14 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] lg:gap-16">
           <div>
             <Link href="/" className="inline-flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center">
@@ -94,9 +101,24 @@ export default function Footer() {
           ))}
         </div>
 
-        <div className="mt-16 flex flex-col items-center justify-between gap-3 border-t border-[var(--border)] pt-7 sm:flex-row">
-          <p className="font-mono text-[11px] text-[var(--muted-foreground)]">© {new Date().getFullYear()} BlueStrike Esports</p>
-          <p className="font-mono text-[11px] text-[var(--muted-foreground)]">Feito para a comunidade brasileira de CS2</p>
+        <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-[var(--border)] pt-7 sm:flex-row">
+          <p className="font-mono text-[11px] text-[var(--muted-foreground)]">
+            © {new Date().getFullYear()} BlueStrike Esports
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <Link href="/terms" className="font-mono text-[11px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--primary)]">
+              Termos de Uso
+            </Link>
+            <span className="text-[var(--border)]" aria-hidden="true">·</span>
+            <Link href="/privacy" className="font-mono text-[11px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--primary)]">
+              Privacidade
+            </Link>
+            <span className="text-[var(--border)]" aria-hidden="true">·</span>
+            <span className="font-mono text-[11px] text-[var(--muted-foreground)]">
+              Feito para a comunidade brasileira de CS2
+            </span>
+          </div>
         </div>
       </div>
 
