@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   CheckCircle2,
@@ -13,12 +13,15 @@ import {
   Plus,
   Shield,
   Sparkles,
+  Swords,
   Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import TeamModeSelector from "@/components/team/team-mode-selector";
+import { getTeamMode, normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 
 interface CreateTeamFormProps {
   backHref: string;
@@ -37,6 +40,10 @@ function slugify(name: string) {
 
 export default function CreateTeamFormClient({ backHref, successRedirectPath }: CreateTeamFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [teamMode, setTeamMode] = useState<TeamMode>(() =>
+    normalizeTeamMode(searchParams.get("mode"))
+  );
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
   const [description, setDescription] = useState("");
@@ -51,6 +58,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
     teamPath: string;
   } | null>(null);
 
+  const modeConfig = getTeamMode(teamMode);
   const slug = slugify(name);
   const tagValid = tag.trim().length >= 2 && tag.trim().length <= 5;
   const nameValid = name.trim().length >= 3;
@@ -88,6 +96,7 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
             name,
             tag,
             description,
+            teamMode,
             password: usePassword ? password : null,
           }),
         });
@@ -172,6 +181,30 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
                 {feedback}
               </div>
             )}
+          </section>
+
+          <section className="bs-form-card p-6 sm:p-7">
+            <div className="mb-5">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--primary)]">
+                <Swords className="h-4 w-4" />
+                Modalidade
+              </div>
+              <h2 className="text-2xl font-black tracking-tight">Em que formato esse time joga?</h2>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
+                Cada modalidade tem mapa pool e servidor próprios. Você pode ter uma line em cada
+                formato — o time só disputa campeonatos da modalidade escolhida.
+              </p>
+            </div>
+
+            <TeamModeSelector value={teamMode} onChange={setTeamMode} />
+
+            <p className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40 px-4 py-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
+              <span className="font-bold text-[var(--foreground)]">{modeConfig.label}</span>{" "}
+              — {modeConfig.description}{" "}
+              {modeConfig.maxMembers === modeConfig.playersPerTeam
+                ? "Time individual, sem reserva."
+                : `Elenco de ate ${modeConfig.maxMembers} jogadores (${modeConfig.playersPerTeam} em quadra).`}
+            </p>
           </section>
 
           <section className="bs-form-card p-6 sm:p-7">
@@ -331,6 +364,14 @@ export default function CreateTeamFormClient({ backHref, successRedirectPath }: 
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Tag</span>
                 <span className="font-mono font-bold">{tag || "-"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--muted-foreground)]">Modalidade</span>
+                <span className="font-mono font-bold text-[var(--primary)]">{modeConfig.label}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--muted-foreground)]">Elenco</span>
+                <span className="font-medium">ate {modeConfig.maxMembers} jogadores</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[var(--muted-foreground)]">Acesso</span>

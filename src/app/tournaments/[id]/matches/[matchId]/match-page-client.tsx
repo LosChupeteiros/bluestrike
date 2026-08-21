@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { FullMatchDetail, PlayerStat } from "@/lib/matches";
-import { CS2_MAP_POOL, getVetoSequence, type MapPresentation } from "@/lib/maps";
+import { findDeciderMap, getMapLabel, getMapPoolForMode, getVetoSequence, type MapPresentation } from "@/lib/maps";
+import { getTeamMode, type TeamMode } from "@/lib/team-modes";
 import { playReadyOne, playReadyBoth, playVeto, playVetoDone, playServerReady } from "@/lib/sounds";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -263,17 +264,19 @@ function ReadyPanel({
 // ── Veto panel ─────────────────────────────────────────────────────────────────
 
 function VetoPanel({
-  matchId, boType, existingVetoes, team1Id, team2Id,
+  matchId, boType, teamMode, existingVetoes, team1Id, team2Id,
   team1Name, team2Name, team1Tag, team2Tag,
   userTeamId, isVetoActive, onVetoDone,
 }: {
-  matchId: string; boType: 1 | 3 | 5; existingVetoes: VetoEntry[];
+  matchId: string; boType: 1 | 3 | 5; teamMode: TeamMode; existingVetoes: VetoEntry[];
   team1Id: string | null; team2Id: string | null;
   team1Name: string; team2Name: string; team1Tag: string; team2Tag: string;
   userTeamId: string | null; isVetoActive: boolean;
   onVetoDone?: () => void;
 }) {
   const sequence = getVetoSequence(boType);
+  const mapPool = getMapPoolForMode(teamMode);
+  const modeConfig = getTeamMode(teamMode);
   const [vetoes, setVetoes] = useState(existingVetoes);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -302,9 +305,7 @@ function VetoPanel({
   const usedMaps = new Set(vetoes.map((v) => v.mapName));
   const picks = vetoes.filter((v) => v.action === "pick").map((v) => v.mapName);
   const bans = new Set(vetoes.filter((v) => v.action === "ban").map((v) => v.mapName));
-  const decider = isDone
-    ? CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name))?.name ?? null
-    : null;
+  const decider = isDone ? findDeciderMap(mapPool, picks, bans)?.name ?? null : null;
 
   const activeTeamName = currentSlot ? (currentSlot.turn === "team1" ? team1Name : team2Name) : null;
   const activeTeamTag = currentSlot ? (currentSlot.turn === "team1" ? team1Tag : team2Tag) : null;
@@ -339,8 +340,11 @@ function VetoPanel({
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
       {/* Header bar */}
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-2.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
           Veto — {boType === 1 ? "BO1" : boType === 3 ? "BO3" : "BO5"}
+          <span className="rounded-full border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-2 py-0.5 text-[9px] tracking-[0.14em] text-[var(--primary)]">
+            {modeConfig.label} · {modeConfig.gameModeLabel}
+          </span>
         </span>
         <div className="flex items-center gap-1">
           {sequence.map((slot, i) => {
@@ -388,11 +392,11 @@ function VetoPanel({
           <span className="text-sm font-bold text-[var(--primary)]">Veto concluído</span>
           <div className="flex flex-wrap gap-1.5">
             {picks.map((m) => (
-              <span key={m} className="rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)]">{m}</span>
+              <span key={m} className="rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)]">{getMapLabel(m)}</span>
             ))}
             {decider && (
               <span className="rounded-full border border-[var(--primary)]/40 bg-[var(--primary)]/15 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)]">
-                {decider} <span className="opacity-60">(sobra)</span>
+                {getMapLabel(decider)} <span className="opacity-60">(sobra)</span>
               </span>
             )}
           </div>
@@ -401,7 +405,7 @@ function VetoPanel({
 
       {/* Map grid */}
       <div className="grid grid-cols-4 gap-1.5 p-3 sm:grid-cols-5 lg:grid-cols-7">
-        {CS2_MAP_POOL.map((map) => {
+        {mapPool.map((map) => {
           const vetoEntry = vetoes.find((v) => v.mapName === map.name);
           const isBanned = vetoEntry?.action === "ban";
           const isPicked = vetoEntry?.action === "pick";
@@ -418,7 +422,7 @@ function VetoPanel({
               }`}
             >
               <div className="relative aspect-[3/4]">
-                <Image src={map.localImage} alt={map.name} fill sizes="14vw"
+                <Image src={map.localImage} alt={map.label} fill sizes="14vw"
                   className={`object-cover transition-transform duration-300 ${isBanned ? "grayscale" : "group-hover:scale-105"}`}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
@@ -433,7 +437,7 @@ function VetoPanel({
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1">
-                  <div className="text-[9px] font-black uppercase tracking-wide text-white drop-shadow">{map.name}</div>
+                  <div className="text-[9px] font-black uppercase tracking-wide text-white drop-shadow">{map.label}</div>
                   {isBanned && <div className="text-[8px] font-bold text-red-400">VETADO</div>}
                   {isPicked && <div className="text-[8px] font-bold text-[var(--primary)]">ESCOLHIDO</div>}
                   {isDecider && <div className="text-[8px] font-bold text-[var(--primary)]">SOBRA</div>}
@@ -515,7 +519,7 @@ function SideSelectionPanel({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Mapa {pick.vetoOrder}</div>
-                  <div className="truncate text-base font-black text-[var(--foreground)]">{pick.mapName}</div>
+                  <div className="truncate text-base font-black text-[var(--foreground)]">{getMapLabel(pick.mapName)}</div>
                 </div>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-black/30 text-xs font-black text-[var(--primary)]">
                   {pickerTag}
@@ -901,11 +905,11 @@ function PostVetoPanel({
               {/* Map chip */}
               {chosenMap && (
                 <div className="relative h-[72px] overflow-hidden rounded-xl">
-                  <Image src={chosenMap.localImage} alt={chosenMap.name} fill className="object-cover" />
+                  <Image src={chosenMap.localImage} alt={chosenMap.label} fill className="object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute bottom-2 left-2.5">
                     <span className="rounded bg-black/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
-                      {chosenMap.name}
+                      {chosenMap.label}
                     </span>
                   </div>
                   <div className="absolute right-2 top-2">
@@ -1220,18 +1224,24 @@ export default function MatchPageClient({
   const isVetoActive = effectiveStatus === "veto";
   const isPreLive = effectiveStatus === "pre_live";
   const sequence = getVetoSequence(match.boType);
+  const matchMode = match.teamMode;
+  const matchModeConfig = getTeamMode(matchMode);
+  const matchMapPool = getMapPoolForMode(matchMode);
   const vetoDone = effectiveVetoes.length >= sequence.length;
   const pickedVetoes = effectiveVetoes.filter((v) => v.action === "pick");
-  const sidePickDone = match.boType <= 1 || pickedVetoes.every((v) => Boolean(v.pickedSide));
-  const sidePickActive = vetoDone && match.boType > 1 && isVetoActive && pickedVetoes.length > 0 && !sidePickDone;
+  // No 1x1 os lados são fixos (team1_ct alternando), então não há etapa de escolha.
+  const sidePickDone =
+    matchModeConfig.fixedSides || match.boType <= 1 || pickedVetoes.every((v) => Boolean(v.pickedSide));
+  const sidePickActive =
+    !matchModeConfig.fixedSides && vetoDone && match.boType > 1 && isVetoActive && pickedVetoes.length > 0 && !sidePickDone;
   const bothTeamsDefined = Boolean(match.team1Id && match.team2Id);
 
   // Derive chosen map from veto history for ServerPanel
   const picks = pickedVetoes.map((v) => v.mapName);
   const vetoedBans = new Set(effectiveVetoes.filter((v) => v.action === "ban").map((v) => v.mapName));
   const chosenMap = vetoDone
-    ? (CS2_MAP_POOL.find((m) => m.name === picks[0]) ??
-       CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !vetoedBans.has(m.name)) ??
+    ? (matchMapPool.find((m) => m.name === picks[0]) ??
+       findDeciderMap(matchMapPool, picks, vetoedBans) ??
        null)
     : null;
 
@@ -1541,7 +1551,7 @@ export default function MatchPageClient({
                 <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Scoreboard</span>
                 {mapScore?.mapName && (
                   <span className="rounded bg-[var(--secondary)] px-2 py-0.5 text-[10px] font-mono text-[var(--muted-foreground)]">
-                    {mapScore.mapName}
+                    {getMapLabel(mapScore.mapName)}
                   </span>
                 )}
               </div>
@@ -1569,7 +1579,7 @@ export default function MatchPageClient({
                       }`}
                     >
                       Mapa {index + 1}
-                      {m.mapName ? ` · ${m.mapName}` : ""}
+                      {m.mapName ? ` · ${getMapLabel(m.mapName)}` : ""}
                     </button>
                   );
                 })}
@@ -1619,7 +1629,7 @@ export default function MatchPageClient({
 
       {/* ── Veto panel ── */}
       {(isVetoActive || effectiveVetoes.length > 0) && (
-        <VetoPanel matchId={match.id} boType={match.boType} existingVetoes={effectiveVetoes}
+        <VetoPanel matchId={match.id} boType={match.boType} teamMode={matchMode} existingVetoes={effectiveVetoes}
           team1Id={match.team1Id} team2Id={match.team2Id}
           team1Name={t1Name} team2Name={t2Name} team1Tag={t1Tag} team2Tag={t2Tag}
           userTeamId={userTeamId} isVetoActive={isVetoActive}

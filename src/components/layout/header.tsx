@@ -4,7 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, Menu, Shield, Trophy, X, Zap } from "lucide-react";
+import {
+  ChevronDown,
+  LogOut,
+  Menu,
+  Shield,
+  Sparkles,
+  Swords,
+  Trophy,
+  UserRound,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -180,6 +192,234 @@ function CampeonatosMenu({ pathname, onClose }: CampeonatosMenuProps) {
             {/* Bottom spacing */}
             <div className="pb-1" />
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Menu do jogador (hover + clique) ─────────────────────────────────────────
+
+interface PlayerMenuItem {
+  href: string;
+  label: string;
+  hint: string;
+  icon: typeof Swords;
+}
+
+function ProfileMenu({ user }: { user: HeaderUser }) {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const profileHref = `/profile/${user.publicId}`;
+
+  const items: PlayerMenuItem[] = [
+    {
+      href: `${profileHref}?tab=matches`,
+      label: "Minhas partidas",
+      hint: "Histórico, placares e variação de ELO",
+      icon: Swords,
+    },
+    {
+      href: `${profileHref}?tab=teams`,
+      label: "Meus times",
+      hint: "Lines de 1x1 a 5x5 e convites",
+      icon: Users,
+    },
+    {
+      href: "/skins",
+      label: "Minhas skins",
+      hint: "Loadout CT e TR no servidor !ws",
+      icon: Sparkles,
+    },
+  ];
+
+  function scheduleClose() {
+    closeTimer.current = setTimeout(() => setOpen(false), 260);
+  }
+
+  function cancelClose() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }
+
+  useEffect(() => () => cancelClose(), []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative"
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={`Menu de ${user.displayName}`}
+        className={cn(
+          "bs-liquid-control group flex min-h-11 items-center gap-2 rounded-full px-2.5 py-1.5 transition-[border-color,background-color]",
+          open && "border-[var(--primary)]/35 bg-[var(--primary)]/8"
+        )}
+      >
+        <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
+          <AvatarImage src={user.steamAvatarUrl ?? undefined} alt="" />
+          <AvatarFallback className="font-black text-[var(--primary)]">
+            {user.displayName.slice(0, 1).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="min-w-0 text-left">
+          <div className={cn(
+            "max-w-[110px] truncate text-xs font-semibold transition-colors",
+            open ? "text-[var(--primary)]" : "group-hover:text-[var(--primary)]"
+          )}>
+            {user.displayName}
+          </div>
+          <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
+        </div>
+
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 shrink-0 text-[var(--muted-foreground)] transition-transform duration-200",
+            open && "rotate-180 text-[var(--primary)]"
+          )}
+        />
+      </button>
+
+      <div
+        role="menu"
+        aria-label="Atalhos do jogador"
+        className={cn(
+          "absolute right-0 top-full z-50 w-[19rem] pt-2",
+          "transition-all duration-200 ease-out",
+          open
+            ? "pointer-events-auto translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-2 opacity-0"
+        )}
+      >
+        <div className="bs-liquid-popover overflow-hidden rounded-[1.4rem]">
+          {/* Identidade */}
+          <Link
+            href={profileHref}
+            prefetch
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="group relative flex items-center gap-3 border-b border-[var(--border)] px-4 py-4 transition-colors hover:bg-[var(--primary)]/6"
+          >
+            <Avatar className="h-12 w-12 rounded-xl ring-1 ring-[var(--primary)]/25">
+              <AvatarImage src={user.steamAvatarUrl ?? undefined} alt="" />
+              <AvatarFallback className="rounded-xl text-lg font-black text-[var(--primary)]">
+                {user.displayName.slice(0, 1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-[var(--foreground)] transition-colors group-hover:text-[var(--primary)]">
+                {user.displayName}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                <UserRound className="h-3 w-3" aria-hidden="true" />
+                Ver perfil completo
+              </p>
+            </div>
+
+            <div className="shrink-0 rounded-lg border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-2 py-1 text-center">
+              <span className="block font-mono text-sm font-black leading-none text-[var(--primary)]">
+                {user.elo}
+              </span>
+              <span className="mt-0.5 block text-[8px] font-bold uppercase tracking-[0.12em] text-[var(--primary)]/60">
+                ELO
+              </span>
+            </div>
+          </Link>
+
+          {/* Atalhos */}
+          <div className="space-y-0.5 p-2">
+            <p className="px-3 pb-1 pt-2 text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+              Minha área
+            </p>
+
+            {items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150 hover:bg-[var(--primary)]/8"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] ring-1 ring-[var(--primary)]/20 transition-all duration-150 group-hover:bg-[var(--primary)]/16 group-hover:ring-[var(--primary)]/45">
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-[var(--foreground)] transition-colors group-hover:text-[var(--primary)]">
+                      {item.label}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[10px] text-[var(--muted-foreground)]">
+                      {item.hint}
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+
+            {user.isAdmin && (
+              <>
+                <div className="mx-3 my-1 h-px bg-[var(--border)]" />
+                <Link
+                  href="/admin"
+                  prefetch
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150 hover:bg-[#f5c842]/8"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f5c842]/10 text-[#f5c842] ring-1 ring-[#f5c842]/20 transition-all duration-150 group-hover:ring-[#f5c842]/45">
+                    <Shield className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-[var(--foreground)] transition-colors group-hover:text-[#f5c842]">
+                      Painel admin
+                    </span>
+                    <span className="mt-0.5 block truncate text-[10px] text-[var(--muted-foreground)]">
+                      Campeonatos, brackets e premiação
+                    </span>
+                  </span>
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Sair — separado das ações de navegação */}
+          <a
+            href="/api/auth/logout"
+            role="menuitem"
+            className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] transition-colors hover:bg-[var(--destructive)]/8 hover:text-[var(--destructive)]"
+          >
+            <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+            Sair da conta
+          </a>
         </div>
       </div>
     </div>
@@ -374,39 +614,7 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
             {user ? (
               <>
                 <NotificationBell enabled={true} />
-                <Link
-                  href={`/profile/${user.publicId}`}
-                  prefetch
-                  aria-label={`Abrir perfil de ${user.displayName}`}
-                  className="bs-liquid-control group flex min-h-11 items-center gap-2 rounded-full px-2.5 py-1.5 transition-[border-color,background-color]"
-                >
-                  <Avatar className="h-9 w-9 ring-1 ring-[var(--primary)]/20">
-                    <AvatarImage src={user.steamAvatarUrl ?? undefined} alt={user.displayName} />
-                    <AvatarFallback className="font-black text-[var(--primary)]">
-                      {user.displayName.slice(0, 1).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="min-w-0">
-                    <div className="max-w-[110px] truncate text-xs font-semibold transition-colors group-hover:text-[var(--primary)]">
-                      {user.displayName}
-                    </div>
-                    <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
-                  </div>
-                </Link>
-
-                {user.isAdmin && (
-                  <Button asChild variant="ghost" size="sm" className="bs-liquid-control gap-2 rounded-full px-4">
-                    <Link href="/admin" prefetch>
-                      <Shield className="w-4 h-4" />
-                      Admin
-                    </Link>
-                  </Button>
-                )}
-
-                <Button asChild variant="ghost" size="sm" className="rounded-full px-4 text-[var(--foreground)]/72 hover:text-[var(--foreground)]">
-                  <a href="/api/auth/logout">Sair</a>
-                </Button>
+                <ProfileMenu user={user} />
               </>
             ) : authState === "loading" ? (
               <>
@@ -500,6 +708,28 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
                       <HeaderElo initialElo={user.elo} faceitLevel={user.faceitLevel} faceitElo={user.faceitElo} />
                     </div>
                   </Link>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { href: `/profile/${user.publicId}?tab=matches`, label: "Partidas", icon: Swords },
+                      { href: `/profile/${user.publicId}?tab=teams`, label: "Times", icon: Users },
+                      { href: "/skins", label: "Skins", icon: Sparkles },
+                    ].map((shortcut) => {
+                      const Icon = shortcut.icon;
+                      return (
+                        <Link
+                          key={shortcut.label}
+                          href={shortcut.href}
+                          prefetch
+                          onClick={closeMobileMenu}
+                          className="bs-liquid-control flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-2 text-[10px] font-bold text-[var(--foreground)]/80 transition-colors hover:text-[var(--primary)]"
+                        >
+                          <Icon className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+                          {shortcut.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
 
                   {user.isAdmin && (
                     <Link href="/admin" prefetch onClick={closeMobileMenu}>

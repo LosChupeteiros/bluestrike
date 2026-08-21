@@ -8,7 +8,7 @@ import { getSkinsByWeapon, getWeaponList, getKnifeList, getGloveCatalog, getMusi
 import { KnifeCard } from "./components/knife-card";
 import { GloveCard } from "./components/glove-card";
 import { MusicCard } from "./components/music-card";
-import { WeaponCardUnified } from "./components/weapon-card-unified";
+import { WeaponsLoadout } from "./components/weapons-loadout";
 
 export const metadata: Metadata = {
   title: "Skins",
@@ -225,24 +225,12 @@ export default async function SkinsPage() {
 
         </div>
 
-        {/* ── Armas (unificado — aplica em ambos os lados) ── */}
-        <div className="bs-bento-card mt-6 space-y-4 p-5 sm:p-6">
-          <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
-            <p className="text-base font-black tracking-tight">Armas</p>
-            <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-widest">CT &amp; TR</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-            {weaponEntries.map(({ defindex, defaultSkin, availableSkins }) => (
-              <WeaponCardUnified
-                key={defindex}
-                defindex={defindex}
-                defaultSkin={defaultSkin}
-                availableSkins={availableSkins}
-                currentSkin={skinsCT[defindex] ?? null}
-              />
-            ))}
-          </div>
-        </div>
+        {/* ── Armas — filtro por lado (CT, TR ou ambos) ── */}
+        <WeaponsLoadout
+          weapons={weaponEntries}
+          currentSkinsCT={skinsCT}
+          currentSkinsT={skinsT}
+        />
 
       </div>
     </div>

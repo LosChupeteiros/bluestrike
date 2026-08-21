@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { getTournamentBadgeProps } from "@/lib/tournament-status";
+import { getTeamMode } from "@/lib/team-modes";
 import type { Tournament } from "@/types";
 
 interface TournamentCardProps {
@@ -17,6 +18,7 @@ interface TournamentCardProps {
 
 export default function TournamentCard({ tournament, featured = false }: TournamentCardProps) {
   const badge = getTournamentBadgeProps(tournament);
+  const modeConfig = getTeamMode(tournament.teamMode);
   const registered = tournament.registeredTeamsCount ?? 0;
   const spotsLeft = tournament.maxTeams - registered;
   const fillPercent = (registered / tournament.maxTeams) * 100;
@@ -48,12 +50,17 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
                   <Zap className="w-3 h-3" /> DESTAQUE
                 </span>
               )}
-              <Badge variant={badge.variant}>
-                {badge.variant === "ongoing" && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                )}
-                {badge.label}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={badge.variant}>
+                  {badge.variant === "ongoing" && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  )}
+                  {badge.label}
+                </Badge>
+                <span className="inline-flex items-center rounded-full border border-[var(--primary)]/35 bg-black/50 px-2.5 py-1 font-mono text-[10px] font-black text-[var(--primary)] backdrop-blur-sm">
+                  {modeConfig.label}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -78,7 +85,7 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               </span>
               <span className="flex items-center gap-1">
                 <Users className="w-3.5 h-3.5" />
-                {registered}/{tournament.maxTeams} times
+                {registered}/{tournament.maxTeams} times · {modeConfig.label}
               </span>
             </div>
 
@@ -134,7 +141,7 @@ export default function TournamentCard({ tournament, featured = false }: Tournam
               <Calendar className="w-3 h-3" /> {formatDate(tournament.startsAt ?? "")}
             </span>
             <span className="flex items-center gap-1">
-              <Users className="w-3 h-3" /> {registered}/{tournament.maxTeams}
+              <Users className="w-3 h-3" /> {registered}/{tournament.maxTeams} · {modeConfig.label}
             </span>
           </div>
         </div>

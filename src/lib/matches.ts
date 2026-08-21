@@ -3,6 +3,7 @@ import type { UserProfile } from "@/lib/profile";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getBracketRoundModel } from "@/lib/bracket-model";
 import { createMatchStartNotifications } from "@/lib/notifications";
+import { normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 import { randomUUID } from "crypto";
 
 interface MatchRow {
@@ -13,6 +14,7 @@ interface MatchRow {
   round: number;
   match_index: number;
   bo_type: 1 | 3 | 5;
+  team_mode: TeamMode | null;
   status: Match["status"];
   winner_id: string | null;
   scheduled_at: string | null;
@@ -42,6 +44,7 @@ interface TeamRow {
   wins: number;
   losses: number;
   is_active: boolean;
+  team_mode: TeamMode | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +65,7 @@ function mapTeamRow(row: TeamRow): Team {
     wins: row.wins,
     losses: row.losses,
     isActive: row.is_active,
+    teamMode: normalizeTeamMode(row.team_mode),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -76,6 +80,7 @@ function mapMatchRow(row: MatchRow, teams?: Map<string, Team>): Match {
     round: row.round,
     matchIndex: row.match_index,
     boType: row.bo_type,
+    teamMode: normalizeTeamMode(row.team_mode),
     status: row.status,
     winnerId: row.winner_id,
     scheduledAt: row.scheduled_at,
@@ -190,11 +195,11 @@ async function advanceWinnerByRoundModel(
 
   const { data: tournamentRows } = await supabase
     .from("matches")
-    .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type")
+    .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type, team_mode")
     .eq("tournament_id", match.tournament_id)
     .order("round", { ascending: true })
     .order("match_index", { ascending: true })
-    .returns<Array<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status" | "bo_type">>>();
+    .returns<Array<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status" | "bo_type" | "team_mode">>>();
 
   const allMatches = tournamentRows ?? [];
 
@@ -226,11 +231,13 @@ async function advanceWinnerByRoundModel(
         round,
         match_index: matchIndex,
         bo_type: boType,
+        // Rodadas criadas sob demanda herdam a modalidade da partida de origem.
+        team_mode: match.team_mode ?? "5v5",
         status: "pending",
         webhook_secret: randomUUID(),
       })
-      .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type")
-      .single<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status" | "bo_type">>();
+      .select("id, round, match_index, team1_id, team2_id, winner_id, status, bo_type, team_mode")
+      .single<Pick<MatchRow, "id" | "round" | "match_index" | "team1_id" | "team2_id" | "winner_id" | "status" | "bo_type" | "team_mode">>();
 
     if (error) {
       console.error(`[advanceWinner] Failed to create bracket row: ${error.message}`);

@@ -1,11 +1,57 @@
 // Match flow: ready-up → veto → second ready → provision server
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
-import { CS2_MAP_POOL, getVetoSequence } from "@/lib/maps";
+import { findDeciderMap, getMapPoolForMode, getVetoSequence } from "@/lib/maps";
+import { getTeamMode, normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGameServer, sendConsoleCommand, writeDathostLog } from "@/lib/dathost";
 
-// Mirror server cloned for each match. Override via DATHOST_MIRROR_SERVER_ID env var.
-const MIRROR_SERVER_ID = process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1";
+// Servidor espelho clonado a cada partida, por modalidade.
+// Todos podem ser sobrescritos por variável de ambiente.
+const MIRROR_SERVER_IDS: Record<TeamMode, string> = {
+  "1v1": process.env.DATHOST_MIRROR_SERVER_ID_1V1 ?? "6a87a8c86a3f53ea0ae0d929",
+  "2v2": process.env.DATHOST_MIRROR_SERVER_ID_2V2 ?? "6a877b8a30bd64c3b87c42a0",
+  "3v3": process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1",
+  "4v4": process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1",
+  "5v5": process.env.DATHOST_MIRROR_SERVER_ID ?? "69f7f5303ee4ac03506ae4c1",
+};
+
+export function getMirrorServerId(mode: TeamMode | string | null | undefined): string {
+  return MIRROR_SERVER_IDS[normalizeTeamMode(mode)];
+}
+
+/** Modalidade da partida — usada para map pool, wingman, lados e servidor. */
+export async function getMatchTeamMode(matchId: string): Promise<TeamMode> {
+  const { data } = await createSupabaseAdminClient()
+    .from("matches")
+    .select("team_mode")
+    .eq("id", matchId)
+    .maybeSingle<{ team_mode: string | null }>();
+
+  return normalizeTeamMode(data?.team_mode);
+}
+
+/**
+ * Envia um comando de console para o servidor Dathost já provisionado da partida.
+ * Best-effort: nunca lança, apenas registra o motivo da falha.
+ */
+export async function sendMatchConsoleCommand(matchId: string, command: string): Promise<boolean> {
+  const { data: serverRow } = await createSupabaseAdminClient()
+    .from("dathost_servers")
+    .select("dathost_server_id")
+    .eq("match_id", matchId)
+    .maybeSingle<{ dathost_server_id: string | null }>();
+
+  const serverId = serverRow?.dathost_server_id;
+  if (!serverId) return false;
+
+  try {
+    await sendConsoleCommand(serverId, command, matchId);
+    return true;
+  } catch (err) {
+    console.warn(`[match-flow/${matchId}] comando "${command}" falhou:`, err);
+    return false;
+  }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,6 +63,7 @@ export interface MatchRow {
   round: number;
   match_index: number;
   bo_type: 1 | 3 | 5;
+  team_mode: TeamMode;
   status: string;
   winner_id: string | null;
   scheduled_at: string | null;
@@ -74,8 +121,8 @@ export async function readyUpMatch(
   await supabase.from("matches").update(update).eq("id", matchId);
 
   if (bothReady && match.status === "pre_live") {
-    const { mapName, mapId } = await resolveMatchMap(matchId);
-    provisionServerAsync(matchId, mapName, mapId).catch(
+    const { mapName, mapId } = await resolveMatchMap(matchId, match.team_mode);
+    provisionServerAsync(matchId, mapName, mapId, match.team_mode).catch(
       (err: unknown) => console.error("[match-flow] provision error:", err)
     );
   }
@@ -86,8 +133,13 @@ export async function readyUpMatch(
 // Resolves which map to play next, based on veto picks and how many maps have
 // already been started or finished. In BO3/BO5, this advances through the picks
 // in order and falls back to the decider when the picks are exhausted.
-async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapId: string }> {
+async function resolveMatchMap(
+  matchId: string,
+  mode?: TeamMode
+): Promise<{ mapName: string; mapId: string }> {
   const supabase = createSupabaseAdminClient();
+  const teamMode = mode ?? (await getMatchTeamMode(matchId));
+  const pool = getMapPoolForMode(teamMode);
 
   const [{ data: vetoRows }, { data: playedMaps }] = await Promise.all([
     supabase
@@ -105,7 +157,7 @@ async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapI
 
   const picks = (vetoRows ?? []).filter((v) => v.action === "pick").map((v) => v.map_name);
   const bans = new Set((vetoRows ?? []).filter((v) => v.action === "ban").map((v) => v.map_name));
-  const decider = CS2_MAP_POOL.find((m) => !picks.includes(m.name) && !bans.has(m.name));
+  const decider = findDeciderMap(pool, picks, bans);
 
   // Full sequence of maps the series will play, in order.
   const sequence = [...picks];
@@ -113,9 +165,10 @@ async function resolveMatchMap(matchId: string): Promise<{ mapName: string; mapI
 
   const playedCount = playedMaps?.length ?? 0;
   const index = Math.min(playedCount, Math.max(0, sequence.length - 1));
-  const mapName = sequence[index] ?? picks[0] ?? decider?.name ?? "Mirage";
-  const mapEntry = CS2_MAP_POOL.find((m) => m.name === mapName);
-  return { mapName, mapId: mapEntry?.mapId ?? "de_mirage" };
+  const fallback = pool[0];
+  const mapName = sequence[index] ?? picks[0] ?? decider?.name ?? fallback.name;
+  const mapEntry = pool.find((m) => m.name === mapName) ?? fallback;
+  return { mapName, mapId: mapEntry.mapId };
 }
 
 // ── Walkover ──────────────────────────────────────────────────────────────────
@@ -160,20 +213,23 @@ export async function submitVetoAction(
   | { ok: true; done: boolean; pickedMaps: string[]; decider: string | null }
   | { ok: false; error: string }
 > {
-  if (!CS2_MAP_POOL.find((m) => m.name === mapName)) {
-    return { ok: false, error: "Mapa inválido." };
-  }
-
   const supabase = createSupabaseAdminClient();
 
   const { data: match } = await supabase
     .from("matches")
-    .select("id, team1_id, team2_id, status, bo_type, webhook_secret")
+    .select("id, team1_id, team2_id, status, bo_type, team_mode, webhook_secret")
     .eq("id", matchId)
-    .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id" | "status" | "bo_type" | "webhook_secret">>();
+    .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id" | "status" | "bo_type" | "team_mode" | "webhook_secret">>();
 
   if (!match) return { ok: false, error: "Partida não encontrada." };
   if (match.status !== "veto") return { ok: false, error: "Veto não está ativo." };
+
+  const modeConfig = getTeamMode(match.team_mode);
+  const pool = getMapPoolForMode(match.team_mode);
+
+  if (!pool.find((m) => m.name === mapName)) {
+    return { ok: false, error: "Mapa inválido para essa modalidade." };
+  }
 
   const isTeam1 = requestingTeamId === match.team1_id;
   const isTeam2 = requestingTeamId === match.team2_id;
@@ -214,10 +270,13 @@ export async function submitVetoAction(
   const allVetoes = [...done, { action: slot.action, map_name: mapName }];
   const pickedMaps = allVetoes.filter((v) => v.action === "pick").map((v) => v.map_name);
   const allBanned = new Set(allVetoes.filter((v) => v.action === "ban").map((v) => v.map_name));
-  const decider = CS2_MAP_POOL.find((m) => !pickedMaps.includes(m.name) && !allBanned.has(m.name))?.name ?? null;
+  const decider = findDeciderMap(pool, pickedMaps, allBanned)?.name ?? null;
 
   if (isLastStep) {
-    const pickedMapsNeedSides = match.bo_type > 1 && pickedMaps.length > 0;
+    // No 1x1 os lados já são fixos (team1_ct alternando), então não existe
+    // etapa de escolha de lado — a partida vai direto para o pre_live.
+    const pickedMapsNeedSides =
+      !modeConfig.fixedSides && match.bo_type > 1 && pickedMaps.length > 0;
     if (!pickedMapsNeedSides) {
       await supabase
         .from("matches")
@@ -243,13 +302,16 @@ export async function submitMapSideChoice(
 
   const { data: match } = await supabase
     .from("matches")
-    .select("id, team1_id, team2_id, status, bo_type")
+    .select("id, team1_id, team2_id, status, bo_type, team_mode")
     .eq("id", matchId)
-    .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id" | "status" | "bo_type">>();
+    .maybeSingle<Pick<MatchRow, "id" | "team1_id" | "team2_id" | "status" | "bo_type" | "team_mode">>();
 
-  if (!match) return { ok: false, error: "Partida nÃ£o encontrada." };
-  if (match.status !== "veto") return { ok: false, error: "A escolha de lado nÃ£o estÃ¡ ativa." };
-  if (side !== "ct" && side !== "t") return { ok: false, error: "Lado invÃ¡lido." };
+  if (!match) return { ok: false, error: "Partida não encontrada." };
+  if (match.status !== "veto") return { ok: false, error: "A escolha de lado não está ativa." };
+  if (side !== "ct" && side !== "t") return { ok: false, error: "Lado inválido." };
+  if (getTeamMode(match.team_mode).fixedSides) {
+    return { ok: false, error: "Nessa modalidade os lados já são definidos automaticamente." };
+  }
 
   const { data: vetoes } = await supabase
     .from("map_vetoes")
@@ -260,14 +322,14 @@ export async function submitMapSideChoice(
 
   const done = vetoes ?? [];
   const sequence = getVetoSequence(match.bo_type as 1 | 3 | 5);
-  if (done.length < sequence.length) return { ok: false, error: "O veto ainda nÃ£o terminou." };
+  if (done.length < sequence.length) return { ok: false, error: "O veto ainda não terminou." };
 
   const target = done.find((v) => v.id === vetoId && v.action === "pick");
-  if (!target) return { ok: false, error: "Pick nÃ£o encontrado." };
+  if (!target) return { ok: false, error: "Pick não encontrado." };
 
   const sideChooserTeamId = target.team_id === match.team1_id ? match.team2_id : match.team1_id;
   if (!sideChooserTeamId || requestingTeamId !== sideChooserTeamId) {
-    return { ok: false, error: "Esse lado deve ser escolhido pelo adversÃ¡rio do pick." };
+    return { ok: false, error: "Esse lado deve ser escolhido pelo adversário do pick." };
   }
 
   await supabase.from("map_vetoes").update({ picked_side: side }).eq("id", vetoId);
@@ -289,9 +351,13 @@ export async function submitMapSideChoice(
 export async function provisionServerAsync(
   matchId: string,
   mapName: string,
-  mapId: string
+  mapId: string,
+  mode?: TeamMode
 ): Promise<void> {
   const supabase = createSupabaseAdminClient();
+  const teamMode = mode ?? (await getMatchTeamMode(matchId));
+  const modeConfig = getTeamMode(teamMode);
+  const mirrorServerId = getMirrorServerId(teamMode);
 
   // Skip if already provisioned or in progress
   // Allow retry on: "error" (explicit failure) or "reserving" (stuck — crashed between INSERT and Dathost call)
@@ -307,7 +373,7 @@ export async function provisionServerAsync(
   // Duplicate the mirror server — each match gets its own fresh CS2 server.
   let server: Awaited<ReturnType<typeof duplicateServer>>;
   try {
-    server = await duplicateServer(MIRROR_SERVER_ID, matchId);
+    server = await duplicateServer(mirrorServerId, matchId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[provision/${matchId}] duplicateServer failed:`, msg);
@@ -420,8 +486,16 @@ export async function provisionServerAsync(
   const configUrl = `${base}/api/matches/${matchId}/matchzy-config`;
   await sendConsoleCommand(server.id, `matchzy_loadmatch_url "${configUrl}"`, matchId);
 
+  // 1x1 joga sem compra: o colete precisa ser liberado no console.
+  // O comando é reenviado no match_start (ver webhook do MatchZy).
+  if (modeConfig.freeArmor) {
+    await sendConsoleCommand(server.id, "mp_free_armor 1", matchId).catch((err: unknown) =>
+      console.warn(`[provision/${matchId}] mp_free_armor falhou:`, err)
+    );
+  }
+
   console.log(
-    `[provision/${matchId}] OK — matchzy_match_id: ${matchzyMatchId}, server: ${server.id}, map: ${mapName} (${mapId}), ip: ${confirmedIp}:${port}`
+    `[provision/${matchId}] OK — modo: ${modeConfig.label}, matchzy_match_id: ${matchzyMatchId}, server: ${server.id}, map: ${mapName} (${mapId}), ip: ${confirmedIp}:${port}`
   );
 }
 
@@ -465,6 +539,7 @@ export async function retryProvision(matchId: string): Promise<void> {
     await deleteGameServer(sid, matchId).catch(() => {});
   }
 
-  const { mapName, mapId } = await resolveMatchMap(matchId);
-  await provisionServerAsync(matchId, mapName, mapId);
+  const teamMode = await getMatchTeamMode(matchId);
+  const { mapName, mapId } = await resolveMatchMap(matchId, teamMode);
+  await provisionServerAsync(matchId, mapName, mapId, teamMode);
 }

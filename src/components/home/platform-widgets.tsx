@@ -287,41 +287,164 @@ export function CompetitionPayoutFlow() {
 }
 
 const maps = [
-  { name: "Ancient", image: "/assets/maps/ancient.jpg", state: "ban" },
-  { name: "Anubis", image: "/assets/maps/anubis.jpg", state: "ban" },
-  { name: "Dust II", image: "/assets/maps/dust2.jpg", state: "ban" },
-  { name: "Inferno", image: "/assets/maps/inferno.jpg", state: "ban" },
-  { name: "Mirage", image: "/assets/maps/mirage.jpg", state: "pick" },
-  { name: "Nuke", image: "/assets/maps/nuke.jpg", state: "ban" },
-  { name: "Overpass", image: "/assets/maps/overpass.webp", state: "ban" },
+  { name: "Ancient", image: "/assets/maps/ancient.jpg" },
+  { name: "Anubis", image: "/assets/maps/anubis.jpg" },
+  { name: "Dust II", image: "/assets/maps/dust2.jpg" },
+  { name: "Inferno", image: "/assets/maps/inferno.jpg" },
+  { name: "Mirage", image: "/assets/maps/mirage.jpg" },
+  { name: "Nuke", image: "/assets/maps/nuke.jpg" },
+  { name: "Overpass", image: "/assets/maps/overpass.webp" },
 ];
+
+// O mapa que sobra no fim da sequência.
+const VETO_DECIDER = "Mirage";
+const VETO_STEP_MS = 620;
+const VETO_TEAMS = ["Legacy", "Imperial"] as const;
+
+/**
+ * Reproduz um veto real: os X caem em ordem aleatória até sobrar um mapa.
+ * A sequência roda uma vez, quando o bloco entra na tela.
+ */
+function useVetoSequence(active: boolean) {
+  const [bannedCount, setBannedCount] = React.useState(0);
+  const [order, setOrder] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (!active) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pool = maps.map((m) => m.name).filter((name) => name !== VETO_DECIDER);
+
+    // Fisher-Yates — a ordem só é sorteada no cliente, então não há
+    // divergência de hidratação com o HTML do servidor.
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    setOrder(pool);
+
+    const timers = pool.map((_, index) =>
+      window.setTimeout(
+        () => setBannedCount(index + 1),
+        reduceMotion ? 0 : 520 + index * VETO_STEP_MS
+      )
+    );
+
+    return () => timers.forEach(window.clearTimeout);
+  }, [active]);
+
+  const banned = React.useMemo(
+    () => new Set(order.slice(0, bannedCount)),
+    [order, bannedCount]
+  );
+
+  return {
+    banned,
+    done: order.length > 0 && bannedCount >= order.length,
+    activeTeam: VETO_TEAMS[bannedCount % 2],
+  };
+}
 
 export function MapVeto() {
   const [vetoRef, vetoInView] = useInViewOnce<HTMLDivElement>();
+  const { banned, done, activeTeam } = useVetoSequence(vetoInView);
 
   return (
     <div ref={vetoRef} className="w-full">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <span><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-400">Veto de mapas</span><strong className="mt-1 block text-xl tracking-[-0.035em]">Mirage foi escolhido.</strong></span>
-        <span className="rounded-full border border-green-500/22 bg-green-500/8 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-green-500">Pronto</span>
+        <span>
+          <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-400">
+            Veto de mapas
+          </span>
+          <strong className="mt-1 block text-xl tracking-[-0.035em]">
+            {done ? "Mirage foi escolhido." : `Vez de ${activeTeam}.`}
+          </strong>
+        </span>
+        <span
+          className={cn(
+            "rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] transition-colors duration-500",
+            done
+              ? "border-green-500/22 bg-green-500/8 text-green-500"
+              : "border-red-400/25 bg-red-400/8 text-red-400"
+          )}
+        >
+          {done ? (
+            "Pronto"
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+              Vetando
+            </span>
+          )}
+        </span>
       </div>
+
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
-        {maps.map((map, index) => (
-          <div
-            key={map.name}
-            className={cn(
-              "relative min-h-48 overflow-hidden rounded-2xl border transition-[opacity,transform,border-color,box-shadow] duration-700 ease-[var(--ease-out-quint)] lg:min-h-56",
-              vetoInView ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0",
-              map.state === "pick" ? "border-green-500/48 shadow-[0_16px_30px_rgba(34,197,94,.09)]" : "border-[var(--border)]"
-            )}
-            style={{ transitionDelay: vetoInView ? `${index * 85}ms` : "0ms" }}
-          >
-            <Image src={map.image} alt="" fill sizes="160px" className={cn("object-cover transition-[filter,opacity] duration-500", map.state === "pick" ? "opacity-90 saturate-110" : "opacity-42 saturate-75")} />
-            <span className={cn("absolute inset-0", map.state === "pick" ? "bg-black/12" : "bg-black/48")} />
-            {map.state === "ban" && <span className="absolute left-1/2 top-1/2 h-px w-[145%] -translate-x-1/2 -translate-y-1/2 -rotate-[58deg] bg-red-400/78" />}
-            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black to-transparent px-1 pb-3 pt-10 text-center text-[10px] font-bold text-white/86">{map.name}</span>
-          </div>
-        ))}
+        {maps.map((map, index) => {
+          const isBanned = banned.has(map.name);
+          const isPicked = done && map.name === VETO_DECIDER;
+
+          return (
+            <div
+              key={map.name}
+              className={cn(
+                "relative min-h-48 overflow-hidden rounded-2xl border transition-[opacity,transform,border-color,box-shadow] duration-700 ease-[var(--ease-out-quint)] lg:min-h-56",
+                vetoInView ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0",
+                isPicked
+                  ? "border-green-500/48 shadow-[0_16px_30px_rgba(34,197,94,.09)]"
+                  : "border-[var(--border)]"
+              )}
+              style={{ transitionDelay: vetoInView ? `${index * 85}ms` : "0ms" }}
+            >
+              <Image
+                src={map.image}
+                alt=""
+                fill
+                sizes="160px"
+                className={cn(
+                  "object-cover transition-[filter,opacity] duration-500",
+                  isBanned ? "opacity-32 saturate-50" : "opacity-90 saturate-110"
+                )}
+              />
+              <span
+                className={cn(
+                  "absolute inset-0 transition-colors duration-500",
+                  isBanned ? "bg-black/58" : "bg-black/12"
+                )}
+              />
+
+              {/* X do veto */}
+              <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+                className={cn(
+                  "absolute inset-0 h-full w-full transition-[opacity,transform] duration-300 ease-[var(--ease-out-quint)]",
+                  isBanned ? "scale-100 opacity-100" : "scale-125 opacity-0"
+                )}
+              >
+                <line x1="12" y1="12" x2="88" y2="88" stroke="rgb(248 113 113 / .85)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+                <line x1="88" y1="12" x2="12" y2="88" stroke="rgb(248 113 113 / .85)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
+              </svg>
+
+              <span
+                className={cn(
+                  "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black to-transparent px-1 pb-3 pt-10 text-center text-[10px] font-bold transition-colors duration-500",
+                  isBanned ? "text-white/45 line-through" : "text-white/86"
+                )}
+              >
+                {map.name}
+              </span>
+
+              {isPicked && (
+                <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-green-500/35 bg-green-500/15 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-green-400 backdrop-blur-sm">
+                  Decider
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

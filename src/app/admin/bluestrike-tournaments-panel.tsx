@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { getTeamMode } from "@/lib/team-modes";
 import type { Tournament } from "@/types";
 
 const STATUS_OPTS: { value: Tournament["status"]; label: string }[] = [
@@ -143,6 +144,7 @@ function TournamentRow({ tournament: t }: TournamentRowProps) {
   const [prizeSecond, setPrizeSecond] = useState(String(t.prizeBreakdown?.[1]?.amount ?? 0));
   const [prizeThird, setPrizeThird] = useState(String(t.prizeBreakdown?.[2]?.amount ?? 0));
   const [entryFee, setEntryFee] = useState(String(t.entryFee ?? 0));
+  const playersPerTeam = getTeamMode(t.teamMode).playersPerTeam;
   const [registrationEnds, setRegistrationEnds] = useState(
     t.registrationEnds ? new Date(t.registrationEnds).toISOString().slice(0, 16) : ""
   );
@@ -245,6 +247,9 @@ function TournamentRow({ tournament: t }: TournamentRowProps) {
             <Badge variant={STATUS_VARIANT[t.status] ?? "upcoming"} className="shrink-0 text-[10px]">
               {STATUS_OPTS.find((o) => o.value === t.status)?.label ?? t.status}
             </Badge>
+            <span className="shrink-0 rounded border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[10px] font-black text-[var(--primary)]">
+              {getTeamMode(t.teamMode).label}
+            </span>
           </div>
           <div className="mt-0.5 flex items-center gap-3 text-[10px] text-[var(--muted-foreground)]">
             <span>{registered}/{t.maxTeams} times</span>
@@ -349,7 +354,8 @@ function TournamentRow({ tournament: t }: TournamentRowProps) {
                 <Input type="number" min={0} step={10} value={entryFee} onChange={(e) => setEntryFee(e.target.value)} className="h-9 text-xs" />
                 {Number(entryFee) > 0 && (
                   <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
-                    ÷ 5 jogadores = {formatCurrency(Number(entryFee) / 5)} por player
+                    ÷ {playersPerTeam} {playersPerTeam === 1 ? "jogador" : "jogadores"} ={" "}
+                    {formatCurrency(Math.ceil(Number(entryFee) / playersPerTeam))} por player
                   </p>
                 )}
               </div>

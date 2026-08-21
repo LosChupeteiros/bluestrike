@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 import { getTeamBySlug } from "@/lib/teams";
+import { getTeamMode } from "@/lib/team-modes";
 import { getRecentMatchesForTeam } from "@/lib/matches";
 import { DeleteTeamButton, EditDescriptionButton } from "./team-management-controls";
 import { TeamProfileTabs } from "./team-profile-tabs";
@@ -26,6 +27,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
 
   const recentMatches = await getRecentMatchesForTeam(team.id, 10);
 
+  const teamModeConfig = getTeamMode(team.teamMode);
   const starters = team.members?.filter((member) => member.isStarter) ?? [];
   const substitutes = team.members?.filter((member) => !member.isStarter) ?? [];
   const captainMember = team.members?.find((member) => member.profileId === team.captainId);
@@ -57,6 +59,12 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                 <div className="flex flex-wrap items-center gap-2">
                   {team.isRecruiting && <Badge variant="open">● Recrutando</Badge>}
                   <Badge variant="ongoing">[{team.tag}]</Badge>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-2.5 py-1 font-mono text-[11px] font-black text-[var(--primary)]">
+                    {teamModeConfig.label}
+                    <span className="font-sans text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--primary)]/70">
+                      {teamModeConfig.gameModeLabel}
+                    </span>
+                  </span>
                 </div>
                 <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] sm:text-5xl">{team.name}</h1>
                 <div className="mt-3 flex items-start gap-2">
@@ -79,7 +87,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
                 { label: "BlueStrike ELO", value: team.elo.toLocaleString("pt-BR"), detail: "Média da lineup", accent: true },
                 { label: "Recorde", value: `${team.wins}V · ${team.losses}D`, detail: `${winRate}% win rate`, accent: false },
                 { label: "Partidas", value: totalMatches.toString(), detail: "Registradas", accent: false },
-                { label: "Lineup", value: `${starters.length}/5`, detail: `${substitutes.length} reserva${substitutes.length === 1 ? "" : "s"}`, accent: true },
+                { label: "Lineup", value: `${starters.length}/${teamModeConfig.playersPerTeam}`, detail: `${substitutes.length} reserva${substitutes.length === 1 ? "" : "s"}`, accent: true },
               ].map((metric) => (
                 <div className="bs-bento-card p-4" key={metric.label}>
                   <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">{metric.label}</span>
@@ -94,6 +102,7 @@ export default async function TeamProfilePage({ params }: TeamProfilePageProps) 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="lg:col-span-9">
             <TeamProfileTabs
+              teamMode={team.teamMode}
               starters={starters}
               substitutes={substitutes}
               isCaptain={isCaptain}
