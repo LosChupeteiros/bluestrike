@@ -91,3 +91,17 @@ export function generateMatchzyMatchId(): number {
 export function generateMatchSecret(): string {
   return randomBytes(32).toString("hex");
 }
+
+/**
+ * Host base das URLs entregues ao servidor de jogo (config e webhook).
+ *
+ * Precisa ser o host CANÔNICO, sem redirect. `bluestrike.com.br` responde 307
+ * para `www.bluestrike.com.br`, e o HttpClient do .NET — que é o que o MatchZy
+ * usa — descarta o header `Authorization` em redirect entre hosts diferentes.
+ * Apontar direto para o host final evita que a autenticação quebre em silêncio.
+ */
+export function getIntegrationBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  return "https://www.bluestrike.com.br";
+}

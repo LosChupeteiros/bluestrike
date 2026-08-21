@@ -1,3 +1,4 @@
+import { getIntegrationBaseUrl } from "@/lib/api-auth";
 // Pickup / Captains Draft lobby ("/chupeteiromestre")
 // Subsistema autocontido de pug/mix caseiro: presença → sorteio de capitães →
 // draft alternado → ready → veto MD3 → escolha de lados → sobe servidor DatHost.
@@ -594,7 +595,7 @@ export async function provisionPugServerAsync(lobbyId: string): Promise<void> {
     server_status: "ready",
   }).eq("id", lobbyId);
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
+  const base = getIntegrationBaseUrl();
   const configUrl = `${base}/api/chupeteiromestre/${lobbyId}/matchzy-config`;
   await sendConsoleCommand(server.id, `matchzy_loadmatch_url "${configUrl}"`, null);
 

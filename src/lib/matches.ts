@@ -5,6 +5,7 @@ import { getBracketRoundModel } from "@/lib/bracket-model";
 import { createMatchStartNotifications } from "@/lib/notifications";
 import { normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 import { randomUUID } from "crypto";
+import { getIntegrationBaseUrl } from "@/lib/api-auth";
 
 interface MatchRow {
   id: string;
@@ -163,7 +164,7 @@ export async function getMatchWebhookInfo(matchId: string): Promise<MatchWebhook
       .eq("id", matchId);
   }
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
+  const base = getIntegrationBaseUrl();
 
   return {
     matchId,

@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { findDeciderMap, getMapPoolForMode, getVetoSequence } from "@/lib/maps";
 import { getTeamMode, normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGameServer, sendConsoleCommand, writeDathostLog } from "@/lib/dathost";
-import { generateMatchSecret, generateMatchzyMatchId, getServerIntegrationToken } from "@/lib/api-auth";
+import { generateMatchSecret, generateMatchzyMatchId, getServerIntegrationToken, getIntegrationBaseUrl } from "@/lib/api-auth";
 
 // Servidor espelho clonado a cada partida, por modalidade.
 // Todos podem ser sobrescritos por variável de ambiente.
@@ -483,7 +483,7 @@ export async function provisionServerAsync(
     .update({ ip: confirmedIp, raw_ip: confirmedIp, status: "ready" })
     .eq("match_id", matchId);
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
+  const base = getIntegrationBaseUrl();
 
   // Segredo desta partida: o servidor usa para ler o config e o Dathost para
   // assinar os webhooks. É rotacionado a cada provisionamento.
