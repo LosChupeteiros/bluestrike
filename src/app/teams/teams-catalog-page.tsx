@@ -1,7 +1,6 @@
 ﻿import Link from "next/link";
 import { ArrowRight, Crown, ExternalLink, KeyRound, Plus, Shield, Sparkles, Swords, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LiveSearchInput } from "@/components/ui/live-filters";
 import { getFaceitTeamsByIds, type FaceitTeam } from "@/lib/faceit";
@@ -9,6 +8,7 @@ import { listRegisteredFaceitTeamIds } from "@/lib/profiles";
 import { getCurrentProfile } from "@/lib/profiles";
 import { listPublicTeams, getTeamsForProfile } from "@/lib/teams";
 import { getTeamMode, TEAM_MODE_LIST } from "@/lib/team-modes";
+import { cn } from "@/lib/utils";
 import type { Team } from "@/types";
 
 interface TeamsCatalogPageProps {
@@ -87,61 +87,98 @@ function FaceitGlyph({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-function TeamIdentity({ team }: { team: Team }) {
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)]/20 bg-gradient-to-br from-cyan-950 to-slate-900 text-xs font-black text-[var(--primary)]">
-        {team.tag}
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-bold">{team.name}</div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
-          <span>{team.members?.length ?? 0} jogadores</span>
-          <span className="text-[10px]">/</span>
-          <span>{team.wins}V {team.losses}D</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function BluestrikeFeaturedCard({ team }: { team: Team }) {
+  const mode = getTeamMode(team.teamMode);
+  const members = team.members ?? [];
+  const openSlots = Math.max(0, mode.maxMembers - members.length);
+  const totalMatches = team.wins + team.losses;
+  const winRate = totalMatches > 0 ? Math.round((team.wins / totalMatches) * 100) : null;
+
   return (
     <Link href={`/teams/${team.slug}`} className="group block h-full">
-      <div className="flex h-full flex-col rounded-2xl border border-[var(--primary)]/15 bg-gradient-to-br from-[var(--card)] via-[var(--card)] to-[var(--primary)]/5 p-5 transition-all hover:border-[var(--primary)]/35 hover:shadow-[0_0_24px_rgba(0,200,255,0.08)]">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <TeamIdentity team={team} />
-          <Badge variant="open" className="shrink-0">
-            Recrutando
-          </Badge>
+      <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--primary)]/40">
+        {/* Luz da marca no canto — some no repouso, acende no hover */}
+        <span
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[var(--primary)]/10 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100"
+          aria-hidden="true"
+        />
+
+        <div className="relative flex items-start gap-3 p-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)]/20 bg-gradient-to-br from-cyan-950 to-slate-900 text-xs font-black text-[var(--primary)]">
+            {team.tag}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-black transition-colors group-hover:text-[var(--primary)]">
+                {team.name}
+              </span>
+              <span className="shrink-0 rounded border border-[var(--primary)]/25 bg-[var(--primary)]/10 px-1.5 py-0.5 font-mono text-[9px] font-black leading-none text-[var(--primary)]">
+                {mode.label}
+              </span>
+            </div>
+
+            <p className="mt-1.5 line-clamp-2 min-h-[2rem] text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+              {team.description || "Line ativa na plataforma."}
+            </p>
+          </div>
         </div>
 
-        <p className="line-clamp-3 min-h-[60px] text-sm leading-relaxed text-[var(--muted-foreground)]">
-          {team.description || "Time ativo na plataforma procurando reforcos para os proximos torneios."}
-        </p>
+        {/* Faixa de métricas — o dado competitivo que justifica o card */}
+        <div className="relative grid grid-cols-3 divide-x divide-[var(--border)] border-y border-[var(--border)] bg-black/15">
+          {[
+            { label: "ELO", value: team.elo.toLocaleString("pt-BR"), accent: true },
+            { label: "Retrospecto", value: `${team.wins}V·${team.losses}D`, accent: false },
+            { label: "Win rate", value: winRate !== null ? `${winRate}%` : "—", accent: false },
+          ].map((metric) => (
+            <div key={metric.label} className="px-3 py-2.5 text-center">
+              <span
+                className={cn(
+                  "block font-mono text-sm font-black leading-none tabular-nums",
+                  metric.accent ? "text-[var(--primary)]" : "text-[var(--foreground)]"
+                )}
+              >
+                {metric.value}
+              </span>
+              <span className="mt-1 block text-[8px] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                {metric.label}
+              </span>
+            </div>
+          ))}
+        </div>
 
-        <div className="mt-5 flex items-center justify-between gap-3">
+        <div className="relative mt-auto flex items-center justify-between gap-3 p-4">
           <div className="flex items-center -space-x-2">
-            {(team.members ?? []).slice(0, 4).map((member) => {
+            {members.slice(0, 5).map((member) => {
               const name = member.profile?.steamPersonaName ?? "?";
-
               return (
                 <Avatar
                   key={member.id}
-                  className="h-8 w-8 border-2 border-[var(--card)] bg-[var(--secondary)]"
+                  className="h-7 w-7 border-2 border-[var(--card)] bg-[var(--secondary)]"
+                  title={name}
                 >
-                  <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={name} />
-                  <AvatarFallback className="text-[10px]">
+                  <AvatarImage src={member.profile?.steamAvatarUrl ?? undefined} alt={name} sizes="64px" />
+                  <AvatarFallback className="text-[9px] font-bold">
                     {name.slice(0, 1).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               );
             })}
+            <span className="pl-3.5 font-mono text-[10px] font-bold text-[var(--muted-foreground)]">
+              {members.length}/{mode.maxMembers}
+            </span>
           </div>
-          <div className="text-right">
-            <div className="text-xs text-[var(--muted-foreground)]">ELO medio</div>
-            <div className="text-sm font-black text-[var(--primary)]">{team.elo}</div>
-          </div>
+
+          {openSlots > 0 ? (
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+              {openSlots} {openSlots === 1 ? "vaga" : "vagas"}
+            </span>
+          ) : (
+            <span className="shrink-0 rounded-full border border-[var(--border)] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+              Line fechada
+            </span>
+          )}
         </div>
       </div>
     </Link>

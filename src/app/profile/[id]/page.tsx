@@ -7,7 +7,7 @@ import {
   getMockProfileStats,
   getMockTeamsForProfile,
 } from "@/data/competitive-mock";
-import { getPublicDisplayName, isProfileComplete, type UserProfile } from "@/lib/profile";
+import { getProfileAge, getPublicDisplayName, isProfileComplete, toPublicProfile, type UserProfile } from "@/lib/profile";
 import { getCurrentProfile, getFaceitRankingPosition, getProfileByPublicId, refreshFaceitStats, syncFaceitTeams } from "@/lib/profiles";
 import { getTeamsForProfile } from "@/lib/teams";
 import { getRecentMatchesForProfile } from "@/lib/matches";
@@ -115,9 +115,13 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       : Promise.resolve(null),
   ]);
 
+  // Visitante nunca recebe CPF, telefone, data de nascimento nem e-mail.
+  // O dono continua recebendo tudo porque o modal de edição precisa preencher.
+  const profileForClient = isOwner ? profile : toPublicProfile(profile);
+
   return (
     <ProfileShellView
-      profile={profile}
+      profile={profileForClient}
       stats={presentation.stats}
       teams={presentation.teams}
       faceitTeams={faceitTeams}
@@ -126,6 +130,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       defaultEditOpen={isOwner && query.edit === "1"}
       showWelcome={isOwner && query.welcome === "1"}
       showCompletionAlert={isOwner && (query.complete === "1" || !isProfileComplete(profile))}
+      publicAge={getProfileAge(profile.birthDate)}
       showTeamCreatedNotice={isOwner && query.teamCreated === "1"}
       showTeamDeletedNotice={isOwner && query.teamDeleted === "1"}
       faceitRankingPosition={faceitRankingPosition}

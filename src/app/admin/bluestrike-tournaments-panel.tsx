@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowUpRight,
+  Award,
+  Check,
   ChevronDown,
   ChevronUp,
+  Copy,
   Crown,
   ExternalLink,
+  Eye,
+  EyeOff,
   Loader2,
+  Medal,
   Pencil,
   Trophy,
 } from "lucide-react";
@@ -39,7 +46,15 @@ const STATUS_VARIANT: Record<string, "upcoming" | "open" | "ongoing" | "finished
 
 interface PodiumEntry {
   team: { id: string; name: string; tag: string; elo: number } | null;
-  captain: { id: string; nickname: string; avatarUrl: string | null; steamId: string } | null;
+  captain: {
+    id: string;
+    nickname: string;
+    avatarUrl: string | null;
+    steamId: string;
+    pixKeyType: string | null;
+    pixKey: string | null;
+    fullName: string | null;
+  } | null;
 }
 
 interface PodiumData {
@@ -49,10 +64,87 @@ interface PodiumData {
 }
 
 const PLACE_CONFIG = [
-  { icon: "🥇", label: "1º lugar", borderClass: "border-yellow-500/40 bg-yellow-500/5", titleClass: "text-yellow-300" },
-  { icon: "🥈", label: "2º lugar", borderClass: "border-slate-400/30 bg-slate-400/5",   titleClass: "text-slate-300" },
-  { icon: "🥉", label: "3º lugar", borderClass: "border-orange-600/25 bg-orange-600/5", titleClass: "text-orange-300" },
+  { icon: Crown, label: "1º lugar", accent: "#f5c842", borderClass: "border-[#f5c842]/35 bg-[#f5c842]/5" },
+  { icon: Medal, label: "2º lugar", accent: "#c7d2da", borderClass: "border-[#c7d2da]/25 bg-[#c7d2da]/5" },
+  { icon: Award, label: "3º lugar", accent: "#e08a4a", borderClass: "border-[#e08a4a]/25 bg-[#e08a4a]/5" },
 ];
+
+const PIX_TYPE_LABEL: Record<string, string> = {
+  cpf: "CPF",
+  phone: "Celular",
+  email: "E-mail",
+  random: "Chave aleatória",
+};
+
+/** Mostra a chave PIX inteira só sob demanda — evita deixar dado pessoal na tela. */
+function PixKeyRow({ captain }: { captain: NonNullable<PodiumEntry["captain"]> }) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  if (!captain.pixKey || !captain.pixKeyType) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-orange-500/30 bg-orange-500/8 px-3 py-2.5">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" aria-hidden="true" />
+        <div className="min-w-0 text-[11px] leading-relaxed text-orange-200">
+          <span className="font-bold">Sem chave PIX cadastrada.</span> Peça para{" "}
+          <span className="font-bold">{captain.nickname}</span> abrir o cadastro e registrar a
+          chave antes de pagar a premiação.
+        </div>
+      </div>
+    );
+  }
+
+  const masked =
+    captain.pixKey.length > 6
+      ? `${captain.pixKey.slice(0, 3)}${"•".repeat(Math.min(8, captain.pixKey.length - 5))}${captain.pixKey.slice(-2)}`
+      : "••••••";
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(captain.pixKey ?? "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setRevealed(true);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-green-500/25 bg-green-500/[0.06] px-3 py-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-green-300">
+          PIX · {PIX_TYPE_LABEL[captain.pixKeyType] ?? captain.pixKeyType}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setRevealed((v) => !v)}
+            className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+            aria-label={revealed ? "Ocultar chave" : "Mostrar chave"}
+          >
+            {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={copy}
+            className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+            aria-label="Copiar chave PIX"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+      <p className="truncate font-mono text-xs font-bold text-[var(--foreground)]">
+        {revealed ? captain.pixKey : masked}
+      </p>
+      {captain.fullName && (
+        <p className="mt-1 truncate text-[10px] text-[var(--muted-foreground)]">
+          Titular: {captain.fullName}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function PodiumPaymentCard({
   place,
@@ -64,15 +156,23 @@ function PodiumPaymentCard({
   prizeAmount: number | null;
 }) {
   const cfg = PLACE_CONFIG[place];
+  const Icon = cfg.icon;
 
   if (!entry?.team) {
     return (
       <div className={cn("flex flex-col items-center gap-3 rounded-xl border p-4 text-center", cfg.borderClass)}>
-        <span className="text-2xl">{cfg.icon}</span>
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `color-mix(in srgb, ${cfg.accent} 14%, transparent)`, color: cfg.accent }}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
         <div className="text-xs font-semibold text-[var(--muted-foreground)]">{cfg.label}</div>
         <div className="text-sm font-black text-[var(--muted-foreground)]">—</div>
         {prizeAmount ? (
-          <div className={cn("text-sm font-black", cfg.titleClass)}>{formatCurrency(prizeAmount)}</div>
+          <div className="font-mono text-sm font-black" style={{ color: cfg.accent }}>
+            {formatCurrency(prizeAmount)}
+          </div>
         ) : null}
       </div>
     );
@@ -81,44 +181,59 @@ function PodiumPaymentCard({
   return (
     <div className={cn("flex flex-col gap-3 rounded-xl border p-4", cfg.borderClass)}>
       <div className="flex items-center gap-2">
-        <span className="text-xl">{cfg.icon}</span>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 text-xs font-black text-[var(--primary)]">
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `color-mix(in srgb, ${cfg.accent} 14%, transparent)`, color: cfg.accent }}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-gradient-to-br from-cyan-950 to-slate-900 text-[10px] font-black text-[var(--primary)]">
           {entry.team.tag}
         </div>
         <div className="min-w-0 flex-1">
-          <div className={cn("truncate text-sm font-black", cfg.titleClass)}>{entry.team.name}</div>
+          <div className="truncate text-sm font-black" style={{ color: cfg.accent }}>
+            {entry.team.name}
+          </div>
           <div className="text-[10px] text-[var(--muted-foreground)]">{entry.team.elo} ELO</div>
         </div>
         {prizeAmount ? (
-          <div className={cn("shrink-0 text-sm font-black", cfg.titleClass)}>{formatCurrency(prizeAmount)}</div>
+          <div className="shrink-0 font-mono text-sm font-black" style={{ color: cfg.accent }}>
+            {formatCurrency(prizeAmount)}
+          </div>
         ) : null}
       </div>
 
       {entry.captain && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-[var(--border)]/50 bg-black/20 p-2.5">
-          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[var(--border)]">
-            {entry.captain.avatarUrl ? (
-              <Image src={entry.captain.avatarUrl} alt={entry.captain.nickname} fill className="object-cover" unoptimized />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-[var(--secondary)] text-[10px] font-bold">
-                {entry.captain.nickname[0]?.toUpperCase()}
+        <>
+          <div className="flex items-center gap-2.5 rounded-lg border border-[var(--border)]/50 bg-black/20 p-2.5">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[var(--border)]">
+              {entry.captain.avatarUrl ? (
+                <Image src={entry.captain.avatarUrl} alt="" fill sizes="64px" className="object-cover" unoptimized />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-[var(--secondary)] text-[10px] font-bold">
+                  {entry.captain.nickname[0]?.toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                Capitão
               </div>
-            )}
+              <div className="truncate text-sm font-bold">{entry.captain.nickname}</div>
+            </div>
+            <a
+              href={`https://steamcommunity.com/profiles/${entry.captain.steamId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-1.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+              title="Ver Steam"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-[var(--muted-foreground)]">Capitão (pagamento)</div>
-            <div className="truncate text-sm font-bold">{entry.captain.nickname}</div>
-          </div>
-          <a
-            href={`https://steamcommunity.com/profiles/${entry.captain.steamId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--secondary)] p-1.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-            title="Ver Steam"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        </div>
+
+          <PixKeyRow captain={entry.captain} />
+        </>
       )}
     </div>
   );
@@ -159,29 +274,40 @@ function TournamentRow({ tournament: t }: TournamentRowProps) {
   const [podium, setPodium] = useState<PodiumData | null>(null);
   const [podiumLoading, setPodiumLoading] = useState(false);
 
+  // `podiumLoading` NÃO pode entrar nas dependências: ao setá-lo o efeito
+  // reexecutava, o cleanup abortava o próprio fetch e o `finally` era ignorado
+  // porque `active` já era false — deixando o card carregando para sempre.
+  const podiumRequestedRef = useRef(false);
+
   useEffect(() => {
-    if (open && tab === "podium" && !podium && !podiumLoading) {
-      const controller = new AbortController();
-      let active = true;
-      const loadPodium = async () => {
-        setPodiumLoading(true);
-        try {
-          const response = await fetch(`/api/admin/tournaments/${t.id}/podium`, { signal: controller.signal });
-          const data = await response.json() as PodiumData;
-          if (active) setPodium(data);
-        } catch {
-          // A troca de aba/modal cancela esta leitura silenciosamente.
-        } finally {
-          if (active) setPodiumLoading(false);
-        }
-      };
-      void loadPodium();
-      return () => {
-        active = false;
-        controller.abort();
-      };
-    }
-  }, [open, tab, podium, podiumLoading, t.id]);
+    if (!open || tab !== "podium" || podiumRequestedRef.current) return;
+
+    podiumRequestedRef.current = true;
+    const controller = new AbortController();
+    let active = true;
+
+    const loadPodium = async () => {
+      setPodiumLoading(true);
+      try {
+        const response = await fetch(`/api/admin/tournaments/${t.id}/podium`, { signal: controller.signal });
+        if (!response.ok) throw new Error("falha ao carregar pódio");
+        const data = (await response.json()) as PodiumData;
+        if (active) setPodium(data);
+      } catch {
+        // Fechar o modal cancela a leitura — permite tentar de novo depois.
+        if (active) podiumRequestedRef.current = false;
+      } finally {
+        if (active) setPodiumLoading(false);
+      }
+    };
+
+    void loadPodium();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [open, tab, t.id]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

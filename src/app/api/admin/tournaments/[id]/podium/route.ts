@@ -9,7 +9,19 @@ interface RouteContext {
 
 interface PodiumEntry {
   team: { id: string; name: string; tag: string; elo: number } | null;
-  captain: { id: string; nickname: string; avatarUrl: string | null; steamId: string } | null;
+  captain: {
+    id: string;
+    nickname: string;
+    avatarUrl: string | null;
+    steamId: string;
+    /**
+     * Dados de pagamento. Rota já é admin-only — nunca reaproveitar em rota
+     * pública.
+     */
+    pixKeyType: string | null;
+    pixKey: string | null;
+    fullName: string | null;
+  } | null;
 }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
@@ -64,9 +76,17 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     const { data: captainProfile } = await supabase
       .from("profiles")
-      .select("id, steam_persona_name, steam_avatar_url, steam_id")
+      .select("id, steam_persona_name, steam_avatar_url, steam_id, pix_key_type, pix_key, full_name")
       .eq("id", team.captain_id)
-      .maybeSingle<{ id: string; steam_persona_name: string; steam_avatar_url: string | null; steam_id: string }>();
+      .maybeSingle<{
+        id: string;
+        steam_persona_name: string;
+        steam_avatar_url: string | null;
+        steam_id: string;
+        pix_key_type: string | null;
+        pix_key: string | null;
+        full_name: string | null;
+      }>();
 
     return {
       team: { id: team.id, name: team.name, tag: team.tag, elo: team.elo },
@@ -76,6 +96,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
             nickname: captainProfile.steam_persona_name,
             avatarUrl: captainProfile.steam_avatar_url,
             steamId: captainProfile.steam_id,
+            pixKeyType: captainProfile.pix_key_type,
+            pixKey: captainProfile.pix_key,
+            fullName: captainProfile.full_name,
           }
         : null,
     };

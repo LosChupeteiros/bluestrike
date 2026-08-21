@@ -121,33 +121,29 @@ export default async function FeaturedTournaments() {
               href={campaign.href}
               className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-1 hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
             >
-              {/* Banner encaixado, sem véu escuro por cima */}
-              <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-[#0b0f14]">
+              {/* Banner inteiro: `contain` em vez de `cover` para não cortar a arte */}
+              <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-[#06090d]">
+                {/* Fundo desfocado preenche as sobras sem cortar o banner */}
                 <Image
                   src={campaign.image}
                   alt=""
                   fill
                   sizes="(max-width: 767px) 100vw, 33vw"
-                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-                />
-                {/* Só o suficiente para o badge respirar sobre imagens claras */}
-                <span
-                  className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/45 to-transparent"
                   aria-hidden="true"
+                  className="scale-110 object-cover opacity-25 blur-2xl"
                 />
-                <span
-                  className={`absolute left-4 top-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.1em] backdrop-blur-sm ${statusClass[campaign.status]}`}
-                >
-                  {campaign.status === "ongoing" && (
-                    <Radio className="mr-1 inline h-3 w-3 animate-pulse" aria-hidden="true" />
-                  )}
-                  {campaign.statusLabel}
-                </span>
+                <Image
+                  src={campaign.image}
+                  alt=""
+                  fill
+                  sizes="(max-width: 767px) 100vw, 33vw"
+                  className="object-contain transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                />
               </div>
 
               {/* Conteúdo abaixo do risco */}
               <div className="flex flex-1 flex-col border-t border-[var(--border)] p-5">
-                <h3 className="line-clamp-2 min-h-[2.6rem] text-lg font-black uppercase leading-[1.15] tracking-[-0.03em] transition-colors group-hover:text-[var(--primary)] sm:text-xl">
+                <h3 className="line-clamp-2 text-2xl font-black uppercase leading-[1.05] tracking-[-0.04em] transition-colors group-hover:text-[var(--primary)] sm:text-[1.7rem]">
                   {campaign.name}
                 </h3>
 
@@ -161,10 +157,21 @@ export default async function FeaturedTournaments() {
                     </div>
                   </div>
 
-                  <span className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-black/25 px-2.5 py-1.5 text-[11px] font-bold text-[var(--muted-foreground)]">
-                    <Users className="h-3 w-3" aria-hidden="true" />
-                    {campaign.meta}
-                  </span>
+                  {/* Status em cima das vagas, alinhado à direita */}
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${statusClass[campaign.status]}`}
+                    >
+                      {campaign.status === "ongoing" && (
+                        <Radio className="mr-1 inline h-3 w-3 animate-pulse" aria-hidden="true" />
+                      )}
+                      {campaign.statusLabel}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--muted-foreground)]">
+                      <Users className="h-3 w-3" aria-hidden="true" />
+                      {campaign.meta}
+                    </span>
+                  </div>
                 </div>
               </div>
             </Link>

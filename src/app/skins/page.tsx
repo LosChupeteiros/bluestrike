@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { CloudCog, Gamepad2, Sparkles, Zap } from "lucide-react";
@@ -15,35 +16,132 @@ export const metadata: Metadata = {
   description: "Escolha suas skins para o servidor BlueStrike.",
 };
 
-function CTLogo() {
-  return (
-    <span
-      aria-label="CT"
-      className="flex h-11 w-11 items-center justify-center bg-contain bg-center bg-no-repeat text-xs font-black text-[#7B96FF]"
-      style={{ backgroundImage: "url(/assets/sides/Ct_logo.webp)" }}
-    >
-      CT
-    </span>
-  );
-}
+const SIDE_CONFIG = {
+  ct: {
+    team: 3,
+    name: "Counter-Terrorist",
+    short: "CT",
+    accent: "#7B96FF",
+    logo: "/assets/sides/Ct_logo.webp",
+  },
+  t: {
+    team: 2,
+    name: "Terrorist",
+    short: "TR",
+    accent: "#FB923C",
+    logo: "/assets/sides/Tr_logo.webp",
+  },
+} as const;
 
-function TLogo() {
+function SlotLabel({ children, accent }: { children: React.ReactNode; accent: string }) {
   return (
-    <span
-      aria-label="TR"
-      className="flex h-11 w-11 items-center justify-center bg-contain bg-center bg-no-repeat text-xs font-black text-[#FB923C]"
-      style={{ backgroundImage: "url(/assets/sides/Tr_logo.webp)" }}
+    <p
+      className="mb-2 text-[9px] font-black uppercase tracking-[0.18em]"
+      style={{ color: `color-mix(in srgb, ${accent} 70%, var(--muted-foreground))` }}
     >
-      TR
-    </span>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)] mb-2">
       {children}
     </p>
+  );
+}
+
+function SideKitPanel({
+  side,
+  knifeList,
+  knife,
+  catalog,
+  skins,
+  gloveCatalog,
+  glove,
+  musicList,
+  music,
+}: {
+  side: "ct" | "t";
+  knifeList: ReturnType<typeof getKnifeList>;
+  knife: string | null;
+  catalog: ReturnType<typeof getSkinsByWeapon>;
+  skins: Awaited<ReturnType<typeof getCurrentSkins>>;
+  gloveCatalog: ReturnType<typeof getGloveCatalog>;
+  glove: Awaited<ReturnType<typeof getCurrentGlove>>;
+  musicList: ReturnType<typeof getMusicList>;
+  music: number | null;
+}) {
+  const cfg = SIDE_CONFIG[side];
+  const filled = [knife, glove?.defindex ? glove : null, music].filter(Boolean).length;
+
+  return (
+    <section
+      className="relative overflow-hidden rounded-2xl border bg-[var(--card)]"
+      style={{ borderColor: `color-mix(in srgb, ${cfg.accent} 22%, transparent)` }}
+    >
+      {/* Luz do lado no topo do painel */}
+      <span
+        className="pointer-events-none absolute inset-x-0 top-0 h-32"
+        style={{
+          background: `radial-gradient(70% 100% at 20% 0%, color-mix(in srgb, ${cfg.accent} 14%, transparent), transparent 70%)`,
+        }}
+        aria-hidden="true"
+      />
+
+      <header
+        className="relative flex items-center gap-3 border-b px-5 py-4"
+        style={{ borderColor: `color-mix(in srgb, ${cfg.accent} 16%, var(--border))` }}
+      >
+        <span
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-black/30"
+          style={{ borderColor: `color-mix(in srgb, ${cfg.accent} 28%, transparent)` }}
+        >
+          <Image src={cfg.logo} alt="" width={28} height={28} className="h-7 w-7 object-contain" />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-black tracking-tight" style={{ color: cfg.accent }}>
+            {cfg.name}
+          </p>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+            Kit {cfg.short}
+          </p>
+        </div>
+
+        <span
+          className="shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-black"
+          style={{
+            borderColor: `color-mix(in srgb, ${cfg.accent} 28%, transparent)`,
+            backgroundColor: `color-mix(in srgb, ${cfg.accent} 10%, transparent)`,
+            color: cfg.accent,
+          }}
+        >
+          {filled}/3
+        </span>
+      </header>
+
+      <div className="relative grid gap-4 p-5 sm:grid-cols-3">
+        <div>
+          <SlotLabel accent={cfg.accent}>Faca</SlotLabel>
+          <KnifeCard
+            knifeList={knifeList}
+            currentKnifeWeaponName={knife}
+            skinCatalog={catalog}
+            currentSkins={skins}
+            team={cfg.team}
+          />
+        </div>
+
+        <div>
+          <SlotLabel accent={cfg.accent}>Luvas</SlotLabel>
+          <GloveCard
+            gloveCatalog={gloveCatalog}
+            currentGlove={glove}
+            currentSkins={skins}
+            team={cfg.team}
+          />
+        </div>
+
+        <div>
+          <SlotLabel accent={cfg.accent}>Música</SlotLabel>
+          <MusicCard musicList={musicList} currentMusicId={music} team={cfg.team} />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -143,86 +241,30 @@ export default async function SkinsPage() {
           </div>
         </header>
 
-        <div className="bs-bento-card grid grid-cols-1 overflow-hidden lg:grid-cols-2">
-
-          {/* ── CT side ── */}
-          <div className="space-y-5 border-b border-[var(--border)] p-5 sm:p-6 lg:border-b-0 lg:border-r">
-            <div className="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
-              <CTLogo />
-              <div>
-                <p className="text-base font-black tracking-tight text-[#7B96FF]">Counter-Terrorist</p>
-                <p className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-widest">Kit CT</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            <div>
-              <SectionLabel>Faca</SectionLabel>
-              <KnifeCard
-                knifeList={knifeList}
-                currentKnifeWeaponName={knifeCT}
-                skinCatalog={catalog}
-                currentSkins={skinsCT}
-                team={3}
-              />
-            </div>
-
-            <div>
-              <SectionLabel>Luvas</SectionLabel>
-              <GloveCard
-                gloveCatalog={gloveCatalog}
-                currentGlove={gloveCT}
-                currentSkins={skinsCT}
-                team={3}
-              />
-            </div>
-
-            <div>
-              <SectionLabel>Kit de Música</SectionLabel>
-              <MusicCard musicList={musicList} currentMusicId={musicCT} team={3} />
-            </div>
-            </div>
-          </div>
-
-          {/* ── T side ── */}
-          <div className="space-y-5 p-5 sm:p-6">
-            <div className="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
-              <TLogo />
-              <div>
-                <p className="text-base font-black tracking-tight text-[#FB923C]">Terrorist</p>
-                <p className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-widest">Kit TR</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            <div>
-              <SectionLabel>Faca</SectionLabel>
-              <KnifeCard
-                knifeList={knifeList}
-                currentKnifeWeaponName={knifeT}
-                skinCatalog={catalog}
-                currentSkins={skinsT}
-                team={2}
-              />
-            </div>
-
-            <div>
-              <SectionLabel>Luvas</SectionLabel>
-              <GloveCard
-                gloveCatalog={gloveCatalog}
-                currentGlove={gloveT}
-                currentSkins={skinsT}
-                team={2}
-              />
-            </div>
-
-            <div>
-              <SectionLabel>Kit de Música</SectionLabel>
-              <MusicCard musicList={musicList} currentMusicId={musicT} team={2} />
-            </div>
-            </div>
-          </div>
-
+        {/* ── Kits por lado ── */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SideKitPanel
+            side="ct"
+            knifeList={knifeList}
+            knife={knifeCT}
+            catalog={catalog}
+            skins={skinsCT}
+            gloveCatalog={gloveCatalog}
+            glove={gloveCT}
+            musicList={musicList}
+            music={musicCT}
+          />
+          <SideKitPanel
+            side="t"
+            knifeList={knifeList}
+            knife={knifeT}
+            catalog={catalog}
+            skins={skinsT}
+            gloveCatalog={gloveCatalog}
+            glove={gloveT}
+            musicList={musicList}
+            music={musicT}
+          />
         </div>
 
         {/* ── Armas — filtro por lado (CT, TR ou ambos) ── */}

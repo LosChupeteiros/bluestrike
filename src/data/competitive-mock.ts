@@ -239,6 +239,8 @@ function seedToUserProfile(seed: MockProfileSeed): UserProfile {
     elo: seed.elo,
     fullName: seed.fullName,
     cpf: null,
+    pixKeyType: null,
+    pixKey: null,
     phone: null,
     email: null,
     birthDate: seed.birthDate,
