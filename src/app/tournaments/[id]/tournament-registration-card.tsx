@@ -28,17 +28,19 @@ import { formatCurrency } from "@/lib/utils";
 const PIX_EXPIRY_MS = 15 * 60 * 1000;
 
 
-const TERMS = `1. O capitao confirma que todos os membros do time leram e aceitaram as regras do campeonato.
+const TERMS = `1. O capitão confirma que todos os membros do time leram e aceitaram as regras do campeonato.
 
-2. A taxa de Inscrição e obrigatoria para campeonatos pagos e a vaga so e confirmada apos aprovacao do pagamento.
+2. A taxa de inscrição é obrigatória nos campeonatos pagos e a vaga só é confirmada após a aprovação do pagamento.
 
-3. A reserva do PIX dura 15 minutos. Depois disso, a vaga volta a ficar disponivel para outros times.
+3. A reserva do PIX dura 15 minutos. Depois disso, a vaga volta a ficar disponível para outros times.
 
-4. O capitao e responsavel por check-in, comunicacao e comportamento competitivo do time.
+4. O capitão é responsável pelo check-in, pela comunicação e pelo comportamento competitivo do time.
 
-5. Cheats, exploits, smurfing abusivo ou conduta antidesportiva podem resultar em desclassificacao sem reembolso.
+5. Cheats, exploits, smurfing abusivo ou conduta antidesportiva podem resultar em desclassificação sem reembolso.
 
-6. Ao continuar, o capitao declara ciencia e concordancia com estes termos em nome do time.`;
+6. A premiação é paga em PIX ao capitão, na chave cadastrada no perfil dele.
+
+7. Ao continuar, o capitão declara ciência e concordância com estes termos em nome de todo o time.`;
 
 type FlowStep = "idle" | "team-select" | "roster-select" | "confirm" | "payment-summary" | "pix";
 
@@ -61,17 +63,58 @@ interface TournamentRegistrationCardProps {
   initialIntent: TournamentRegistrationIntent | null;
 }
 
+/** Passos visíveis do checkout — o jogador precisa saber onde está e o que falta. */
+const CHECKOUT_STEPS = ["Time", "Escalação", "Confirmar", "Pagamento"] as const;
+
+function StepTrail({ current }: { current: number }) {
+  return (
+    <ol className="flex items-center gap-1.5" aria-label={`Etapa ${current} de ${CHECKOUT_STEPS.length}`}>
+      {CHECKOUT_STEPS.map((label, index) => {
+        const step = index + 1;
+        const done = step < current;
+        const active = step === current;
+        return (
+          <li key={label} className="flex items-center gap-1.5">
+            <span
+              aria-current={active ? "step" : undefined}
+              className={`flex h-6 items-center gap-1.5 rounded-full px-2 text-[10px] font-black uppercase tracking-[0.08em] transition-colors ${
+                active
+                  ? "bg-[var(--primary)] text-black"
+                  : done
+                    ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                    : "bg-white/5 text-[var(--muted-foreground)]"
+              }`}
+            >
+              {done ? <Check className="h-3 w-3" aria-hidden="true" /> : <span className="font-mono">{step}</span>}
+              <span className="hidden sm:inline">{label}</span>
+            </span>
+            {step < CHECKOUT_STEPS.length && (
+              <span
+                className={`h-px w-3 ${done ? "bg-[var(--primary)]/40" : "bg-white/10"}`}
+                aria-hidden="true"
+              />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function Modal({
   open,
   onClose,
   title,
   subtitle,
+  step,
   children,
 }: {
   open: boolean;
   onClose?: () => void;
   title: string;
   subtitle?: string;
+  /** 1..4 — desenha a trilha de etapas no cabeçalho */
+  step?: number;
   children: ReactNode;
 }) {
   const titleId = useId();
@@ -109,7 +152,13 @@ function Modal({
         aria-labelledby={titleId}
         className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[var(--background)] shadow-[0_32px_100px_rgba(0,0,0,0.7)]"
       >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#0d0d0d] px-5 py-4">
+        <div className="shrink-0 border-b border-white/10 bg-[#0d0d0d] px-5 py-4">
+          {step && (
+            <div className="mb-3">
+              <StepTrail current={step} />
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <h2 id={titleId} className="text-base font-black tracking-tight">{title}</h2>
             {subtitle && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{subtitle}</p>}
@@ -124,6 +173,7 @@ function Modal({
               <X className="h-3.5 w-3.5" />
             </button>
           )}
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
@@ -192,7 +242,7 @@ function PixCheckout({
 
   if (isPaid) {
     return (
-      <div className="flex flex-col items-center gap-6 py-6 text-center">
+      <div className="flex flex-col items-center gap-6 py-6 text-center" role="status" aria-live="polite">
         <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-green-500/15 ring-2 ring-green-500/30">
           <div className="absolute h-24 w-24 animate-ping rounded-full bg-green-500/10" />
           <Check className="relative h-10 w-10 text-green-400" />
@@ -203,10 +253,10 @@ function PixCheckout({
           <p className="mt-1 text-3xl font-black text-green-400">{formatCurrency(amount)}</p>
         </div>
         <div className="w-full rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-left text-xs text-green-200">
-          Seu time foi confirmado no campeonato. A pagina sera atualizada com a Inscrição oficial.
+          Seu time foi confirmado no campeonato. A página será atualizada com a inscrição oficial.
         </div>
         <Button type="button" variant="outline" className="w-full border-green-500/30 text-green-300 hover:bg-green-500/10" onClick={onApproved}>
-          Ver Inscrição confirmada
+          Ver inscrição confirmada
         </Button>
       </div>
     );
@@ -214,10 +264,12 @@ function PixCheckout({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center gap-4 py-10 text-center">
-        <Loader2 className="h-9 w-9 animate-spin text-[var(--primary)]" />
-        <p className="text-sm font-semibold">Gerando QR Code...</p>
-        <p className="text-xs text-[var(--muted-foreground)]">Aguarde um instante.</p>
+      <div className="flex flex-col items-center gap-4 py-10 text-center" role="status" aria-live="polite">
+        <Loader2 className="h-9 w-9 animate-spin text-[var(--primary)]" aria-hidden="true" />
+        <p className="text-sm font-semibold">Gerando o QR Code…</p>
+        <p className="text-xs text-[var(--muted-foreground)]">
+          A vaga já está reservada enquanto isso.
+        </p>
       </div>
     );
   }
@@ -225,8 +277,11 @@ function PixCheckout({
   if (error) {
     return (
       <div className="space-y-4 py-2">
-        <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           {error}
         </div>
         <Button type="button" variant="outline" className="w-full gap-2" onClick={onRetry}>
@@ -244,20 +299,28 @@ function PixCheckout({
     ? Math.max(0, Math.floor((activePixData.expiresAt - nowTick) / 1000))
     : Math.max(1, Math.floor(PIX_EXPIRY_MS / 1000));
   const expired = secondsLeft === 0;
+  const urgent = secondsLeft > 0 && secondsLeft <= 120;
   const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const seconds = String(secondsLeft % 60).padStart(2, "0");
 
   if (expired) {
     return (
-      <div className="flex flex-col items-center gap-5 py-6 text-center">
-        <div className="flex h-24 w-24 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--secondary)]">
-          <Clock className="h-11 w-11 text-[var(--muted-foreground)]" />
+      <div className="flex flex-col items-center gap-5 py-6 text-center" role="status" aria-live="polite">
+        <div className="flex h-24 w-24 items-center justify-center rounded-full border border-orange-500/25 bg-orange-500/10">
+          <Clock className="h-11 w-11 text-orange-400" />
         </div>
         <div>
-          <p className="font-mono text-4xl font-black tabular-nums text-[var(--muted-foreground)]">00:00</p>
-          <p className="mt-1 text-xl font-black">QR Code expirado</p>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">Feche e inicie uma nova reserva se ainda houver vagas.</p>
+          <p className="font-mono text-4xl font-black tabular-nums text-orange-400">00:00</p>
+          <p className="mt-1 text-xl font-black">Reserva expirada</p>
+          <p className="mx-auto mt-1 max-w-xs text-sm leading-6 text-[var(--muted-foreground)]">
+            A vaga voltou para a fila. Nada foi cobrado — se ainda houver vaga, é só gerar
+            um novo PIX.
+          </p>
         </div>
+        <Button type="button" variant="gradient" className="w-full gap-2" onClick={onRetry}>
+          <RefreshCw className="h-4 w-4" />
+          Gerar novo PIX
+        </Button>
       </div>
     );
   }
@@ -273,7 +336,7 @@ function PixCheckout({
     <div className="flex flex-col items-center gap-5">
       <div className="w-full text-center">
         <div className="text-3xl font-black text-[var(--primary)]">{formatCurrency(amount)}</div>
-        <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de Inscrição</div>
+        <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">taxa de inscrição</div>
       </div>
 
       <div className="flex flex-col items-center gap-2">
@@ -297,7 +360,7 @@ function PixCheckout({
         <button
           type="button"
           onClick={handleCopy}
-          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-black transition-all ${
+          className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition-all ${
             copied ? "bg-green-500/15 text-green-400" : "bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20"
           }`}
         >
@@ -306,16 +369,37 @@ function PixCheckout({
         </button>
       </div>
 
-      <div className="w-full space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
-          <Timer className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
-          <span>Expira em <span className="font-black tabular-nums text-[var(--foreground)]">{minutes}:{seconds}</span></span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
-          <Check className="h-3.5 w-3.5 shrink-0 text-green-400" />
-          Confirmacao automatica apos o pagamento
-        </div>
+      {/* Contagem regressiva é a informação mais crítica desta tela: fica grande
+          e muda de cor quando o tempo aperta. */}
+      <div
+        className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors ${
+          urgent
+            ? "border-red-500/35 bg-red-500/8"
+            : "border-yellow-500/25 bg-yellow-500/[0.06]"
+        }`}
+      >
+        <span className="flex items-center gap-2 text-xs font-bold text-[var(--muted-foreground)]">
+          <Timer
+            className={`h-4 w-4 shrink-0 ${urgent ? "animate-pulse text-red-400" : "text-yellow-400"}`}
+            aria-hidden="true"
+          />
+          A vaga fica reservada por
+        </span>
+        <span
+          className={`font-mono text-2xl font-black leading-none tabular-nums ${
+            urgent ? "text-red-400" : "text-yellow-300"
+          }`}
+          role="timer"
+          aria-live="off"
+        >
+          {minutes}:{seconds}
+        </span>
       </div>
+
+      <p className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+        <Check className="h-3.5 w-3.5 shrink-0 text-green-400" aria-hidden="true" />
+        Confirmação automática após o pagamento — pode deixar esta tela aberta
+      </p>
     </div>
   );
 }
@@ -446,7 +530,7 @@ export default function TournamentRegistrationCard({
     });
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
-      throw new Error(payload.error ?? "Nao foi possivel concluir a Inscrição.");
+      throw new Error(payload.error ?? "Não foi possível concluir a inscrição.");
     }
   }
 
@@ -458,7 +542,7 @@ export default function TournamentRegistrationCard({
     });
     const payload = (await response.json()) as { intent?: TournamentRegistrationIntent; error?: string };
     if (!response.ok || !payload.intent) {
-      throw new Error(payload.error ?? "Nao foi possivel reservar a Inscrição.");
+      throw new Error(payload.error ?? "Não foi possível reservar a inscrição.");
     }
     setIntent(payload.intent);
     return payload.intent;
@@ -480,7 +564,7 @@ export default function TournamentRegistrationCard({
       await createIntent();
       setFlowStep("payment-summary");
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel continuar.");
+      setFeedback(error instanceof Error ? error.message : "Não foi possível continuar.");
     } finally {
       setSubmitting(false);
     }
@@ -641,6 +725,7 @@ export default function TournamentRegistrationCard({
       <Modal
         open={flowStep === "team-select"}
         onClose={closeModal}
+        step={1}
         title="Escolher time"
         subtitle="Selecione qual dos seus times vai participar."
       >
@@ -699,6 +784,7 @@ export default function TournamentRegistrationCard({
       <Modal
         open={flowStep === "roster-select"}
         onClose={closeModal}
+        step={2}
         title="Escolher jogadores"
         subtitle={selectedTeam ? `${selectedTeam.name} · selecione ${MIN_ROSTER === 1 ? "o jogador" : `pelo menos ${MIN_ROSTER} jogadores`}` : undefined}
       >
@@ -848,7 +934,27 @@ export default function TournamentRegistrationCard({
               className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-cyan-400"
             />
             <span className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-              Li e aceito os termos em nome de todos os membros do time.
+              Li e aceito estes termos, os{" "}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[var(--primary)] underline-offset-2 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                Termos de Uso
+              </a>{" "}
+              e a{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[var(--primary)] underline-offset-2 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                Política de Privacidade
+              </a>
+              , em nome de todos os membros do time.
             </span>
           </label>
 
@@ -861,7 +967,7 @@ export default function TournamentRegistrationCard({
 
           <Button type="button" variant="gradient" className="w-full gap-2" disabled={!termsAccepted || submitting} onClick={handleConfirm}>
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            {entryFee > 0 ? "Continuar para pagamento" : "Confirmar Inscrição gratuita"}
+            {entryFee > 0 ? "Continuar para pagamento" : "Confirmar inscrição gratuita"}
           </Button>
         </div>
       </Modal>
@@ -870,12 +976,13 @@ export default function TournamentRegistrationCard({
       <Modal
         open={flowStep === "payment-summary"}
         onClose={closeModal}
+        step={4}
         title="Resumo do pagamento"
         subtitle="Confira o valor antes de gerar o PIX."
       >
         <div className="space-y-4 p-5">
           <div className="rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/10 p-5 text-center">
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Total da Inscrição</div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--muted-foreground)]">Total da inscrição</div>
             <div className="text-4xl font-black text-[var(--primary)]">{formatCurrency(entryFee)}</div>
             <div className="mt-1 text-xs text-[var(--muted-foreground)]">{tournamentName}</div>
           </div>
@@ -883,7 +990,7 @@ export default function TournamentRegistrationCard({
           <div className="rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-4">
             <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[var(--primary)]">
               <Users className="h-3.5 w-3.5" />
-              Sugestao da BlueStrike
+              Quanto cabe a cada jogador
             </div>
             <div className="mb-3 flex gap-1.5">
               {rosterMembers.map((member) => (
@@ -909,7 +1016,7 @@ export default function TournamentRegistrationCard({
 
           <div className="flex items-start gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-xs text-yellow-100">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" />
-            O PIX reserva a vaga por 15 minutos. A Inscrição aparece no campeonato somente apos a aprovacao.
+            O PIX reserva a vaga por 15 minutos. A inscrição aparece no campeonato somente após a aprovação.
           </div>
 
           <Button

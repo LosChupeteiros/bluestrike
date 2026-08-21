@@ -306,6 +306,22 @@ export default function CadastroForm({ profile, isWelcome }: CadastroFormProps) 
             </div>
           )}
 
+          {/* Consentimento informado: o jogador vê os documentos antes de enviar
+              CPF, celular e chave PIX. */}
+          <p className="rounded-xl border border-[var(--border)] bg-[var(--secondary)]/25 px-4 py-3 text-xs leading-6 text-[var(--muted-foreground)]">
+            Ao concluir o cadastro, você concorda com os{" "}
+            <Link href="/terms" className="font-semibold text-[var(--primary)] underline-offset-2 hover:underline">
+              Termos de Uso
+            </Link>{" "}
+            e declara ter lido a{" "}
+            <Link href="/privacy" className="font-semibold text-[var(--primary)] underline-offset-2 hover:underline">
+              Política de Privacidade
+            </Link>
+            . CPF, celular, data de nascimento e chave PIX são usados para validar sua
+            maioridade, evitar conta duplicada e pagar premiação — e nunca aparecem no seu
+            perfil público.
+          </p>
+
           <Button type="submit" size="lg" variant="gradient" loading={isPending} className="w-full">
             Salvar e entrar no hub
           </Button>
