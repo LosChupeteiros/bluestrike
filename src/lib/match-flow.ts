@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { findDeciderMap, getMapPoolForMode, getVetoSequence } from "@/lib/maps";
 import { getTeamMode, normalizeTeamMode, type TeamMode } from "@/lib/team-modes";
 import { duplicateServer, startServer, getGameServer, stopGameServer, deleteGameServer, sendConsoleCommand, writeDathostLog } from "@/lib/dathost";
+import { generateMatchSecret, generateMatchzyMatchId, getServerIntegrationToken } from "@/lib/api-auth";
 
 // Servidor espelho clonado a cada partida, por modalidade.
 // Todos podem ser sobrescritos por variável de ambiente.
@@ -436,10 +437,11 @@ export async function provisionServerAsync(
     (e: unknown) => console.warn("[provision] newer columns not set (migration pending?):", e)
   );
 
-  // Gerar matchzy_match_id: identificador numérico único que o MatchZy ecoará de volta
-  // nos webhooks e gravará nas tabelas MySQL matchzy_stats_*.
-  // MatchZy espera int32 — Unix timestamp em segundos (~1.78 bi em 2026, cabe em int32 até 2038)
-  const matchzyMatchId = Math.floor(Date.now() / 1000);
+  // Gerar matchzy_match_id: identificador numérico que o MatchZy ecoa nos
+  // webhooks e grava nas tabelas MySQL matchzy_stats_*.
+  // Era Date.now()/1000, o que tornava o valor adivinhável a partir do horário
+  // da partida — agora é aleatório dentro do int32 positivo.
+  const matchzyMatchId = generateMatchzyMatchId();
   await supabase.from("matches").update({ matchzy_match_id: matchzyMatchId }).eq("id", matchId);
 
   // Connect string já disponível (IP + porta do servidor duplicado)
@@ -481,10 +483,35 @@ export async function provisionServerAsync(
     .update({ ip: confirmedIp, raw_ip: confirmedIp, status: "ready" })
     .eq("match_id", matchId);
 
-  // Enviar config MatchZy via console command
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bluestrike.com.br";
+
+  // Segredo desta partida: o servidor usa para ler o config e o Dathost para
+  // assinar os webhooks. É rotacionado a cada provisionamento.
+  const matchSecret = generateMatchSecret();
+  await supabase.from("matches").update({ webhook_secret: matchSecret }).eq("id", matchId);
+
+  // Webhook do MatchZy: o token vai no caminho da URL porque as cvars de header
+  // do MatchZy são reportadas como não confiáveis (issue #369 do plugin).
+  // O header é enviado junto como reforço — a rota aceita qualquer um dos dois.
+  const integrationToken = getServerIntegrationToken();
+  if (integrationToken) {
+    const webhookUrl = `${base}/api/matchzy/webhook/${encodeURIComponent(integrationToken)}`;
+    await sendConsoleCommand(server.id, `matchzy_remote_log_url "${webhookUrl}"`, matchId);
+    await sendConsoleCommand(server.id, `matchzy_remote_log_header_key "Authorization"`, matchId);
+    await sendConsoleCommand(server.id, `matchzy_remote_log_header_value "Bearer ${integrationToken}"`, matchId);
+  } else {
+    console.warn(
+      `[provision/${matchId}] SERVER_INTEGRATION_TOKEN ausente — webhooks do MatchZy não foram configurados.`
+    );
+  }
+
+  // Enviar config MatchZy via console command, com o segredo da partida no header
   const configUrl = `${base}/api/matches/${matchId}/matchzy-config`;
-  await sendConsoleCommand(server.id, `matchzy_loadmatch_url "${configUrl}"`, matchId);
+  await sendConsoleCommand(
+    server.id,
+    `matchzy_loadmatch_url "${configUrl}" "Authorization" "Bearer ${matchSecret}"`,
+    matchId
+  );
 
   // 1x1 joga sem compra: o colete precisa ser liberado no console.
   // O comando é reenviado no match_start (ver webhook do MatchZy).

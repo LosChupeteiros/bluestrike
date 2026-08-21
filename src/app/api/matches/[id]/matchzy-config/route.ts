@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { findDeciderMap, getFixedMapSides, getMapPoolForMode } from "@/lib/maps";
 import { getTeamMode, normalizeTeamMode } from "@/lib/team-modes";
+import { verifyMatchSecret } from "@/lib/api-auth";
 
 interface VetoRow {
   team_id: string;
@@ -60,13 +61,13 @@ function buildRoster(
   return players;
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: matchId } = await params;
   const supabase = createSupabaseAdminClient();
 
   const { data: match } = await supabase
     .from("matches")
-    .select("id, tournament_id, team1_id, team2_id, bo_type, team_mode, matchzy_match_id")
+    .select("id, tournament_id, team1_id, team2_id, bo_type, team_mode, matchzy_match_id, webhook_secret")
     .eq("id", matchId)
     .maybeSingle<{
       id: string;
@@ -76,10 +77,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       bo_type: 1 | 3 | 5;
       team_mode: string | null;
       matchzy_match_id: number | null;
+      webhook_secret: string | null;
     }>();
 
   if (!match || !match.team1_id || !match.team2_id) {
     return Response.json({ error: "Match not found" }, { status: 404 });
+  }
+
+  // O config carrega SteamID64 e nick de todos os jogadores. Só o servidor da
+  // partida pode ler — ele recebe o segredo no comando matchzy_loadmatch_url.
+  const auth = verifyMatchSecret(req, match.webhook_secret);
+  if (!auth.ok) {
+    return Response.json({ error: auth.error }, { status: auth.status });
   }
 
   const { team1_id, team2_id, bo_type, matchzy_match_id } = match;

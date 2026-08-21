@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMatchRowByIdForWebhook } from "@/lib/matches";
+import { verifyMatchSecret } from "@/lib/api-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { writeDathostLog, getCs2Match, stopGameServer, deleteGameServer, clearDathostLogsForMatch } from "@/lib/dathost";
 import type { DathostFullPlayer } from "@/lib/dathost";
@@ -175,6 +176,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   if (!match) {
     return NextResponse.json({ error: "Match not found." }, { status: 404 });
+  }
+
+  // O segredo já existia em matches.webhook_secret, mas nunca era conferido.
+  // O Dathost o envia no header configurado em webhooks.authorization_header.
+  const auth = verifyMatchSecret(request, match.webhook_secret);
+  if (!auth.ok) {
+    console.warn(`[cs2-webhook/${matchId}] credencial inválida — recusada.`);
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   let payload: DathostWebhookPayload;

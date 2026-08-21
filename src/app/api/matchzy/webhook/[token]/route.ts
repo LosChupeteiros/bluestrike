@@ -2,8 +2,44 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { computePayloadHash, processSeriesEnd } from "@/lib/matchzy";
 import { getMatchTeamMode, sendMatchConsoleCommand } from "@/lib/match-flow";
 import { getTeamMode } from "@/lib/team-modes";
+import { getServerIntegrationToken, readBearer, secretsMatch } from "@/lib/api-auth";
 
-export async function POST(req: Request) {
+interface RouteContext {
+  params: Promise<{ token: string }>;
+}
+
+/**
+ * O MatchZy autentica de duas formas, e aceitamos as duas:
+ *
+ * 1. Segredo no caminho da URL (`matchzy_remote_log_url ".../webhook/<token>"`).
+ *    É o caminho principal porque é só uma URL — funciona com certeza.
+ * 2. Header `Authorization` (cvars `matchzy_remote_log_header_key/value`).
+ *    Fica como reforço: a issue #369 do MatchZy relata essas cvars não pegando,
+ *    então não dá para depender só delas.
+ */
+function authorize(request: Request, token: string): { ok: true } | { ok: false; status: number } {
+  const expected = getServerIntegrationToken();
+  // Falha fechado: sem token configurado, ninguém entra.
+  if (!expected) return { ok: false, status: 503 };
+
+  if (secretsMatch(decodeURIComponent(token), expected)) return { ok: true };
+  if (secretsMatch(readBearer(request), expected)) return { ok: true };
+
+  return { ok: false, status: 401 };
+}
+
+export async function POST(req: Request, context: RouteContext) {
+  const { token } = await context.params;
+
+  const auth = authorize(req, token);
+  if (!auth.ok) {
+    console.warn("[matchzy/webhook] requisição sem credencial válida — recusada.");
+    return Response.json(
+      { error: auth.status === 503 ? "Integração não configurada." : "Não autorizado." },
+      { status: auth.status }
+    );
+  }
+
   // Parse payload
   let payload: Record<string, unknown>;
   try {
