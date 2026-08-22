@@ -612,11 +612,28 @@ export async function getFaceitChampionshipMatches(
 
 // ── Championship Subscriptions ───────────────────────────────────────────────
 
-export async function getFaceitChampionshipSubscriptions(
+/**
+ * Resultado da consulta de inscrições na FACEIT.
+ *
+ * Precisa distinguir "a FACEIT respondeu e não há ninguém inscrito" de "não
+ * consegui falar com a FACEIT". As duas coisas viravam `[]`, e quem consome
+ * lia lista vazia como "todo mundo cancelou" — um 429 da FACEIT era suficiente
+ * para cancelar inscrições pagas em massa.
+ */
+export type FaceitSubscriptionsResult =
+  | { ok: true; teams: FaceitSubscribedTeam[] }
+  | { ok: false; reason: string };
+
+/**
+ * Versão que informa falha. Use esta sempre que a ausência de um time na lista
+ * for interpretada como cancelamento.
+ */
+export async function fetchFaceitChampionshipSubscriptions(
   championshipId: string
-): Promise<FaceitSubscribedTeam[]> {
+): Promise<FaceitSubscriptionsResult> {
   const apiKey = process.env.FACEIT_API_KEY;
-  if (!apiKey || !championshipId) return [];
+  if (!apiKey) return { ok: false, reason: "FACEIT_API_KEY não configurada" };
+  if (!championshipId) return { ok: false, reason: "championshipId vazio" };
 
   try {
     const res = await fetch(
@@ -626,7 +643,7 @@ export async function getFaceitChampionshipSubscriptions(
         next: { revalidate: 300 },
       }
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { ok: false, reason: `HTTP ${res.status} da FACEIT` };
 
     const data = (await res.json()) as { items?: unknown[] };
     const items = data.items ?? [];
@@ -671,8 +688,22 @@ export async function getFaceitChampionshipSubscriptions(
     );
     const avatarMap = new Map(teamDetails.map((t) => [t.id, t.avatar ? String(t.avatar) : null]));
 
-    return subscriptions.map((s) => ({ ...s, avatar: avatarMap.get(s.teamId) ?? null }));
-  } catch {
-    return [];
+    return { ok: true, teams: subscriptions.map((s) => ({ ...s, avatar: avatarMap.get(s.teamId) ?? null })) };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : "erro desconhecido" };
   }
+}
+
+/**
+ * Conveniência para exibição: falha vira lista vazia.
+ *
+ * NUNCA use isto para decidir cancelamento — lista vazia aqui pode significar
+ * que a FACEIT está fora do ar. Para isso existe
+ * `fetchFaceitChampionshipSubscriptions`, que diferencia os dois casos.
+ */
+export async function getFaceitChampionshipSubscriptions(
+  championshipId: string
+): Promise<FaceitSubscribedTeam[]> {
+  const result = await fetchFaceitChampionshipSubscriptions(championshipId);
+  return result.ok ? result.teams : [];
 }

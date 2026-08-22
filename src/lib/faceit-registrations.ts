@@ -172,10 +172,27 @@ export async function updateLiveChecks(
 // Compara as inscrições ativas no DB com os times atualmente inscritos na FACEIT.
 // Times que sumiram da FACEIT têm registration_status atualizado para 'cancelled'.
 // Retorna os IDs FACEIT dos times que foram marcados como cancelados nesta chamada.
+/**
+ * Marca como canceladas as inscrições que sumiram da lista da FACEIT.
+ *
+ * Trava importante: uma lista vazia NUNCA cancela nada. Quem chama só consegue
+ * provar "esses times continuam inscritos", não "ninguém está inscrito" — e
+ * tratar falha de rede como cancelamento geral já seria suficiente para apagar
+ * todas as inscrições pagas de um campeonato. Se a FACEIT devolver mesmo zero
+ * inscritos, o cancelamento tem que ser feito à mão pelo admin.
+ */
 export async function syncCancellations(
   championshipId: string,
   currentFaceitTeamIds: string[]
 ): Promise<string[]> {
+  if (currentFaceitTeamIds.length === 0) {
+    console.warn(
+      `[faceit/syncCancellations] lista vazia para ${championshipId} — ignorado. ` +
+      `Cancelar tudo a partir de uma lista vazia quase sempre é falha da API, não cancelamento real.`
+    );
+    return [];
+  }
+
   const supabase = createSupabaseAdminClient();
 
   // Busca todas as inscrições ativas e confirmadas para o campeonato

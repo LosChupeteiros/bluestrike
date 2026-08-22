@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { getPaymentById } from "@/lib/mercadopago";
 import { getRegistrationById, markPaymentPaidByMp } from "@/lib/faceit-registrations";
 import {
@@ -7,20 +7,42 @@ import {
   parseBlueStrikePaymentExternalReference,
 } from "@/lib/tournament-registration-intents";
 
-function validateSignature(request: NextRequest): boolean {
-  const secret = process.env.MP_WEBHOOK_SECRET;
+/** Tolerância de relógio para a assinatura, em minutos. */
+const MP_SIGNATURE_MAX_AGE_MIN = 15;
+
+type SignatureCheck = { ok: true } | { ok: false; reason: string };
+
+function validateSignature(request: NextRequest): SignatureCheck {
+  const secret = process.env.MP_WEBHOOK_SECRET?.trim();
   if (!secret) {
-    console.warn("[mp-webhook] MP_WEBHOOK_SECRET nao configurado; pulando validacao de assinatura.");
-    return true;
+    // Falha FECHADA. Antes isto devolvia `true` e o webhook seguia sem
+    // conferir nada — como a variável nunca foi configurada, a validação de
+    // assinatura estava desligada em produção sem ninguém perceber.
+    return { ok: false, reason: "MP_WEBHOOK_SECRET não configurado" };
   }
 
   const xSignature = request.headers.get("x-signature") ?? "";
   const xRequestId = request.headers.get("x-request-id") ?? "";
-  const parts = Object.fromEntries(xSignature.split(",").map((part) => part.split("=") as [string, string]));
+  const parts = Object.fromEntries(
+    xSignature
+      .split(",")
+      .map((part) => part.split("="))
+      .filter((kv): kv is [string, string] => kv.length === 2)
+      .map(([k, v]) => [k.trim(), v.trim()])
+  );
   const ts = parts.ts ?? "";
   const v1 = parts.v1 ?? "";
 
-  if (!ts || !v1) return false;
+  if (!ts || !v1) return { ok: false, reason: "header x-signature incompleto" };
+
+  // Assinatura velha é replay: sem isto, um POST capturado vale para sempre.
+  const tsMs = Number(ts) * (ts.length > 12 ? 1 : 1000);
+  if (Number.isFinite(tsMs)) {
+    const idadeMin = Math.abs(Date.now() - tsMs) / 60_000;
+    if (idadeMin > MP_SIGNATURE_MAX_AGE_MIN) {
+      return { ok: false, reason: `assinatura com ${Math.round(idadeMin)}min de idade` };
+    }
+  }
 
   const url = new URL(request.url);
   const dataId = url.searchParams.get("data.id") ?? "";
@@ -32,7 +54,14 @@ function validateSignature(request: NextRequest): boolean {
   const manifest = `${manifestParts.join(";")};`;
   const expected = createHmac("sha256", secret).update(manifest).digest("hex");
 
-  return expected === v1;
+  // Comparação em tempo constante — `===` em string vaza o prefixo correto.
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(v1, "hex");
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return { ok: false, reason: "assinatura não confere" };
+  }
+
+  return { ok: true };
 }
 
 export async function POST(request: NextRequest) {
@@ -43,8 +72,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Corpo invalido." }, { status: 400 });
   }
 
-  if (!validateSignature(request)) {
-    console.warn("[mp-webhook] Assinatura invalida; requisicao rejeitada.");
+  const assinatura = validateSignature(request);
+  if (!assinatura.ok) {
+    console.warn(`[mp-webhook] rejeitado: ${assinatura.reason}`);
     return NextResponse.json({ error: "Assinatura invalida." }, { status: 401 });
   }
 
@@ -104,7 +134,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // HTTP 500, não 200. Devolver 200 aqui dizia ao Mercado Pago "recebi e
+    // tratei", e ele nunca reenviava — se o Supabase piscasse na hora de
+    // marcar como pago, o jogador pagava e a inscrição não saía, sem nenhuma
+    // segunda chance. Com 500, o MP repete a notificação.
     console.error("[mp-webhook] Erro ao processar pagamento:", error);
-    return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 200 });
+    return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getRegistration, updateLiveChecks } from "@/lib/faceit-registrations";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getFaceitChampionshipSubscriptions } from "@/lib/faceit";
+import { fetchFaceitChampionshipSubscriptions } from "@/lib/faceit";
 
 // Verifica em tempo real:
 // 1. Se o capitão adicionou BlueStrikeCS como amigo na FACEIT
@@ -57,20 +57,24 @@ export async function GET(
   // 2. Verifica se o time AINDA aparece nas inscrições — sempre re-checa para detectar cancelamentos
   let teamConfirmed = registration.teamConfirmed;
   let registrationStatus = registration.registrationStatus;
-  try {
-    const subscriptions = await getFaceitChampionshipSubscriptions(championshipId);
-    const nowInFaceit = subscriptions.some((s) => s.teamId === registration.faceitTeamId);
+
+  // Só mexe no status se a FACEIT respondeu de verdade. Se a chamada falhou, a
+  // lista vem vazia e "não achei o time" seria indistinguível de "o time
+  // cancelou" — o que cancelaria uma inscrição paga por causa de um 429.
+  const subs = await fetchFaceitChampionshipSubscriptions(championshipId);
+  if (subs.ok) {
+    const nowInFaceit = subs.teams.some((s) => s.teamId === registration.faceitTeamId);
 
     if (nowInFaceit) {
       teamConfirmed = true;
       registrationStatus = "active";
     } else if (registration.teamConfirmed) {
-      // Estava confirmado mas sumiu da FACEIT → cancelou a inscrição
+      // Estava confirmado e sumiu da lista → cancelou a inscrição na FACEIT.
       teamConfirmed = false;
       registrationStatus = "cancelled";
     }
-  } catch {
-    // best-effort — mantém valores anteriores
+  } else {
+    console.warn(`[faceit/live-status] ${championshipId}: ${subs.reason} — status preservado`);
   }
 
   // Persiste no DB se algo mudou

@@ -1,20 +1,28 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { cleanupMatchServer, getMatchzyStats, processSeriesEnd } from "@/lib/matchzy";
 import { writeRollingDathostLog } from "@/lib/dathost";
-import { getSession } from "@/lib/auth/session";
+import { resolveMatchViewerAccess } from "@/lib/matches";
 
 // In-process dedup: prevents concurrent processSeriesEnd for the same match
 const processing = new Set<string>();
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  // A rota mora em /admin por histórico, mas quem consome é o placar ao vivo de
-  // qualquer espectador logado — por isso exige sessão, não admin.
-  const session = await getSession();
-  if (!session) {
-    return Response.json({ error: "Não autorizado." }, { status: 401 });
+  const { id: matchId } = await params;
+
+  // A rota mora em /admin por histórico, mas o prefixo da URL não protege nada:
+  // sem middleware, quem decide é este bloco.
+  //
+  // Ela pode chamar processSeriesEnd — que define vencedor, avança o
+  // chaveamento, mexe no ELO e destrói o servidor. O gatilho não é o corpo da
+  // requisição, e sim o que o MySQL do MatchZy diz, então não dá para forjar um
+  // resultado por aqui; ainda assim, quem empurra a partida para o encerramento
+  // deve ser quem está jogando ou um admin, não qualquer conta logada.
+  const { matchExists, isPlayer, isAdmin } = await resolveMatchViewerAccess(matchId);
+  if (!matchExists) return Response.json({ error: "not found" }, { status: 404 });
+  if (!isPlayer && !isAdmin) {
+    return Response.json({ error: "Não autorizado." }, { status: 403 });
   }
 
-  const { id: matchId } = await params;
   const supabase = createSupabaseAdminClient();
 
   const { data: match } = await supabase

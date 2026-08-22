@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getIntegrationBaseUrl } from "@/lib/api-auth";
 import "./globals.css";
 import Header from "@/components/layout/header";
 import HeaderWithUser from "@/components/layout/header-with-user";
@@ -17,6 +18,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Sem metadataBase, URLs de Open Graph e canonical saem relativas e o
+  // compartilhamento em WhatsApp/Discord/X não resolve a imagem.
+  metadataBase: new URL(getIntegrationBaseUrl()),
   title: {
     default: "BlueStrike — Campeonatos de CS2",
     template: "%s | BlueStrike",
@@ -24,12 +28,24 @@ export const metadata: Metadata = {
   description:
     "A maior plataforma de campeonatos de Counter-Strike 2 do Brasil. Compita, vença e domine o cenário competitivo.",
   keywords: ["cs2", "counter-strike", "campeonato", "esports", "brasil", "torneio"],
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "pt_BR",
     siteName: "BlueStrike Esports",
+    url: "/",
     title: "BlueStrike — Campeonatos de CS2",
     description: "A maior plataforma de campeonatos de CS2 do Brasil.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BlueStrike — Campeonatos de CS2",
+    description: "A maior plataforma de campeonatos de CS2 do Brasil.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
 };
 

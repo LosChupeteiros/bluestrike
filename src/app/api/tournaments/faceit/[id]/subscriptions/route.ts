@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFaceitChampionshipSubscriptions } from "@/lib/faceit";
+import { fetchFaceitChampionshipSubscriptions } from "@/lib/faceit";
 import { syncCancellations } from "@/lib/faceit-registrations";
 
 // Retorna os times atualmente inscritos na FACEIT e sincroniza cancelamentos no DB.
@@ -9,15 +9,18 @@ export async function GET(
 ) {
   const { id: championshipId } = await params;
 
-  try {
-    const teams = await getFaceitChampionshipSubscriptions(championshipId);
+  const result = await fetchFaceitChampionshipSubscriptions(championshipId);
 
-    // Sincroniza cancellations no Supabase em background (best-effort)
-    const currentIds = teams.map((t) => t.teamId);
-    syncCancellations(championshipId, currentIds).catch(() => {/* best-effort */});
-
-    return NextResponse.json({ teams });
-  } catch {
-    return NextResponse.json({ error: "Erro ao buscar inscrições." }, { status: 500 });
+  if (!result.ok) {
+    // Falha ao falar com a FACEIT não pode virar lista vazia: quem consome
+    // interpretaria isso como "todo mundo cancelou".
+    console.warn(`[faceit/subscriptions] ${championshipId}: ${result.reason}`);
+    return NextResponse.json({ error: "Erro ao buscar inscrições." }, { status: 502 });
   }
+
+  // Sincroniza cancelamentos no Supabase em background (best-effort).
+  const currentIds = result.teams.map((t) => t.teamId).filter(Boolean);
+  syncCancellations(championshipId, currentIds).catch(() => {/* best-effort */});
+
+  return NextResponse.json({ teams: result.teams });
 }
