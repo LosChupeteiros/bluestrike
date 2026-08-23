@@ -54,7 +54,7 @@ export const AIM_MAP_POOL: MapPresentation[] = [
   { name: "aim_deagle_usp", label: "Deagle & USP", mapId: "3076190232", workshopId: "3076190232", workshopUrl: workshop("3076190232"), localImage: "/assets/maps/aim_map/aim_deagle.jpg" },
   { name: "aim_redline",    label: "Aim Redline",  mapId: "3710410548", workshopId: "3710410548", workshopUrl: workshop("3710410548"), localImage: "/assets/maps/aim_map/aim_redline.jpg" },
   { name: "awp_india",      label: "AWP India",    mapId: "3070411770", workshopId: "3070411770", workshopUrl: workshop("3070411770"), localImage: "/assets/maps/aim_map/awp_india.jpg" },
-  { name: "awp_lego",       label: "AWP Lego",     mapId: "3767826671", workshopId: "3767826671", workshopUrl: workshop("3767826671"), localImage: "/assets/maps/aim_map/awp_lego.png" },
+  { name: "awp_lego",       label: "AWP Lego",     mapId: "3306098014", workshopId: "3306098014", workshopUrl: workshop("3306098014"), localImage: "/assets/maps/aim_map/awp_lego.png" },
   { name: "aim_ancient",    label: "Aim Ancient",  mapId: "3090340064", workshopId: "3090340064", workshopUrl: workshop("3090340064"), localImage: "/assets/maps/aim_map/ancient_1x1.jpg" },
   { name: "aim_map",        label: "Aim Map",      mapId: "3084291314", workshopId: "3084291314", workshopUrl: workshop("3084291314"), localImage: "/assets/maps/aim_map/aim_map.jpg" },
 ];

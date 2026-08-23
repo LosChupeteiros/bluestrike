@@ -60,12 +60,38 @@ function buildOriginFromHost(protocol: string, host: string) {
   }
 }
 
+/**
+ * Normaliza o `?next=` do login para um caminho interno seguro.
+ *
+ * Checar prefixo na mão não basta. O parser de URL do navegador remove tab,
+ * CR e LF antes de interpretar, e trata `\` como `/` — então `/\evil.com`,
+ * `/<tab>/evil.com` e `/<lf>//evil.com` viram todos `https://evil.com`, virando
+ * um open redirect logo após o login (phishing com o domínio do BlueStrike na
+ * barra de endereço).
+ *
+ * Em vez de tentar listar os truques, resolve o valor contra uma origem base e
+ * exige que o resultado continue nela. Só o caminho resolvido é devolvido.
+ */
 export function sanitizeNextPath(nextPath: string | null | undefined) {
-  if (!nextPath || !nextPath.startsWith("/") || nextPath.startsWith("//")) {
+  if (!nextPath || !nextPath.startsWith("/")) {
     return DEFAULT_POST_LOGIN_PATH;
   }
 
-  return nextPath;
+  // Origem sintética: interessa só se o valor escapa dela, não qual é.
+  const BASE = "https://bluestrike.invalid";
+
+  let resolved: URL;
+  try {
+    resolved = new URL(nextPath, BASE);
+  } catch {
+    return DEFAULT_POST_LOGIN_PATH;
+  }
+
+  if (resolved.origin !== BASE) {
+    return DEFAULT_POST_LOGIN_PATH;
+  }
+
+  return `${resolved.pathname}${resolved.search}${resolved.hash}`;
 }
 
 export function resolveRequestOrigin(request: Request | { url: string; headers: Headers; nextUrl?: URL }) {

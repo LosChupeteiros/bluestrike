@@ -450,17 +450,34 @@ Acesso restrito a administradores. Exibe:
 
 ## 🔐 Segurança
 
-| Camada | Implementação |
+> **Documento completo: [`docs/SEGURANCA.md`](docs/SEGURANCA.md).** Antes de criar
+> ou alterar qualquer rota em `src/app/api/`, leia o checklist de lá — vale para
+> pessoa e para IA. O resumo está em [`AGENTS.md`](AGENTS.md).
+
+A tabela abaixo descreve o que **está implementado hoje**, verificado na
+auditoria de 21/08/2026. Onde há lacuna, ela está escrita como lacuna.
+
+| Camada | Situação real |
 |---|---|
-| **Autenticação** | OAuth 2.0 via Steam OpenID e Google — sem senha armazenada |
-| **Sessão** | JWT com rotação automática; httpOnly cookies |
-| **Proteção de rotas** | Middleware Next.js valida sessão antes de renderizar rotas protegidas |
-| **CSRF** | Tokens CSRF em todas as mutações de estado |
-| **XSS** | React escapa todo output por padrão; nenhuma inserção de HTML cru |
-| **SQL Injection** | Queries parametrizadas via ORM (Prisma) — nenhuma concatenação de string |
-| **Rate limiting** | Limite de requisições por IP nas rotas de API (a implementar com Upstash) |
-| **Validação** | Zod no servidor para validar todos os inputs antes de persistir |
-| **Sanitização** | DOMPurify em qualquer campo que aceite texto livre exibido para outros usuários |
+| **Autenticação** | Steam OpenID. Sem senha armazenada, sem login social além disso. |
+| **Sessão** | JWT assinado com `AUTH_SECRET` via `jose`; cookie `httpOnly`, `sameSite=lax`, `secure` em produção. Sem rotação automática. |
+| **Autorização** | Feita **rota a rota**, dentro do handler ou da lib. Não existe camada central que autorize — o `src/proxy.ts` só aplica cabeçalhos e rate limit. Prefixo `/api/admin/` não protege nada por si. |
+| **CSRF** | `sameSite=lax` no cookie de sessão, que bloqueia POST cross-site. **Não há token CSRF**; a proteção depende do atributo do cookie. |
+| **XSS** | React escapa por padrão e não há `dangerouslySetInnerHTML` em campo de usuário. Sem DOMPurify — não é usado nem necessário no modelo atual. |
+| **SQL Injection** | Sem concatenação de string. Supabase (PostgREST) e `mysql2` com queries parametrizadas. Não há Prisma neste projeto. |
+| **Rate limiting** | `src/proxy.ts` + `src/lib/rate-limit.ts`, por IP. **Contador em memória, por instância** — na Vercel o teto real é `limite × instâncias`. Para valer de verdade falta um contador central. |
+| **Validação de entrada** | Zod em 2 das 59 rotas e nas server actions de cadastro/skins. As demais validam à mão. |
+| **Cabeçalhos** | `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` e HSTS, aplicados em `src/proxy.ts`. |
+| **Segredo de máquina** | Servidor de jogo autentica por segredo por partida (`matches.webhook_secret`) ou token global (`SERVER_INTEGRATION_TOKEN`); comparação em tempo constante. |
+| **Pagamento** | Webhook do Mercado Pago valida HMAC **e** reconsulta o pagamento na API deles — o corpo da notificação não é fonte de verdade. |
+| **Dado pessoal** | CPF, telefone, e-mail, nascimento e chave PIX filtrados por `toPublicProfile()` antes de qualquer serialização para o cliente. |
+
+### Sobre os UUIDs nas URLs
+
+UUID de partida aparece na URL, e isso não é um problema: **UUID não é
+credencial**. Ele diz *qual* recurso; a sessão diz *quem* está pedindo; a rota
+decide cruzando os dois. Perfis usam `public_id` numérico, não UUID. O raciocínio
+completo está em [`docs/SEGURANCA.md`](docs/SEGURANCA.md).
 
 ---
 

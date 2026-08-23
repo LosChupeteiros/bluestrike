@@ -52,11 +52,18 @@ Sem essas variáveis, código que já está escrito não funciona ou falha abert
       `Authorization` em redirect entre hosts diferentes**. Sem isso, a autenticação
       quebra em silêncio: o servidor recebe 401 e a partida não carrega.
       Existe fallback no código (`getIntegrationBaseUrl`), mas depender de fallback é ruim.
-- [ ] **`MP_WEBHOOK_SECRET`** — nunca foi definida. Hoje
-      `src/app/api/webhooks/mercadopago/route.ts:13` loga um aviso e **pula a validação
-      de assinatura**, ou seja, quem descobrir a URL pode forjar uma confirmação de
-      pagamento e liberar inscrição sem pagar. Pegar o secret no painel do Mercado Pago
-      (Webhooks → sua notificação) e configurar.
+- [ ] 🚨 **`MP_WEBHOOK_SECRET` — BLOQUEIA O DEPLOY.** A rota passou a **falhar
+      fechada**: antes, sem a variável, ela pulava a validação de assinatura e seguia;
+      agora devolve 401. Isso é o comportamento correto, mas significa que
+      **enquanto a variável não estiver na Vercel, nenhum pagamento é confirmado**.
+      Pegar em Mercado Pago → Suas integrações → Webhooks → Assinatura secreta, e
+      configurar **antes** de publicar esta branch.
+
+- [ ] **`WEAPONPAINTS_MYSQL_SSL=insecure` na Vercel.** A verificação de certificado
+      TLS do MySQL passou a ser ligada por padrão. O servidor do Dathost
+      (`burn.dathost.net`) apresenta certificado que não valida — testado, o handshake
+      falha com `HANDSHAKE_SSL_ERROR`. Sem essa variável, o placar ao vivo para de
+      funcionar. É opt-out consciente e temporário: ver o item de MITM na seção 3.
 
 ---
 
@@ -75,17 +82,37 @@ o UUID", o que **não é controle de acesso**.
       justamente essa duplicação que deixava a página escondendo a senha do espectador
       enquanto a rota de polling continuava mandando. `status`, `ready` e placar seguem
       públicos, senão a página para de atualizar para quem só assiste.
-- [ ] **`/api/chupeteiromestre/[id]/matchzy-config` — MÉDIA.** Monta o config do MatchZy
-      de um lobby PUG, que inclui os **SteamID64 de todos os jogadores**. É exatamente o
-      mesmo vazamento que já foi corrigido na rota equivalente de campeonato — falta
-      aplicar o mesmo `verifyMatchSecret` aqui.
-- [ ] **`/api/tournaments/faceit/[id]/subscriptions` — MÉDIA.** Expõe a lista de inscritos.
-      Avaliar o que exatamente sai no payload antes de decidir o nível de proteção.
+- [x] ~~**`/api/chupeteiromestre/[id]/matchzy-config`**~~ **Resolvido.** Entregava o
+      SteamID64 de todos os jogadores do lobby PUG. Agora exige segredo por lobby
+      (`pug_lobbies.webhook_secret`, migration `20260824_pug_webhook_secret`), entregue
+      ao servidor no `matchzy_loadmatch_url` de 3 argumentos. Junto veio o
+      `matchzy_match_id` do PUG, que ainda usava `Date.now()/1000` e era adivinhável.
+- [x] ~~**`/api/tournaments/faceit/[id]/subscriptions`**~~ **Reavaliado.** O payload em
+      si é público (times inscritos num campeonato). O problema real era outro e mais
+      grave — ver o cancelamento em massa logo abaixo.
 - [ ] **`/api/matches/[id]/vetoes` — BAIXA.** Só devolve o histórico de vetos, que é
-      informação pública da partida. Provavelmente pode ficar aberta; registrado para
-      não parecer esquecimento.
+      informação pública da partida. Decidido deixar aberta; registrado para não parecer
+      esquecimento.
 
-### Credenciais do Dathost
+### Riscos que permanecem
+
+- [ ] **MITM no MySQL que decide o campeonato.** O certificado de
+      `burn.dathost.net` não valida, então a conexão roda com
+      `WEAPONPAINTS_MYSQL_SSL=insecure`: cifrada, mas sem autenticar a ponta. Esse banco
+      é a fonte da verdade de placar, vencedor e ELO — quem se puser no meio decide quem
+      ganhou. **Abrir chamado no Dathost** pedindo certificado válido, ou obter a CA
+      deles e fixá-la (`ssl: { ca }`). Enquanto isso não acontece, é o furo aberto mais
+      relevante da plataforma.
+
+- [ ] **Rate limiting é por instância.** `src/lib/rate-limit.ts` conta em memória, e a
+      Vercel roda várias instâncias — o teto real é `limite × instâncias`. Serve para
+      cortar automação burra e enumeração; não serve contra atacante distribuído.
+      Migrar para contador central (Upstash Redis) quando houver volume.
+
+- [ ] **Validação de entrada desigual.** Zod é usado em 2 das 59 rotas e nas server
+      actions; o resto valida à mão. Não é vulnerabilidade conhecida hoje, mas é o tipo
+      de inconsistência onde a próxima aparece. Padronizar aos poucos, começando pelas
+      rotas que escrevem no banco.
 
 - [ ] **O Dathost não oferece token de API.** Confirmado testando contra a API real: a
       única autenticação aceita é HTTP Basic com **e-mail e senha da conta**. Ou seja,
@@ -93,6 +120,28 @@ o UUID", o que **não é controle de acesso**.
       controle total da conta — incluindo apagar servidores. Consequências: não replicar
       essas variáveis em ambientes de teste/preview, e trocar a senha da conta ao menor
       sinal de exposição.
+
+### Corrigido na auditoria de 21/08/2026
+
+Detalhamento completo em [`docs/SEGURANCA.md`](docs/SEGURANCA.md).
+
+- [x] **Cancelamento em massa de inscrições pagas.** `getFaceitChampionshipSubscriptions`
+      devolvia `[]` em qualquer erro, e quem consumia lia isso como "todo mundo
+      cancelou" — um 429 da FACEIT cancelava todas as inscrições pagas do campeonato.
+      Disparava **sozinho**, sem atacante. Agora `fetchFaceitChampionshipSubscriptions`
+      distingue falha de vazio, e `syncCancellations` nunca age com lista vazia.
+- [x] **`reload-stats` finalizava partida alheia.** Qualquer conta logada encerrava
+      qualquer partida — no placar parcial, avançando o chaveamento e mexendo no ELO.
+      Agora exige jogador ou admin, e estado terminal.
+- [x] **`matchzy-tick` aberto a qualquer conta logada.** Mesmo tratamento.
+- [x] **Webhook do Mercado Pago devolvia 200 no `catch`.** O MP lia como entregue e
+      nunca reenviava: jogador pagava, banco falhava, inscrição não saía. Agora devolve
+      500 para o MP repetir.
+- [x] **Open redirect no `?next=` do login.** `sanitizeNextPath` barrava `//` mas não
+      `\`, tab, CR nem LF — cinco vetores levavam a `https://evil.com`. Agora resolve
+      contra origem base e exige mesma origem.
+- [x] **Sem rate limiting e sem cabeçalhos de segurança.** Criado `src/proxy.ts`
+      (no Next 16 o `middleware.ts` virou `proxy.ts`).
 
 ---
 

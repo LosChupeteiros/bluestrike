@@ -1,4 +1,4 @@
-import { getIntegrationBaseUrl } from "@/lib/api-auth";
+import { generateMatchSecret, generateMatchzyMatchId, getIntegrationBaseUrl } from "@/lib/api-auth";
 // Pickup / Captains Draft lobby ("/chupeteiromestre")
 // Subsistema autocontido de pug/mix caseiro: presença → sorteio de capitães →
 // draft alternado → ready → veto MD3 → escolha de lados → sobe servidor DatHost.
@@ -554,7 +554,10 @@ export async function provisionPugServerAsync(lobbyId: string): Promise<void> {
   const gotvPort = server.ports.gotv ?? null;
   const password = randomUUID().replace(/-/g, "").slice(0, 12);
   const ipStr = server.ip ?? server.raw_ip ?? "";
-  const matchzyMatchId = Math.floor(Date.now() / 1000);
+  // Era `Date.now()/1000`: sabendo mais ou menos quando a sala subiu, dava para
+  // varrer alguns milhares de inteiros e acertar o id.
+  const matchzyMatchId = generateMatchzyMatchId();
+  const matchSecret = generateMatchSecret();
 
   await supabase.from("pug_lobbies").update({
     dathost_server_id: server.id,
@@ -563,6 +566,7 @@ export async function provisionPugServerAsync(lobbyId: string): Promise<void> {
     gotv_port: gotvPort,
     server_password: password,
     matchzy_match_id: matchzyMatchId,
+    webhook_secret: matchSecret,
     connect_string: `steam://connect/${ipStr}:${port}/${password}`,
     server_status: "provisioning",
   }).eq("id", lobbyId);
@@ -597,7 +601,13 @@ export async function provisionPugServerAsync(lobbyId: string): Promise<void> {
 
   const base = getIntegrationBaseUrl();
   const configUrl = `${base}/api/chupeteiromestre/${lobbyId}/matchzy-config`;
-  await sendConsoleCommand(server.id, `matchzy_loadmatch_url "${configUrl}"`, null);
+  // Forma de 3 argumentos: url + nome do header + valor. O config carrega o
+  // SteamID64 de todo mundo na sala, então a rota exige esse segredo.
+  await sendConsoleCommand(
+    server.id,
+    `matchzy_loadmatch_url "${configUrl}" "Authorization" "Bearer ${matchSecret}"`,
+    null
+  );
 
   await supabase.from("pug_lobbies").update({ status: "live", server_status: "live" }).eq("id", lobbyId);
 

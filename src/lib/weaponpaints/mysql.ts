@@ -2,6 +2,33 @@ import mysql from "mysql2/promise";
 
 let _pool: mysql.Pool | null = null;
 
+/**
+ * Verificação de certificado TLS do MySQL.
+ *
+ * Este banco é a fonte da verdade sobre placar, vencedor e ELO: quem conseguir
+ * se pôr no meio dessa conexão decide quem ganhou o campeonato. Por isso a
+ * verificação vem LIGADA por padrão — ambiente novo que esqueça a variável
+ * nasce seguro, em vez de nascer aberto.
+ *
+ * O opt-out precisa ser a palavra exata `insecure`, para ninguém desligar sem
+ * saber o que está fazendo. Hoje ele é necessário: o MySQL do Dathost
+ * (burn.dathost.net) apresenta certificado que não valida — testado, o
+ * handshake falha com HANDSHAKE_SSL_ERROR. Enquanto for assim, a conexão fica
+ * cifrada mas sem autenticar a ponta, o que não protege contra MITM.
+ */
+function shouldVerifyTls(): boolean {
+  const optOut = process.env.WEAPONPAINTS_MYSQL_SSL?.trim().toLowerCase() === "insecure";
+  if (optOut) {
+    console.warn(
+      "[mysql] WEAPONPAINTS_MYSQL_SSL=insecure — certificado do MySQL NÃO verificado. " +
+      "A conexão que decide placar e ELO está sujeita a MITM. Corrigir o certificado do servidor."
+    );
+  }
+  return !optOut;
+}
+
+const verifyTls = shouldVerifyTls();
+
 function getMysqlConfig() {
   const host = process.env.WEAPONPAINTS_MYSQL_HOST;
   const user = process.env.WEAPONPAINTS_MYSQL_USER;
@@ -18,7 +45,7 @@ function getMysqlConfig() {
     user,
     password,
     database,
-    ssl: { rejectUnauthorized: process.env.WEAPONPAINTS_MYSQL_SSL === "strict" },
+    ssl: { rejectUnauthorized: verifyTls },
     supportBigNumbers: true,
     bigNumberStrings: true,
     waitForConnections: true,
