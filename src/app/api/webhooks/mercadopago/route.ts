@@ -7,8 +7,19 @@ import {
   parseBlueStrikePaymentExternalReference,
 } from "@/lib/tournament-registration-intents";
 
-/** Tolerância de relógio para a assinatura, em minutos. */
-const MP_SIGNATURE_MAX_AGE_MIN = 15;
+/**
+ * Idade a partir da qual a assinatura é considerada velha — apenas registrada
+ * em log, nunca motivo de recusa.
+ *
+ * O Mercado Pago reenvia notificação não confirmada **a cada 15 minutos, e
+ * segue reenviando indefinidamente** até receber 200. Recusar por idade
+ * transformaria uma indisponibilidade nossa em pagamento nunca confirmado, que
+ * é exatamente o problema de dinheiro que esta rota já teve. E o ganho seria
+ * pequeno: quem repetir uma notificação capturada só faz o handler reconsultar
+ * o pagamento real na API do MP e reconfirmar algo já confirmado — a rota é
+ * idempotente. Quem autentica de verdade é o HMAC.
+ */
+const MP_SIGNATURE_IDADE_SUSPEITA_MIN = 60;
 
 type SignatureCheck = { ok: true } | { ok: false; reason: string };
 
@@ -35,17 +46,24 @@ function validateSignature(request: NextRequest): SignatureCheck {
 
   if (!ts || !v1) return { ok: false, reason: "header x-signature incompleto" };
 
-  // Assinatura velha é replay: sem isto, um POST capturado vale para sempre.
-  const tsMs = Number(ts) * (ts.length > 12 ? 1 : 1000);
+  // Só observabilidade — ver o comentário da constante sobre por que idade não
+  // recusa. O `ts` do MP vem em segundos (ex.: 1704908010); a checagem de
+  // tamanho cobre o caso de vir em milissegundos sem quebrar nada.
+  const tsMs = Number(ts) * (ts.trim().length > 12 ? 1 : 1000);
   if (Number.isFinite(tsMs)) {
     const idadeMin = Math.abs(Date.now() - tsMs) / 60_000;
-    if (idadeMin > MP_SIGNATURE_MAX_AGE_MIN) {
-      return { ok: false, reason: `assinatura com ${Math.round(idadeMin)}min de idade` };
+    if (idadeMin > MP_SIGNATURE_IDADE_SUSPEITA_MIN) {
+      console.warn(`[mp-webhook] assinatura com ~${Math.round(idadeMin)}min (provável retry do MP)`);
     }
   }
 
+  // Template oficial: `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
+  // O `data.id` vem da QUERY STRING, não do corpo. Quando o valor é
+  // alfanumérico o MP assina em minúsculas, então normalizamos — para id de
+  // pagamento, que é numérico, isso não muda nada, mas evita falha silenciosa
+  // em outros tópicos. Parte ausente é omitida do template, conforme a doc.
   const url = new URL(request.url);
-  const dataId = url.searchParams.get("data.id") ?? "";
+  const dataId = (url.searchParams.get("data.id") ?? "").trim().toLowerCase();
   const manifestParts: string[] = [];
   if (dataId) manifestParts.push(`id:${dataId}`);
   if (xRequestId) manifestParts.push(`request-id:${xRequestId}`);
@@ -134,11 +152,21 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    // HTTP 500, não 200. Devolver 200 aqui dizia ao Mercado Pago "recebi e
-    // tratei", e ele nunca reenviava — se o Supabase piscasse na hora de
-    // marcar como pago, o jogador pagava e a inscrição não saía, sem nenhuma
-    // segunda chance. Com 500, o MP repete a notificação.
     console.error("[mp-webhook] Erro ao processar pagamento:", error);
+
+    // O Mercado Pago reenvia a cada 15min até receber 200, indefinidamente.
+    // Isso é o que se quer para falha transitória (banco fora do ar): antes a
+    // rota devolvia 200 no catch, o MP considerava entregue e nunca repetia —
+    // o jogador pagava e a inscrição não saía.
+    //
+    // Mas para erro PERMANENTE, repetir não conserta nada e só gera retry
+    // eterno. Pagamento que o MP diz não existir (404) é permanente: ou o id é
+    // inválido, ou é de outra conta. Nesse caso confirmamos o recebimento.
+    const status = (error as { status?: number } | null)?.status;
+    if (status === 404) {
+      return NextResponse.json({ ok: true, note: "payment_not_found" });
+    }
+
     return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 500 });
   }
 }
