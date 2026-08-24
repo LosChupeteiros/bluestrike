@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { FactionBadge } from "@/components/ui/faction-badge";
 import Image from "next/image";
 import {
   Loader2, Crown, Swords, Check, X, Star, Shuffle, Wifi, Copy,
@@ -14,16 +15,8 @@ const POLL_MS = 2500;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function FactionLogo({ side, className = "h-6 w-6" }: { side: "ct" | "t"; className?: string }) {
-  return (
-    <span
-      aria-label={side === "ct" ? "CT" : "TR"}
-      className={`inline-flex items-center justify-center bg-contain bg-center bg-no-repeat text-[9px] font-black ${side === "ct" ? "text-[#7B96FF]" : "text-[#FB923C]"} ${className}`}
-      style={{ backgroundImage: `url(${side === "ct" ? "/assets/sides/Ct_logo.webp" : "/assets/sides/Tr_logo.webp"})` }}
-    >
-      {side === "ct" ? "CT" : "TR"}
-    </span>
-  );
+function FactionLogo({ side, className = "" }: { side: "ct" | "t"; className?: string }) {
+  return <FactionBadge side={side} size="md" className={className} />;
 }
 
 function Avatar({ player, size = 44 }: { player: PugPlayer; size?: number }) {

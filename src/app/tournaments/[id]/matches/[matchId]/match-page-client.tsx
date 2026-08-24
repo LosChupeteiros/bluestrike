@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { FactionBadge } from "@/components/ui/faction-badge";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
@@ -128,16 +129,8 @@ function TeamHeroMark({ tag, logoUrl, winner }: { tag: string; logoUrl: string |
   );
 }
 
-function FactionLogo({ side, className = "h-8 w-8" }: { side: "ct" | "t"; className?: string }) {
-  return (
-    <span
-      aria-label={side === "ct" ? "CT" : "TR"}
-      className={`inline-flex items-center justify-center bg-contain bg-center bg-no-repeat text-[9px] font-black ${side === "ct" ? "text-[#7B96FF]" : "text-[#FB923C]"} ${className}`}
-      style={{ backgroundImage: `url(${side === "ct" ? "/assets/sides/Ct_logo.webp" : "/assets/sides/Tr_logo.webp"})` }}
-    >
-      {side === "ct" ? "CT" : "TR"}
-    </span>
-  );
+function FactionLogo({ side, className = "" }: { side: "ct" | "t"; className?: string }) {
+  return <FactionBadge side={side} size="lg" className={className} />;
 }
 
 // ── Ready panel ────────────────────────────────────────────────────────────────

@@ -30,8 +30,8 @@ const FILTERS: Array<{
   accent: string;
 }> = [
   { id: "both", label: "Ambos", hint: "Aplica nos dois lados", accent: "var(--primary)" },
-  { id: "ct", label: "CT", hint: "Só o arsenal Counter-Terrorist", logo: "/assets/sides/Ct_logo.webp", accent: "#7B96FF" },
-  { id: "t", label: "TR", hint: "Só o arsenal Terrorist", logo: "/assets/sides/Tr_logo.webp", accent: "#FB923C" },
+  { id: "ct", label: "CT", hint: "Só o arsenal Counter-Terrorist", accent: "#7B96FF" },
+  { id: "t", label: "TR", hint: "Só o arsenal Terrorist", accent: "#FB923C" },
 ];
 
 function SideBadge({ defindex }: { defindex: number }) {
@@ -225,16 +225,25 @@ export function WeaponsLoadout({ weapons, currentSkinsCT, currentSkinsT }: Weapo
                     : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 )}
               >
-                {option.logo ? (
-                  <Image
-                    src={option.logo}
-                    alt=""
-                    width={16}
-                    height={16}
-                    className={cn("h-4 w-4 object-contain transition-opacity", !isActive && "opacity-50")}
-                  />
-                ) : (
+                {option.id === "both" ? (
                   <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  // Marcador da cor do lado, no mesmo idioma do SideBadge das
+                  // armas. Substitui os logos de CT/TR: os arquivos apontados
+                  // (`/assets/sides/*.webp`) nunca existiram no repositório e
+                  // renderizavam quebrados.
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-2.5 w-2.5 shrink-0 rounded-[3px] ring-1 transition-opacity",
+                      !isActive && "opacity-40"
+                    )}
+                    style={{
+                      backgroundColor: `color-mix(in srgb, ${option.accent} 30%, transparent)`,
+                      borderColor: option.accent,
+                      boxShadow: `inset 0 0 0 1px ${option.accent}`,
+                    }}
+                  />
                 )}
                 {option.label}
               </button>
