@@ -1,5 +1,6 @@
 "use client";
 
+import CountUp from "@/components/motion/count-up";
 import * as React from "react";
 import Image from "next/image";
 import { Check, CircleDollarSign, LoaderCircle, Radio, Server, ShieldCheck, Trophy } from "lucide-react";
@@ -121,7 +122,7 @@ function PrizeNode({ active }: { active: boolean }) {
       </span>
       <span className="min-w-0">
         <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-white/44">Prêmio da campeã</span>
-        <strong className="tabular mt-1 block text-2xl font-black tracking-[-0.055em] text-white">R$ 12.000</strong>
+        <strong className="tabular mt-1 block text-2xl font-black tracking-[-0.055em] text-white"><CountUp value={12000} prefix="R$ " /></strong>
       </span>
     </div>
   );

@@ -535,10 +535,24 @@ export default function Header({ user, authState = "ready" }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Sentinela em vez de listener de scroll.
+  //
+  // Antes isto era um `scroll` listener que lia `window.scrollY` a cada evento
+  // de rolagem — trabalho na main thread no exato momento em que ela precisa
+  // estar livre para o scroll correr liso. O IntersectionObserver observa um
+  // elemento invisível de 20px no topo da página e o navegador avisa só nas
+  // duas vezes em que o estado realmente muda.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const sentinela = document.getElementById("bs-scroll-sentinel");
+    if (!sentinela) return;
+
+    const observer = new IntersectionObserver(
+      ([entrada]) => setScrolled(!entrada.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(sentinela);
+
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {

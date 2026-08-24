@@ -1,3 +1,4 @@
+import CountUp from "@/components/motion/count-up";
 import Link from "next/link";
 import { ArrowRight, Minus, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -56,7 +57,7 @@ export default function RankingPreview({ players }: { players: HomeTopPlayer[] }
                 <div className="mt-5 flex items-end justify-between border-t border-[var(--border)] pt-4">
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.06em] text-[var(--muted-foreground)]">BlueStrike ELO</div>
-                    <div className="tabular mt-1 text-xl font-black text-[var(--primary)]">{profile.elo.toLocaleString("pt-BR")}</div>
+                    <div className="tabular mt-1 text-xl font-black text-[var(--primary)]"><CountUp value={profile.elo} /></div>
                   </div>
                   <span className={eloChange > 0 ? "text-green-400" : eloChange < 0 ? "text-red-400" : "text-[var(--muted-foreground)]"}>
                     {eloChange > 0 ? <TrendingUp className="inline h-3.5 w-3.5" aria-hidden="true" /> : eloChange < 0 ? <TrendingDown className="inline h-3.5 w-3.5" aria-hidden="true" /> : <Minus className="inline h-3.5 w-3.5" aria-hidden="true" />}

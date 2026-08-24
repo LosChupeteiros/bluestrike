@@ -3,30 +3,27 @@ import { cn } from "@/lib/utils";
 /**
  * Selo de lado (CT / TR).
  *
- * Substitui os logos em `/assets/sides/Ct_logo.webp` e `Tr_logo.webp`, que eram
- * referenciados em quatro lugares e **nunca existiram no repositório** — a
- * pasta `public/assets/sides/` não existe, então todos renderizavam quebrado.
+ * Canto chanfrado em diagonal, como marcação de HUD militar — é o que conversa
+ * com a identidade do CS sem virar ícone. Substitui os logos em
+ * `/assets/sides/*.webp`, que eram referenciados em quatro lugares e nunca
+ * existiram no repositório.
  *
- * A versão em texto não depende de asset, funciona em qualquer tamanho e segue
- * as cores que já identificavam cada lado no resto da plataforma.
+ * O chanfro é `clip-path`, que o compositor resolve: não custa layout nem
+ * repaint quando o elemento entra em cena junto com uma animação.
  */
 
 const SIDE_STYLES = {
-  ct: {
-    label: "CT",
-    text: "text-[#7B96FF]",
-    ring: "ring-[#7B96FF]/40",
-    bg: "bg-[#7B96FF]/12",
-  },
-  t: {
-    label: "TR",
-    text: "text-[#FB923C]",
-    ring: "ring-[#FB923C]/40",
-    bg: "bg-[#FB923C]/12",
-  },
+  ct: { label: "CT", cor: "#7B96FF" },
+  t: { label: "TR", cor: "#FB923C" },
 } as const;
 
 export type FactionSide = keyof typeof SIDE_STYLES;
+
+const SIZES = {
+  sm: { h: "1.375rem", min: "2.375rem", fs: "0.625rem", corte: "5px", pad: "0 0.5rem" },
+  md: { h: "1.875rem", min: "3.25rem", fs: "0.75rem", corte: "7px", pad: "0 0.75rem" },
+  lg: { h: "2.375rem", min: "4rem", fs: "0.875rem", corte: "9px", pad: "0 1rem" },
+} as const;
 
 export function FactionBadge({
   side,
@@ -35,29 +32,33 @@ export function FactionBadge({
 }: {
   side: FactionSide;
   className?: string;
-  /** `sm` para uso inline, `md` padrão, `lg` para destaque em cabeçalho. */
-  size?: "sm" | "md" | "lg";
+  /** `sm` inline sobre card, `md` padrão, `lg` para cabeçalho. */
+  size?: keyof typeof SIZES;
 }) {
-  const style = SIDE_STYLES[side];
-
-  const sizeClass =
-    size === "sm" ? "h-5 min-w-[1.75rem] text-[9px] rounded-[4px]"
-    : size === "lg" ? "h-9 min-w-[2.75rem] text-sm rounded-lg"
-    : "h-7 min-w-[2.25rem] text-[11px] rounded-md";
+  const { label, cor } = SIDE_STYLES[side];
+  const s = SIZES[size];
 
   return (
     <span
-      aria-label={style.label}
+      aria-label={label}
       className={cn(
-        "inline-flex select-none items-center justify-center px-1.5 font-mono font-black leading-none tracking-tight ring-1 ring-inset",
-        sizeClass,
-        style.text,
-        style.ring,
-        style.bg,
+        "inline-flex select-none items-center justify-center font-mono font-black leading-none",
         className
       )}
+      style={{
+        height: s.h,
+        minWidth: s.min,
+        padding: s.pad,
+        fontSize: s.fs,
+        letterSpacing: "0.08em",
+        color: cor,
+        backgroundColor: `color-mix(in srgb, ${cor} 16%, transparent)`,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${cor} 45%, transparent)`,
+        // Chanfro nos cantos superior-esquerdo e inferior-direito.
+        clipPath: `polygon(${s.corte} 0, 100% 0, 100% calc(100% - ${s.corte}), calc(100% - ${s.corte}) 100%, 0 100%, 0 ${s.corte})`,
+      }}
     >
-      {style.label}
+      {label}
     </span>
   );
 }

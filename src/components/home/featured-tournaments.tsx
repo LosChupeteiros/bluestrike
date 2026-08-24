@@ -119,7 +119,8 @@ export default async function FeaturedTournaments() {
             <Link
               key={campaign.id}
               href={campaign.href}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-1 hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+              data-reveal-item
+              className="bs-interactive bs-press group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
             >
               {/* Banner inteiro: `contain` em vez de `cover` para não cortar a arte */}
               <div className="relative aspect-[16/9] shrink-0 overflow-hidden bg-[#06090d]">
