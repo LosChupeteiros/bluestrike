@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { FactionBadge } from "@/components/ui/faction-badge";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { CloudCog, Gamepad2, Sparkles, Zap } from "lucide-react";
@@ -22,14 +22,12 @@ const SIDE_CONFIG = {
     name: "Counter-Terrorist",
     short: "CT",
     accent: "#7B96FF",
-    logo: "/assets/sides/Ct_logo.webp",
   },
   t: {
     team: 2,
     name: "Terrorist",
     short: "TR",
     accent: "#FB923C",
-    logo: "/assets/sides/Tr_logo.webp",
   },
 } as const;
 
@@ -90,7 +88,7 @@ function SideKitPanel({
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-black/30"
           style={{ borderColor: `color-mix(in srgb, ${cfg.accent} 28%, transparent)` }}
         >
-          <Image src={cfg.logo} alt="" width={28} height={28} className="h-7 w-7 object-contain" />
+          <FactionBadge side={side} size="lg" />
         </span>
 
         <div className="min-w-0 flex-1">
