@@ -1,7 +1,9 @@
 import { FactionBadge } from "@/components/ui/faction-badge";
+import KnifeShowcase from "@/components/skins/knife-showcase";
+import CountUp from "@/components/motion/count-up";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { CloudCog, Gamepad2, Sparkles, Zap } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { getCurrentProfile } from "@/lib/profiles";
 import { getWeaponPaintsPool } from "@/lib/weaponpaints/mysql";
 import { getCurrentSkins, getCurrentKnife, getCurrentGlove, getCurrentMusic } from "@/lib/weaponpaints/queries";
@@ -231,10 +233,17 @@ export default async function SkinsPage() {
               <h1 className="bs-display mt-4">Seu inventário. <span className="text-[var(--primary)]">Suas regras.</span></h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted-foreground)]">Monte kits CT e TR, ajuste faca, luva, música, wear e seed. O servidor sincroniza tudo quando você entra.</p>
             </div>
-            <div className="bs-inset grid gap-3 p-3 sm:grid-cols-3 lg:col-span-5">
-              <div className="bs-dark-card p-4"><Gamepad2 className="h-4 w-4 text-[#7b96ff]" /><strong className="mt-5 block font-mono text-2xl">CT</strong><span className="text-[9px] uppercase tracking-[0.14em] text-white/45">Kit dedicado</span></div>
-              <div className="bs-dark-card p-4"><Zap className="h-4 w-4 text-[#fb923c]" /><strong className="mt-5 block font-mono text-2xl">TR</strong><span className="text-[9px] uppercase tracking-[0.14em] text-white/45">Kit dedicado</span></div>
-              <div className="bs-dark-card p-4"><CloudCog className="h-4 w-4 text-[var(--primary)]" /><strong className="mt-5 block font-mono text-2xl">{weaponEntries.length}</strong><span className="text-[9px] uppercase tracking-[0.14em] text-white/45">Armas sincronizadas</span></div>
+            {/* Vitrine 3D no lugar dos três cartões de número que ficavam
+                aqui. A contagem de armas continua na linha abaixo, em texto,
+                porque a informação importa — o que não precisava era de um
+                cartão inteiro para cada uma. */}
+            <div className="relative lg:col-span-5">
+              <KnifeShowcase className="h-56 w-full sm:h-64 lg:h-[19rem]" />
+              <p className="text-center text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                <CountUp value={weaponEntries.length} /> armas sincronizadas
+                <span className="mx-2 text-white/20">·</span>
+                kits CT e TR separados
+              </p>
             </div>
           </div>
         </header>

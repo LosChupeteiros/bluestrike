@@ -96,7 +96,7 @@ function BluestrikeFeaturedCard({ team }: { team: Team }) {
 
   return (
     <Link href={`/teams/${team.slug}`} className="group block h-full" data-reveal-item>
-      <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--primary)]/40">
+      <div className="bs-interactive bs-press relative flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)]/40">
         {/* Luz da marca no canto — some no repouso, acende no hover */}
         <span
           className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[var(--primary)]/10 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100"

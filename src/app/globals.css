@@ -168,6 +168,52 @@ body {
   background-clip: text;
 }
 
+/* ── Micro-interações ────────────────────────────────────────────────────
+   Três camadas de movimento em vez de uma. A camada primária é o card subindo;
+   a secundária é a sombra chegando um pouco depois, como massa que reage com
+   atraso; a ambiente é o brilho da borda acendendo. Sem as duas últimas, o
+   hover é só um translate e o resultado parece plano — que era o estado do
+   site inteiro.
+
+   Tudo em transform e opacity: o compositor resolve, sem layout nem repaint.
+
+   `.bs-press` dá o retorno de clique. 0.985 é de propósito discreto — a mão
+   sente, o olho quase não vê, que é como retorno de clique deve funcionar. */
+.bs-interactive {
+  transform: translateZ(0);
+  transition:
+    transform var(--dur-2) var(--ease-snap),
+    border-color var(--dur-2) var(--ease-snap);
+}
+.bs-interactive::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 18px 46px -12px color-mix(in srgb, var(--primary) 42%, transparent);
+  /* 60ms de atraso: a sombra chega depois do card, não junto. */
+  transition: opacity var(--dur-3) var(--ease-glide) 60ms;
+}
+@media (hover: hover) {
+  .bs-interactive:hover { transform: translate3d(0, -3px, 0); }
+  .bs-interactive:hover::after { opacity: 1; }
+}
+.bs-interactive:focus-visible { transform: translate3d(0, -3px, 0); }
+.bs-interactive:focus-visible::after { opacity: 1; }
+
+.bs-press { transition: transform var(--dur-1) var(--ease-snap); }
+.bs-press:active { transform: scale(0.985); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bs-interactive,
+  .bs-interactive::after,
+  .bs-press { transition: none; }
+  .bs-interactive:hover,
+  .bs-press:active { transform: none; }
+}
+
 .glow { box-shadow: 0 12px 34px color-mix(in srgb, var(--primary) 20%, transparent); }
 .glow-sm { box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 14%, transparent); }
 .glow-orange { box-shadow: 0 0 20px rgba(249, 115, 22, 0.3); }
