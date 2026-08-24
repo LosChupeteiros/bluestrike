@@ -206,14 +206,22 @@ export default async function PlayersPage({
   faceitMin,
   faceitMax,
 }: PlayersPageProps) {
+  // O intervalo cheio (1–10) significa "todos", não um filtro.
+  //
+  // Mandar 1–10 para a consulta parecia inofensivo, mas vira
+  // `faceit_level >= 1`, e em SQL `NULL >= 1` não é verdadeiro — então todo
+  // jogador sem FACEIT vinculado sumia da listagem. O catálogo mostrava só
+  // quem tinha FACEIT, sem nenhum filtro estar marcado na tela.
+  const filtrandoPorFaceit = faceitMin > 1 || faceitMax < 10;
+
   const result = await listPublicProfiles({
     query,
     page,
     role,
     minElo,
     maxElo,
-    minFaceitLevel: faceitMin,
-    maxFaceitLevel: faceitMax,
+    minFaceitLevel: filtrandoPorFaceit ? faceitMin : undefined,
+    maxFaceitLevel: filtrandoPorFaceit ? faceitMax : undefined,
   });
   const filters: PlayerFilters = { query: result.query, role, eloBand, faceitMin, faceitMax };
   const filterCount = [query, role, eloBand, faceitMin > 1 || faceitMax < 10].filter(Boolean).length;
