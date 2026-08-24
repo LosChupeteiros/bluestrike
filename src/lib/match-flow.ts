@@ -1,4 +1,5 @@
 // Match flow: ready-up → veto → second ready → provision server
+import { after } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import { findDeciderMap, getMapPoolForMode, getVetoSequence } from "@/lib/maps";
@@ -105,30 +106,59 @@ export async function readyUpMatch(
   const isTeam2 = requestingTeamId === match.team2_id;
   if (!isTeam1 && !isTeam2) return { ok: false, error: "Você não faz parte dessa partida." };
 
-  const update: Partial<{ ready_team1: boolean; ready_team2: boolean; status: string }> = {};
-  if (isTeam1) update.ready_team1 = true;
-  if (isTeam2) update.ready_team2 = true;
+  // Grava só o próprio ready e LÊ DE VOLTA o estado resultante.
+  //
+  // Antes, o `bothReady` era calculado a partir da leitura feita no início da
+  // função. Quando os dois capitães clicavam quase juntos, cada requisição via
+  // o outro ainda como não-pronto, as duas concluíam `bothReady = false`, e a
+  // partida terminava com os dois flags `true` no banco, presa em `pre_live`,
+  // sem servidor nenhum — exatamente o travamento relatado. Ler de volta o que
+  // o banco gravou elimina a leitura obsoleta.
+  const { data: atualizado } = await supabase
+    .from("matches")
+    .update(isTeam1 ? { ready_team1: true } : { ready_team2: true })
+    .eq("id", matchId)
+    .select("status, ready_team1, ready_team2")
+    .maybeSingle<{ status: string; ready_team1: boolean; ready_team2: boolean }>();
 
-  const bothReady =
-    (isTeam1 ? true : match.ready_team1) &&
-    (isTeam2 ? true : match.ready_team2);
+  const bothReady = Boolean(atualizado?.ready_team1 && atualizado?.ready_team2);
+  if (!bothReady) return { ok: true, bothReady: false };
 
-  if (bothReady) {
-    update.status = match.status === "pending" ? "veto" : "live";
-    update.ready_team1 = false;
-    update.ready_team2 = false;
-  }
+  // Os dois estão prontos. Se as duas requisições chegarem aqui ao mesmo tempo,
+  // só uma pode avançar a partida: o `.eq("status", ...)` faz a troca valer
+  // como compare-and-swap, e quem não alterou nada recebe zero linhas.
+  const statusAtual = atualizado?.status ?? match.status;
+  const proximoStatus = statusAtual === "pending" ? "veto" : "live";
 
-  await supabase.from("matches").update(update).eq("id", matchId);
+  const { data: transicionou } = await supabase
+    .from("matches")
+    .update({ status: proximoStatus, ready_team1: false, ready_team2: false })
+    .eq("id", matchId)
+    .eq("status", statusAtual)
+    .select("id")
+    .maybeSingle<{ id: string }>();
 
-  if (bothReady && match.status === "pre_live") {
+  // Perdeu a corrida: a outra requisição já avançou e vai provisionar.
+  if (!transicionou) return { ok: true, bothReady: true };
+
+  if (statusAtual === "pre_live") {
     const { mapName, mapId } = await resolveMatchMap(matchId, match.team_mode);
-    provisionServerAsync(matchId, mapName, mapId, match.team_mode).catch(
-      (err: unknown) => console.error("[match-flow] provision error:", err)
-    );
+
+    // `after()` em vez de promise solta: numa função serverless, o trabalho
+    // que sobra depois do `return` pode ser congelado junto com a instância e
+    // só retomar quando ela for reaproveitada — que é o motivo de o
+    // provisionamento às vezes demorar muito para começar. O `after` avisa a
+    // plataforma para manter a execução viva até terminar.
+    after(async () => {
+      try {
+        await provisionServerAsync(matchId, mapName, mapId, match.team_mode);
+      } catch (err) {
+        console.error(`[match-flow/${matchId}] provision error:`, err);
+      }
+    });
   }
 
-  return { ok: true, bothReady };
+  return { ok: true, bothReady: true };
 }
 
 // Resolves which map to play next, based on veto picks and how many maps have
@@ -396,7 +426,9 @@ export async function provisionServerAsync(
   const port = server.ports.game ?? 27015;
   const gotvPort = server.ports.gotv ?? null;
   const password = randomUUID().replace(/-/g, "").slice(0, 12);
-  const ipStr = server.ip ?? server.raw_ip ?? "";
+  // `raw_ip` primeiro: o Dathost devolve `ip` como hostname
+  // (ex.: loboda.dathost.net) e o handler steam://connect espera IP numérico.
+  const ipStr = server.raw_ip ?? server.ip ?? "";
 
   const baseRow = {
     dathost_id: "",

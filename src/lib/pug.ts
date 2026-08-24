@@ -553,7 +553,9 @@ export async function provisionPugServerAsync(lobbyId: string): Promise<void> {
   const port = server.ports.game ?? 27015;
   const gotvPort = server.ports.gotv ?? null;
   const password = randomUUID().replace(/-/g, "").slice(0, 12);
-  const ipStr = server.ip ?? server.raw_ip ?? "";
+  // `raw_ip` primeiro: o Dathost devolve `ip` como hostname
+  // (ex.: loboda.dathost.net) e o handler steam://connect espera IP numérico.
+  const ipStr = server.raw_ip ?? server.ip ?? "";
   // Era `Date.now()/1000`: sabendo mais ou menos quando a sala subiu, dava para
   // varrer alguns milhares de inteiros e acertar o id.
   const matchzyMatchId = generateMatchzyMatchId();

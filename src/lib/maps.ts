@@ -50,7 +50,7 @@ export const WINGMAN_MAP_POOL: MapPresentation[] = [
 // ── Pool de aim — 1x1 ────────────────────────────────────────────────────────
 
 export const AIM_MAP_POOL: MapPresentation[] = [
-  { name: "aim_crashz",     label: "Aim Crashz",   mapId: "305726849",  workshopId: "305726849",  workshopUrl: workshop("305726849"),  localImage: "/assets/maps/aim_map/aim_crashz.jpg" },
+  { name: "aim_tirgo",     label: "Aim Tirgo (C4)",   mapId: "3070897497",  workshopId: "3070897497",  workshopUrl: workshop("3070897497"),  localImage: "/assets/maps/aim_map/aim_tirgo.jpg" },
   { name: "aim_deagle_usp", label: "Deagle & USP", mapId: "3076190232", workshopId: "3076190232", workshopUrl: workshop("3076190232"), localImage: "/assets/maps/aim_map/aim_deagle.jpg" },
   { name: "aim_redline",    label: "Aim Redline",  mapId: "3710410548", workshopId: "3710410548", workshopUrl: workshop("3710410548"), localImage: "/assets/maps/aim_map/aim_redline.jpg" },
   { name: "awp_india",      label: "AWP India",    mapId: "3070411770", workshopId: "3070411770", workshopUrl: workshop("3070411770"), localImage: "/assets/maps/aim_map/awp_india.jpg" },
