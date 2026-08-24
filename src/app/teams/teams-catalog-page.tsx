@@ -95,7 +95,7 @@ function BluestrikeFeaturedCard({ team }: { team: Team }) {
   const winRate = totalMatches > 0 ? Math.round((team.wins / totalMatches) * 100) : null;
 
   return (
-    <Link href={`/teams/${team.slug}`} className="group block h-full">
+    <Link href={`/teams/${team.slug}`} className="group block h-full" data-reveal-item>
       <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--primary)]/40">
         {/* Luz da marca no canto — some no repouso, acende no hover */}
         <span

@@ -72,6 +72,25 @@
   --loss: #ef4444;
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Identidade de movimento ────────────────────────────────────────────
+     Três durações e três curvas para o site inteiro. Existir um vocabulário
+     fechado é o que faz a plataforma parecer uma coisa só em vez de uma
+     coleção de animações escritas em momentos diferentes.
+
+     A personalidade é "energética" no que responde ao usuário (clique, hover,
+     placar) e "premium" no que apenas se revela ao rolar. CS2 é reflexo: o
+     retorno tem que ser imediato; a apresentação pode respirar.
+
+     Uso: `transition: transform var(--dur-2) var(--ease-snap)`.
+     O mesmo vocabulário existe em TS, em `src/lib/motion.ts`, para o GSAP. */
+  --dur-1: 140ms;   /* feedback imediato: press, hover, toggle */
+  --dur-2: 260ms;   /* mudança de estado: card, badge, tab */
+  --dur-3: 520ms;   /* apresentação: seção entrando, modal, revelação */
+
+  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);        /* resposta: sai rápido, assenta */
+  --ease-glide: cubic-bezier(0.22, 1, 0.36, 1);      /* revelação: entrada calma */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);           /* saída: acelera e some */
   --field: #191919;
   --header: rgb(28 28 28 / 0.9);
   --shell-highlight: rgb(255 255 255 / 0.055);
@@ -552,12 +571,45 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes bs-item-reveal {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* ── Revelação ao rolar ──────────────────────────────────────────────────
+   Dois caminhos, e o navegador escolhe o melhor que tem:
+
+   1. Onde `animation-timeline: view()` existe (Chrome, Edge, Safari novo), a
+      animação roda no compositor, sem uma linha de JavaScript e sem tocar a
+      main thread. É o caminho mais fluido possível — nada que se escreva à mão
+      chega perto.
+   2. Onde não existe (Firefox hoje), o `<RevealProvider>` liga o ScrollTrigger.
+      Ele testa por `CSS.supports` antes, então os dois nunca rodam juntos.
+
+   `[data-reveal]` revela um bloco inteiro. `[data-reveal-item]` revela item a
+   item: como cada um tem a própria timeline de view, a cascata acontece
+   naturalmente conforme entram na tela, sem precisar calcular delay. */
 @supports (animation-timeline: view()) {
   [data-reveal] {
-    animation: bs-view-reveal both var(--ease-out-quint);
+    animation: bs-view-reveal both var(--ease-glide);
     animation-timeline: view();
     animation-range: entry 2% cover 18%;
   }
+
+  [data-reveal-item] {
+    animation: bs-item-reveal both var(--ease-glide);
+    animation-timeline: view();
+    animation-range: entry 0% cover 14%;
+  }
+}
+
+/* Sem suporte nativo, o JS assume: esconde antes para não haver "flash" do
+   conteúdo já posicionado, e o ScrollTrigger revela. A classe só é aplicada
+   pelo provider depois de confirmar que vai mesmo animar — assim quem tem o
+   JS desligado continua vendo o conteúdo. */
+.bs-js-reveal [data-reveal-item] {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
 }
 
 .bs-table-scroll {

@@ -90,6 +90,7 @@ function PlayerCard({ profile, position }: { profile: UserProfile; position: num
 
   return (
     <Link
+      data-reveal-item
       className={`group relative flex min-h-[330px] flex-col overflow-hidden rounded-2xl border bg-[var(--card)] p-5 transition duration-300 hover:-translate-y-1 hover:border-[var(--primary)]/50 ${
         position === 1 ? "border-[var(--primary)]/60 shadow-[0_22px_70px_rgba(0,200,255,0.08)]" : "border-[var(--border)]"
       }`}
@@ -164,6 +165,7 @@ function PlayerTable({ profiles, firstPosition }: { profiles: UserProfile[]; fir
           const position = firstPosition + index;
           return (
             <Link
+              data-reveal-item
               className="group grid grid-cols-[44px_1fr_auto] items-center gap-3 px-4 py-4 transition-colors hover:bg-white/[0.025] md:grid-cols-[64px_2fr_1fr_1fr_1fr_88px] md:gap-4 md:px-5"
               href={getProfilePath(profile.publicId)}
               key={profile.id}

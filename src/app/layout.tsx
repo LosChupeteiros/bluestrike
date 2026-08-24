@@ -6,6 +6,7 @@ import "./globals.css";
 import Header from "@/components/layout/header";
 import HeaderWithUser from "@/components/layout/header-with-user";
 import Footer from "@/components/layout/footer";
+import RevealProvider from "@/components/motion/reveal-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -73,7 +74,15 @@ export default function RootLayout({
         <Suspense fallback={<Header user={null} authState="loading" />}>
           <HeaderWithUser />
         </Suspense>
+        {/* Sentinela de rolagem do header.
+            Fica no topo do documento e é observada por IntersectionObserver em
+            `header.tsx`: quando sai da tela, o header vira o estado compacto.
+            Precisa ser JSX de verdade — no App Router o React é dono dos filhos
+            de <body>, então um nó inserido por `document.body.prepend()` é
+            removido na primeira reconciliação. */}
+        <div id="bs-scroll-sentinel" aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-5" />
         <main className="relative flex-1">{children}</main>
+        <RevealProvider />
         <Footer />
       </body>
     </html>

@@ -119,6 +119,7 @@ export default async function FeaturedTournaments() {
             <Link
               key={campaign.id}
               href={campaign.href}
+              data-reveal-item
               className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all duration-300 hover:-translate-y-1 hover:border-[var(--primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
             >
               {/* Banner inteiro: `contain` em vez de `cover` para não cortar a arte */}
