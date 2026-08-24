@@ -601,8 +601,16 @@ function PostVetoPanel({
   const hasConnection = Boolean(!isPreLive && serverReady && server && !isError && ip && server.port > 0 && server.password);
   const isServerLive = server?.status === "live";
   const connectCmd = hasConnection ? `connect ${ip}:${server!.port}; password ${server!.password}` : "";
+  // Monta o steam:// a partir do IP numérico em vez de usar o `connectString`
+  // gravado no banco. O Dathost devolve o campo `ip` como hostname
+  // (ex.: loboda.dathost.net) no momento em que o servidor é duplicado, e era
+  // esse hostname que ia parar no connect_string — o comando de console
+  // funcionava, porque usa `rawIp`, mas o botão não. O connect_string do banco
+  // fica só como último recurso.
   const steamUrl = hasConnection
-    ? (server!.connectString ?? `steam://connect/${ip}:${server!.port}/${server!.password}`)
+    ? (ip
+        ? `steam://connect/${ip}:${server!.port}/${server!.password}`
+        : (server!.connectString ?? "#"))
     : "#";
   const { copied, copy: copyCmd } = useCopyStr(connectCmd);
 

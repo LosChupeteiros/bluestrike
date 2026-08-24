@@ -100,6 +100,15 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     }
   }
 
+  // Inscrição que ainda vale: "withdrawn" é desistência, então não bloqueia
+  // uma nova. Os demais estados — inclusive "pending", que é pagamento em
+  // andamento — significam que o capitão já ocupou a vaga dele.
+  const inscricoesVigentes = (tournament.registrations ?? []).filter(
+    (r) => r.status !== "withdrawn"
+  );
+  const teamAlreadyRegistered =
+    captainTeams.find((t) => inscricoesVigentes.some((r) => r.teamId === t.id)) ?? null;
+
   let registrationDisabledReason: string | null = null;
 
   if (!registrationOpen) {
@@ -120,6 +129,9 @@ export default async function TournamentDetailPageView({ params }: TournamentDet
     registrationDisabledReason = "Crie um time antes de tentar se inscrever.";
   } else if (!captainTeams.some((team) => team.teamMode === tournament.teamMode)) {
     registrationDisabledReason = `Esse campeonato e de ${modeConfig.label}. Crie um time nessa modalidade para participar.`;
+  } else if (teamAlreadyRegistered) {
+    // Um capitão com vários times ainda só entra uma vez por campeonato.
+    registrationDisabledReason = `${teamAlreadyRegistered.name} já está inscrito neste campeonato.`;
   } else if (isFull) {
     registrationDisabledReason = "Esse campeonato já lotou.";
   }

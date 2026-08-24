@@ -7,24 +7,42 @@ let _pool: mysql.Pool | null = null;
  *
  * Este banco é a fonte da verdade sobre placar, vencedor e ELO: quem conseguir
  * se pôr no meio dessa conexão decide quem ganhou o campeonato. Por isso a
- * verificação vem LIGADA por padrão — ambiente novo que esqueça a variável
- * nasce seguro, em vez de nascer aberto.
+ * verificação vem LIGADA quando a variável está **ausente** — ambiente novo
+ * nasce seguro, em vez de nascer aberto, que era o comportamento anterior.
  *
- * O opt-out precisa ser a palavra exata `insecure`, para ninguém desligar sem
- * saber o que está fazendo. Hoje ele é necessário: o MySQL do Dathost
- * (burn.dathost.net) apresenta certificado que não valida — testado, o
- * handshake falha com HANDSHAKE_SSL_ERROR. Enquanto for assim, a conexão fica
- * cifrada mas sem autenticar a ponta, o que não protege contra MITM.
+ * Hoje o opt-out é necessário: o MySQL do Dathost (`burn.dathost.net`) apresenta
+ * certificado que não valida — testado, o handshake falha com
+ * `HANDSHAKE_SSL_ERROR`. Enquanto for assim, a conexão fica cifrada mas sem
+ * autenticar a ponta, o que não protege contra MITM.
+ *
+ * Os valores de desligamento incluem `false`/`0`/`off` além de `insecure`
+ * porque é isso que já está configurado nos ambientes existentes. Exigir
+ * exatamente `insecure` derrubaria o placar ao vivo em produção no primeiro
+ * deploy — trocar a postura de segurança não pode custar uma quebra silenciosa
+ * de quem já estava rodando.
  */
+const TLS_OPT_OUT = new Set(["insecure", "false", "0", "off", "no"]);
+
 function shouldVerifyTls(): boolean {
-  const optOut = process.env.WEAPONPAINTS_MYSQL_SSL?.trim().toLowerCase() === "insecure";
-  if (optOut) {
+  const bruto = process.env.WEAPONPAINTS_MYSQL_SSL?.trim().toLowerCase();
+
+  // Ausente → verifica (postura segura para ambiente novo).
+  if (bruto === undefined || bruto === "") return true;
+
+  // `strict` era o valor que ligava a verificação no esquema antigo.
+  if (bruto === "strict" || bruto === "true" || bruto === "1") return true;
+
+  if (TLS_OPT_OUT.has(bruto)) {
     console.warn(
-      "[mysql] WEAPONPAINTS_MYSQL_SSL=insecure — certificado do MySQL NÃO verificado. " +
+      `[mysql] WEAPONPAINTS_MYSQL_SSL=${bruto} — certificado do MySQL NÃO verificado. ` +
       "A conexão que decide placar e ELO está sujeita a MITM. Corrigir o certificado do servidor."
     );
+    return false;
   }
-  return !optOut;
+
+  // Valor desconhecido: não adivinha, verifica.
+  console.warn(`[mysql] WEAPONPAINTS_MYSQL_SSL="${bruto}" não reconhecido — verificando certificado.`);
+  return true;
 }
 
 const verifyTls = shouldVerifyTls();

@@ -179,6 +179,43 @@ async function getExistingRegistration(tournamentId: string, teamId: string) {
   return data;
 }
 
+/**
+ * Nome de outro time do mesmo capitão já inscrito no campeonato, se houver.
+ *
+ * Garante a regra de um time por capitão por campeonato. `withdrawn` é
+ * desistência e libera a vaga; os demais estados, inclusive `pending` (que é
+ * pagamento em andamento), já ocupam.
+ */
+async function getCaptainRegistrationInTournament(
+  tournamentId: string,
+  captainProfileId: string,
+  excludeTeamId: string
+): Promise<string | null> {
+  const supabase = createSupabaseAdminClient();
+
+  const { data: timesDoCapitao } = await supabase
+    .from("teams")
+    .select("id, name")
+    .eq("captain_id", captainProfileId)
+    .returns<{ id: string; name: string }[]>();
+
+  const candidatos = (timesDoCapitao ?? []).filter((t) => t.id !== excludeTeamId);
+  if (candidatos.length === 0) return null;
+
+  const { data: inscricoes } = await supabase
+    .from("tournament_registrations")
+    .select("team_id")
+    .eq("tournament_id", tournamentId)
+    .in("team_id", candidatos.map((t) => t.id))
+    .neq("status", "withdrawn")
+    .returns<{ team_id: string }[]>();
+
+  const inscrito = (inscricoes ?? [])[0];
+  if (!inscrito) return null;
+
+  return candidatos.find((t) => t.id === inscrito.team_id)?.name ?? "outro time seu";
+}
+
 async function hasRosterOverlapWithRegistrations(
   tournamentId: string,
   excludeTeamId: string,
@@ -278,6 +315,21 @@ async function validateTeamEligibility(params: {
   const existingRegistration = await getExistingRegistration(tournament.id, params.team.id);
   if (existingRegistration) {
     throw new Error("Seu time ja esta inscrito nesse campeonato.");
+  }
+
+  // Um capitão entra uma vez por campeonato, mesmo tendo vários times.
+  // A checagem de sobreposição de elenco logo abaixo não cobre isso: dois
+  // times do mesmo capitão podem ter elencos completamente diferentes.
+  const outroTimeDoCapitao = await getCaptainRegistrationInTournament(
+    tournament.id,
+    params.profile.id,
+    params.team.id
+  );
+  if (outroTimeDoCapitao) {
+    throw new Error(
+      `Voce ja tem um time inscrito nesse campeonato (${outroTimeDoCapitao}). ` +
+      "Cada capitao pode inscrever apenas um time."
+    );
   }
 
   const [overlapRegistration, overlapIntent] = await Promise.all([

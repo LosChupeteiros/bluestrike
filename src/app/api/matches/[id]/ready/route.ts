@@ -3,6 +3,14 @@ import { getCurrentProfile } from "@/lib/profiles";
 import { readyUpMatch } from "@/lib/match-flow";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
+/**
+ * O segundo ready dispara o provisionamento do servidor dentro de um `after()`,
+ * que roda depois da resposta mas ainda dentro do tempo da função. Provisionar
+ * envolve duplicar o servidor no Dathost, ligar, esperar ficar online (~60s de
+ * polling) e mandar os comandos do MatchZy — não cabe no limite padrão.
+ */
+export const maxDuration = 300;
+
 interface RouteContext {
   params: Promise<{ id: string }>;
 }

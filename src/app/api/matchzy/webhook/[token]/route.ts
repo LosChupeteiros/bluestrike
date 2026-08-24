@@ -123,7 +123,9 @@ function readRoundScores(payload: Record<string, unknown>): { t1: number; t2: nu
 async function ensureFreeArmor(matchId: string): Promise<void> {
   const mode = await getMatchTeamMode(matchId);
   if (!getTeamMode(mode).freeArmor) return;
-  await sendMatchConsoleCommand(matchId, "mp_free_armor 1");
+  await sendMatchConsoleCommand(matchId, "mp_free_armor 1")
+  await sendMatchConsoleCommand(matchId, "mp_freezetime 0")
+  await sendMatchConsoleCommand(matchId, "mp_round_restart_delay 2");
 }
 
 async function handleMatchzyEvent(

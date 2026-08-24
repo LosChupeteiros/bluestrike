@@ -6,7 +6,11 @@ import type { Metadata } from "next";
 import { sanitizeNextPath } from "@/lib/auth/steam";
 import { getCurrentProfile, resolveProfilePath } from "@/lib/profiles";
 
-export const metadata: Metadata = { title: "Entrar" };
+export const metadata: Metadata = {
+  title: "Entrar",
+  // Fora da busca: e pagina de fluxo, e a URL carrega o parametro ?next=.
+  robots: { index: false, follow: false },
+};
 
 const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   steam_not_configured: "A chave da Steam ainda não foi configurada no ambiente.",
