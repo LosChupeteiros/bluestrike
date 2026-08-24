@@ -43,11 +43,12 @@ import EloTrendChart, { type EloTrendPoint } from "@/components/profile/elo-tren
 
 interface ProfileShellViewProps {
   profile: UserProfile;
+  /** `null` quando o jogador nao tem FACEIT vinculado. */
   stats: {
     winRate: number;
     kdRatio: number;
     hsRate: number;
-  };
+  } | null;
   teams: Team[];
   faceitTeams: FaceitTeam[];
   recentMatches: RecentMatchSummary[];
@@ -289,11 +290,14 @@ export default function ProfileShellView({
             </div>
           </header>
 
+          {/* Sem FACEIT vinculado não há estatística para mostrar. O estado
+              vazio é honesto — antes esses três números eram derivados do ELO e
+              apareciam como se fossem desempenho real do jogador. */}
           <div className="bs-bento-card mb-6 grid overflow-hidden sm:grid-cols-3" data-reveal>
             {[
-              { icon: Trophy, label: "Win rate", value: `${stats.winRate}%`, tone: "text-emerald-500" },
-              { icon: Swords, label: "K/D ratio", value: stats.kdRatio.toFixed(2), tone: "text-[var(--foreground)]" },
-              { icon: Target, label: "Headshots", value: `${stats.hsRate}%`, tone: "text-[var(--foreground)]" },
+              { icon: Trophy, label: "Win rate", value: stats ? `${stats.winRate}%` : "—", tone: stats ? "text-emerald-500" : "text-[var(--muted-foreground)]" },
+              { icon: Swords, label: "K/D ratio", value: stats ? stats.kdRatio.toFixed(2) : "—", tone: stats ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]" },
+              { icon: Target, label: "Headshots", value: stats ? `${stats.hsRate}%` : "—", tone: stats ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]" },
             ].map((item, index) => (
               <div key={item.label} className={`flex min-h-36 items-center gap-5 p-6 sm:p-8 ${index > 0 ? "border-t border-[var(--border)] sm:border-l sm:border-t-0" : ""}`}>
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary)]/8 text-[var(--primary)]"><item.icon className="h-5 w-5" /></span>
@@ -301,6 +305,12 @@ export default function ProfileShellView({
               </div>
             ))}
           </div>
+
+          {!stats && (
+            <p className="mb-6 text-center text-xs text-[var(--muted-foreground)]">
+              Conecte uma conta FACEIT no perfil para ver estatísticas de partida.
+            </p>
+          )}
 
           <div className="mb-8">
             <EloTrendChart points={eloTrendPoints} />

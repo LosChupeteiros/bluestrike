@@ -1,12 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ProfileShellView from "./profile-shell-view";
-import {
-  getFallbackProfileStats,
-  getMockProfileByPublicId,
-  getMockProfileStats,
-  getMockTeamsForProfile,
-} from "@/data/competitive-mock";
 import { getProfileAge, getPublicDisplayName, isProfileComplete, toPublicProfile, type UserProfile } from "@/lib/profile";
 import { getCurrentProfile, getFaceitRankingPosition, getProfileByPublicId, refreshFaceitStats, syncFaceitTeams } from "@/lib/profiles";
 import { getTeamsForProfile } from "@/lib/teams";
@@ -38,29 +32,28 @@ function parsePublicId(value: string) {
 }
 
 async function getPageProfile(publicId: number) {
-  const dbProfile = await getProfileByPublicId(publicId);
-
-  if (dbProfile) {
-    return dbProfile;
-  }
-
-  return getMockProfileByPublicId(publicId);
+  return getProfileByPublicId(publicId);
 }
 
-async function getProfilePresentation(profile: UserProfile, useRealTeams: boolean) {
-  const faceitStats =
+async function getProfilePresentation(profile: UserProfile) {
+  // Só estatística real. Antes, quem não tinha FACEIT vinculado recebia números
+  // derivados do ELO (`getFallbackProfileStats`) — um jogador de verdade via
+  // 50% de vitória, 1.00 de K/D e 40% de HS que ninguém tinha jogado para
+  // conquistar, apresentados como se fossem o desempenho dele. `null` aqui é o
+  // que faz a tela mostrar estado vazio em vez de número inventado.
+  const stats =
     profile.faceitKdRatio != null
       ? {
-          winRate: profile.faceitWinRate ?? 50,
+          winRate: profile.faceitWinRate ?? 0,
           kdRatio: profile.faceitKdRatio,
-          hsRate: profile.faceitHsRate ?? 40,
+          hsRate: profile.faceitHsRate ?? 0,
         }
       : null;
 
   return {
-    stats: faceitStats ?? getMockProfileStats(profile.publicId) ?? getFallbackProfileStats(profile),
-    teams: useRealTeams ? await getTeamsForProfile(profile.id) : getMockTeamsForProfile(profile.publicId),
-    recentMatches: useRealTeams ? await getRecentMatchesForProfile(profile.id) : [],
+    stats,
+    teams: await getTeamsForProfile(profile.id),
+    recentMatches: await getRecentMatchesForProfile(profile.id),
   };
 }
 
@@ -98,19 +91,18 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   }
 
   // Atualiza ELO/level Faceit a cada carregamento de página (perfis reais com conta vinculada)
-  if (profile.faceitId && !profile.id.startsWith("mock-profile-")) {
+  if (profile.faceitId) {
     profile = await refreshFaceitStats(profile);
   }
 
   const isOwner = currentProfile?.id === profile.id;
-  const isRealProfile = Boolean(profile.id && !profile.id.startsWith("mock-profile-"));
 
   const [presentation, faceitTeams, faceitRankingPosition] = await Promise.all([
-    getProfilePresentation(profile, isRealProfile),
-    isRealProfile && profile.faceitId
+    getProfilePresentation(profile),
+    profile.faceitId
       ? syncFaceitTeams(profile)
       : Promise.resolve<FaceitTeam[]>([]),
-    isRealProfile && profile.faceitId
+    profile.faceitId
       ? getFaceitRankingPosition(profile.id)
       : Promise.resolve(null),
   ]);
