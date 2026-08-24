@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import { FaceitSkillIcon } from "@/components/ui/faceit-skill-icon";
+
+// Pagina de teste visual, sem dado real. Fora da busca.
+export const metadata: Metadata = {
+  title: "Test rank",
+  robots: { index: false, follow: false },
+};
 
 export default function TestRankPage() {
   const levels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];

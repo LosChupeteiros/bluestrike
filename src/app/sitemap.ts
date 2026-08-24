@@ -43,7 +43,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const supabase = createSupabaseAdminClient();
 
     const [torneios, times, perfis] = await Promise.all([
-      supabase.from("tournaments").select("id, updated_at").limit(1000)
+      // Allowlist de status em vez de "tudo o que existe": se um dia entrar um
+      // status de rascunho ou privado, ele não vaza para a busca por omissão.
+      supabase.from("tournaments").select("id, updated_at")
+        .in("status", ["upcoming", "ongoing", "finished"])
+        .limit(1000)
         .returns<{ id: string; updated_at: string | null }[]>(),
       supabase.from("teams").select("slug, updated_at").limit(2000)
         .returns<{ slug: string | null; updated_at: string | null }[]>(),

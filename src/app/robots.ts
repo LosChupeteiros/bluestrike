@@ -4,13 +4,19 @@ import { getIntegrationBaseUrl } from "@/lib/api-auth";
 /**
  * robots.txt.
  *
- * A ideia é ser achado no Google pelo que atrai jogador — campeonatos, times,
- * ranking, perfis — e manter fora do índice o que é operacional ou pessoal.
+ * Deliberadamente curto. `robots.txt` é público e é a primeira coisa que
+ * qualquer varredura automatizada lê — listar `/admin`, `/dashboard` e afins
+ * aqui seria entregar o mapa da casa a quem nem sabia que esses caminhos
+ * existiam. Nenhum deles fica escondido por `Disallow` de qualquer forma:
+ * quem protege é a checagem de sessão dentro da página.
  *
- * Vale lembrar que isto é orientação para robô que colabora, não controle de
- * acesso: `Disallow` não impede ninguém de acessar a URL. O que protege de
- * verdade é a autorização em cada rota. Aqui só se evita que a página apareça
- * na busca.
+ * Para manter página fora da busca, o certo é `robots: { index: false }` no
+ * `metadata` da própria página — e isso é mais confiável do que `Disallow`,
+ * porque um caminho bloqueado aqui nem chega a ser lido pelo robô, então ele
+ * nunca vê a instrução de não indexar e pode listar a URL crua mesmo assim.
+ *
+ * Só `/api/` continua aqui, porque resposta JSON não tem `<head>` onde pendurar
+ * a meta tag.
  */
 export default function robots(): MetadataRoute.Robots {
   const base = getIntegrationBaseUrl();
@@ -20,18 +26,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: [
-          "/api/",             // nada de API no índice
-          "/admin",            // painel administrativo
-          "/chupeteiromestre", // sala de pug interna
-          "/dashboard",        // área logada
-          "/testrank",         // página de teste
-          "/auth/",            // fluxo de login
-          "/*?next=",          // parâmetro de redirect pós-login
-        ],
+        disallow: ["/api/"],
       },
     ],
     sitemap: `${base}/sitemap.xml`,
-    host: base,
   };
 }
