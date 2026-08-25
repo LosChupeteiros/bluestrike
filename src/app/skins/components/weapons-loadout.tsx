@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Image from "next/image";
+import { FactionBadge } from "@/components/ui/faction-badge";
 import { Link2, Link2Off } from "lucide-react";
 import type { SkinEntry, LoadoutSkin } from "@/lib/weaponpaints/types";
 import { getWeaponSide, weaponMatchesSide, sideToTeam, type WeaponSide } from "@/lib/weaponpaints/weapon-sides";
@@ -228,21 +229,10 @@ export function WeaponsLoadout({ weapons, currentSkinsCT, currentSkinsT }: Weapo
                 {option.id === "both" ? (
                   <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
                 ) : (
-                  // Marcador da cor do lado, no mesmo idioma do SideBadge das
-                  // armas. Substitui os logos de CT/TR: os arquivos apontados
-                  // (`/assets/sides/*.webp`) nunca existiram no repositório e
-                  // renderizavam quebrados.
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "h-2.5 w-2.5 shrink-0 rounded-[3px] ring-1 transition-opacity",
-                      !isActive && "opacity-40"
-                    )}
-                    style={{
-                      backgroundColor: `color-mix(in srgb, ${option.accent} 30%, transparent)`,
-                      borderColor: option.accent,
-                      boxShadow: `inset 0 0 0 1px ${option.accent}`,
-                    }}
+                  <FactionBadge
+                    side={option.id}
+                    size="sm"
+                    className={cn("transition-opacity", !isActive && "opacity-45")}
                   />
                 )}
                 {option.label}
